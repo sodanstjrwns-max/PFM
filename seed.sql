@@ -6,11 +6,11 @@
 INSERT OR IGNORE INTO hospitals (id, name, phone, address) VALUES
   ('h-demo', '서울비디치과', '02-1234-5678', '서울특별시 강남구 테헤란로 123');
 
-INSERT OR IGNORE INTO users (id, hospital_id, email, password_hash, name, role) VALUES
-  ('u-admin', 'h-demo', 'admin@seoulbd.com', '$pbkdf2$admin123', '문석준', 'admin'),
-  ('u-mgr', 'h-demo', 'manager@seoulbd.com', '$pbkdf2$manager1', '김수현', 'manager'),
-  ('u-staff1', 'h-demo', 'hygienist1@seoulbd.com', '$pbkdf2$staff123', '박지은', 'staff'),
-  ('u-staff2', 'h-demo', 'assistant1@seoulbd.com', '$pbkdf2$staff123', '이하늘', 'staff');
+INSERT OR IGNORE INTO users (id, hospital_id, email, password_hash, name, role, is_doctor) VALUES
+  ('u-admin', 'h-demo', 'admin@seoulbd.com', '$pbkdf2$admin123', '문석준', 'admin', 1),
+  ('u-mgr', 'h-demo', 'manager@seoulbd.com', '$pbkdf2$manager1', '김수현', 'manager', 1),
+  ('u-staff1', 'h-demo', 'hygienist1@seoulbd.com', '$pbkdf2$staff123', '박지은', 'staff', 0),
+  ('u-staff2', 'h-demo', 'assistant1@seoulbd.com', '$pbkdf2$staff123', '이하늘', 'staff', 0);
 
 -- ═══ 카테고리: 설명자료 ═══
 INSERT OR IGNORE INTO categories (id, hospital_id, module, name, icon, sort_order) VALUES
@@ -144,15 +144,23 @@ INSERT OR IGNORE INTO chairs (id, hospital_id, chair_number, floor, room_name, s
   ('ch-7', 'h-demo', 7, '4F', '교정실', 7);
 
 -- ═══ 샘플 진료보드 (오늘 날짜는 seed시 수동 설정 필요. 일단 고정 날짜) ═══
-INSERT OR IGNORE INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, status, priority, appointment_time) VALUES
-  ('tb-1', 'h-demo', 'ch-2', '2026-03-26', '강민우', 'existing', '20240312', 'u-admin', 'u-staff1', '라미네이트 + 브릿지 셋팅 리메이크', 'prosth', 'arrived', 'normal', '09:30'),
-  ('tb-2', 'h-demo', 'ch-4', '2026-03-26', '김학권', 'existing', '20250115', 'u-admin', 'u-staff2', '전체적 검진 후 임플란트 상담', 'implant', 'waiting', 'normal', '10:00'),
-  ('tb-3', 'h-demo', 'ch-7', '2026-03-26', '맹선영', 'new', '', NULL, 'u-staff1', '오른쪽 윗 어금니 시림/통증', 'general', 'seating', 'high', '10:30'),
-  ('tb-4', 'h-demo', 'ch-7', '2026-03-26', '윤명한', 'existing', '20231108', 'u-admin', 'u-staff2', '상악 틀니 체크', 'prosth', 'completed', 'normal', '09:00'),
-  ('tb-5', 'h-demo', 'ch-3', '2026-03-26', '이동희', 'existing', '20240520', 'u-mgr', 'u-staff1', '3개월 정기검진', 'checkup', 'completed', 'low', '09:30'),
-  ('tb-6', 'h-demo', 'ch-1', '2026-03-26', '박서준', 'new', '', 'u-admin', NULL, '임플란트 1차 식립 (46번)', 'implant', 'in_treatment', 'high', '11:00'),
-  ('tb-7', 'h-demo', 'ch-5', '2026-03-26', '최유나', 'existing', '20250201', 'u-admin', 'u-staff2', '신경치료 2회차', 'endo', 'doctor_needed', 'urgent', '10:30'),
-  ('tb-8', 'h-demo', NULL, '2026-03-26', '한지민', 'referral', '', NULL, NULL, '교정 상담 (소개 환자)', 'ortho', 'waiting', 'normal', '11:30');
+-- sort_order = 원장이 가야할 순서 (낮을수록 먼저!)
+-- assigned_doctor = NULL → 대기 컬럼, 원장ID → 해당 원장 컬럼
+INSERT OR IGNORE INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, status, priority, appointment_time, sort_order) VALUES
+  -- 🔔 문석준 원장 컬럼 (sort_order순 = 이동 순서)
+  ('tb-7', 'h-demo', 'ch-5', '2026-03-26', '최유나', 'existing', '20250201', 'u-admin', 'u-staff2', '신경치료 2회차 - 근관 충전', 'endo', 'doctor_needed', 'urgent', '10:30', 1),
+  ('tb-6', 'h-demo', 'ch-1', '2026-03-26', '박서준', 'new', '', 'u-admin', NULL, '임플란트 1차 식립 (46번)', 'implant', 'in_treatment', 'high', '11:00', 2),
+  ('tb-1', 'h-demo', 'ch-2', '2026-03-26', '강민우', 'existing', '20240312', 'u-admin', 'u-staff1', '라미네이트 + 브릿지 셋팅 리메이크', 'prosth', 'arrived', 'normal', '09:30', 3),
+  ('tb-2', 'h-demo', 'ch-4', '2026-03-26', '김학권', 'existing', '20250115', 'u-admin', 'u-staff2', '전체적 검진 후 임플란트 상담', 'implant', 'waiting', 'normal', '10:00', 4),
+  ('tb-4', 'h-demo', 'ch-7', '2026-03-26', '윤명한', 'existing', '20231108', 'u-admin', 'u-staff2', '상악 틀니 체크', 'prosth', 'completed', 'normal', '09:00', 99),
+  -- 🩺 김수현 원장 컬럼
+  ('tb-5', 'h-demo', 'ch-3', '2026-03-26', '이동희', 'existing', '20240520', 'u-mgr', 'u-staff1', '3개월 정기검진', 'checkup', 'in_treatment', 'low', '09:30', 1),
+  ('tb-9', 'h-demo', 'ch-6', '2026-03-26', '정윤서', 'existing', '20250110', 'u-mgr', NULL, '스케일링 + 잇몸 치료', 'perio', 'arrived', 'normal', '10:00', 2),
+  ('tb-10', 'h-demo', NULL, '2026-03-26', '이승민', 'new', '', 'u-mgr', 'u-staff2', '충치 5개 레진 수복', 'general', 'waiting', 'high', '10:30', 3),
+  -- 📋 대기 컬럼 (아직 원장 미배정)
+  ('tb-3', 'h-demo', 'ch-7', '2026-03-26', '맹선영', 'new', '', NULL, 'u-staff1', '오른쪽 윗 어금니 시림/통증', 'general', 'seating', 'high', '10:30', 1),
+  ('tb-8', 'h-demo', NULL, '2026-03-26', '한지민', 'referral', '', NULL, NULL, '교정 상담 (소개 환자)', 'ortho', 'waiting', 'normal', '11:30', 2),
+  ('tb-11', 'h-demo', NULL, '2026-03-26', '오서진', 'new', '', NULL, NULL, '사랑니 발치 상담', 'extraction', 'arrived', 'normal', '11:00', 3);
 
 -- ═══ 샘플 상담 데이터 ═══
 INSERT OR IGNORE INTO consultations (id, hospital_id, patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, status, assigned_counselor, estimated_amount, agreed_amount, paid_amount, consultation_date) VALUES

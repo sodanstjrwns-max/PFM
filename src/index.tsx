@@ -707,7 +707,14 @@ app.delete('/api/protected/chairs/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 진료보드 (날짜별)
+// 원장(의사) 목록 조회
+app.get('/api/protected/doctors', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare('SELECT id, name, role FROM users WHERE hospital_id=? AND is_doctor=1 AND is_active=1 ORDER BY role, name').bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
+
+// 진료보드 (날짜별) — sort_order 기준 정렬 (원장이 이동해야 할 순서)
 app.get('/api/protected/treatment-board', async (c) => {
   const user = c.get('user')!
   const date = c.req.query('date') || new Date().toISOString().split('T')[0]
@@ -719,19 +726,7 @@ app.get('/api/protected/treatment-board', async (c) => {
     LEFT JOIN users d ON tb.assigned_doctor = d.id
     LEFT JOIN users s ON tb.assigned_staff = s.id
     WHERE tb.hospital_id = ? AND tb.board_date = ?
-    ORDER BY
-      CASE tb.status
-        WHEN 'doctor_needed' THEN 0
-        WHEN 'in_treatment' THEN 1
-        WHEN 'seating' THEN 2
-        WHEN 'arrived' THEN 3
-        WHEN 'waiting' THEN 4
-        WHEN 'completed' THEN 5
-        WHEN 'cancelled' THEN 6
-        WHEN 'no_show' THEN 7
-      END,
-      CASE tb.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      tb.appointment_time
+    ORDER BY tb.sort_order ASC, tb.appointment_time ASC
   `).bind(user.hospitalId, date).all()
   return c.json(rows.results)
 })
@@ -742,7 +737,14 @@ app.post('/api/protected/treatment-board', async (c) => {
   if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
   const date = board_date || new Date().toISOString().split('T')[0]
-  await c.env.DB.prepare(`INSERT INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, appointment_time, notes, priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, chair_id||null, date, patient_name, patient_type||'existing', chart_number||'', assigned_doctor||null, assigned_staff||null, treatment_desc||'', treatment_type||'general', appointment_time||null, notes||'', priority||'normal').run()
+  // 새 카드는 해당 컬럼의 맨 아래에 추가
+  const maxSort = await c.env.DB.prepare(
+    assigned_doctor
+      ? 'SELECT COALESCE(MAX(sort_order),0) as mx FROM treatment_board WHERE hospital_id=? AND board_date=? AND assigned_doctor=?'
+      : 'SELECT COALESCE(MAX(sort_order),0) as mx FROM treatment_board WHERE hospital_id=? AND board_date=? AND assigned_doctor IS NULL'
+  ).bind(...(assigned_doctor ? [user.hospitalId, date, assigned_doctor] : [user.hospitalId, date])).first() as any
+  const sortOrder = (maxSort?.mx || 0) + 1
+  await c.env.DB.prepare(`INSERT INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, appointment_time, notes, priority, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, chair_id||null, date, patient_name, patient_type||'existing', chart_number||'', assigned_doctor||null, assigned_staff||null, treatment_desc||'', treatment_type||'general', appointment_time||null, notes||'', priority||'normal', sortOrder).run()
   return c.json({ id })
 })
 
@@ -752,7 +754,7 @@ app.put('/api/protected/treatment-board/:id', async (c) => {
   const id = c.req.param('id')
   const updates: string[] = []
   const vals: any[] = []
-  const fields: Record<string, string> = { status:'status', chair_id:'chair_id', assigned_doctor:'assigned_doctor', assigned_staff:'assigned_staff', treatment_desc:'treatment_desc', notes:'notes', priority:'priority' }
+  const fields: Record<string, string> = { status:'status', chair_id:'chair_id', assigned_doctor:'assigned_doctor', assigned_staff:'assigned_staff', treatment_desc:'treatment_desc', notes:'notes', priority:'priority', sort_order:'sort_order' }
   for (const [k, col] of Object.entries(fields)) {
     if (body[k] !== undefined) { updates.push(`${col}=?`); vals.push(body[k]) }
   }
@@ -762,6 +764,19 @@ app.put('/api/protected/treatment-board/:id', async (c) => {
   updates.push('updated_at=?'); vals.push(new Date().toISOString())
   vals.push(id, user.hospitalId)
   await c.env.DB.prepare(`UPDATE treatment_board SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 카드 순서 일괄 변경 (드래그 → 원장 이동 + 순서 변경)
+app.put('/api/protected/treatment-board-reorder', async (c) => {
+  const user = c.get('user')!
+  const { items } = await c.req.json() // [{id, assigned_doctor, sort_order}]
+  if (!Array.isArray(items)) return c.json({ error: 'items 배열이 필요합니다' }, 400)
+  const stmts = items.map((item: any) =>
+    c.env.DB.prepare('UPDATE treatment_board SET assigned_doctor=?, sort_order=?, updated_at=? WHERE id=? AND hospital_id=?')
+      .bind(item.assigned_doctor || null, item.sort_order, new Date().toISOString(), item.id, user.hospitalId)
+  )
+  await c.env.DB.batch(stmts)
   return c.json({ success: true })
 })
 

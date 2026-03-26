@@ -2356,21 +2356,16 @@ async function renderHireOnboarding(body, actions) {
   });
 }
 
-/* ═══ 진료보드 (Treatment Board) ═══ */
+/* ═══ 진료보드 (Treatment Board) — 원장별 컬럼 + 대기 ═══ */
 async function renderTreatmentBoard(body, actions) {
   const today = new Date().toISOString().split('T')[0];
   actions.innerHTML = `
     <input type="date" class="form-input" id="tbDatePicker" value="${today}" style="padding:4px 10px;font-size:12px;width:auto">
     <button class="btn btn-primary btn-sm" id="addTreatmentBtn">${ICONS.plus} 환자 등록</button>`;
 
-  const statusFlow = [
-    { id: 'waiting', label: '대기', color: '#94a3b8', emoji: '🕐' },
-    { id: 'arrived', label: '도착', color: '#6366f1', emoji: '🚶' },
-    { id: 'seating', label: '자리안내', color: '#3b82f6', emoji: '💺' },
-    { id: 'in_treatment', label: '진료중', color: '#f59e0b', emoji: '🦷' },
-    { id: 'doctor_needed', label: '원장 필요', color: '#ef4444', emoji: '🔔' },
-    { id: 'completed', label: '완료', color: '#22c55e', emoji: '✅' },
-  ];
+  const statusLabels = { waiting:'대기', arrived:'도착', seating:'자리안내', in_treatment:'진료중', doctor_needed:'원장호출', completed:'완료', cancelled:'취소', no_show:'노쇼' };
+  const statusEmojis = { waiting:'🕐', arrived:'🚶', seating:'💺', in_treatment:'🦷', doctor_needed:'🔔', completed:'✅', cancelled:'❌', no_show:'🚫' };
+  const statusColors = { waiting:'#94a3b8', arrived:'#6366f1', seating:'#3b82f6', in_treatment:'#f59e0b', doctor_needed:'#ef4444', completed:'#22c55e', cancelled:'#94a3b8', no_show:'#94a3b8' };
   const patientTypeLabels = { new:'신환', existing:'구환', emergency:'응급', referral:'소개' };
   const patientTypeColors = { new:'#ef4444', existing:'#3b82f6', emergency:'#f59e0b', referral:'#8b5cf6' };
   const treatmentTypeLabels = { general:'일반진료', implant:'임플란트', ortho:'교정', prosth:'보철', endo:'신경치료', perio:'치주', extraction:'발치', esthetic:'심미', pedo:'소아', emergency:'응급', checkup:'검진', other:'기타' };
@@ -2381,100 +2376,180 @@ async function renderTreatmentBoard(body, actions) {
 
   let boardDate = today;
   let chairs = [];
+  let doctors = [];
+  let allItems = [];
 
   async function loadBoard() {
     const container = document.getElementById('treatmentBoard');
     const summary = document.getElementById('tbSummary');
     try {
-      const [items, chairList, staffList] = await Promise.all([
+      const [items, chairList, doctorList] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
         api('/api/protected/chairs'),
-        api('/api/protected/dashboard').then(d => []).catch(() => [])
+        api('/api/protected/doctors')
       ]);
       chairs = chairList;
+      doctors = doctorList;
+      allItems = items;
 
-      // Summary bar
-      const statusCounts = {};
-      statusFlow.forEach(s => statusCounts[s.id] = 0);
-      items.forEach(i => { if (statusCounts[i.status] !== undefined) statusCounts[i.status]++; });
+      // 원장별 환자 분류
+      const waitingItems = items.filter(i => !i.assigned_doctor && !['completed','cancelled','no_show'].includes(i.status));
+      const completedItems = items.filter(i => ['completed','cancelled','no_show'].includes(i.status));
       const doctorNeeded = items.filter(i => i.status === 'doctor_needed');
+
+      // 전체 요약 바
+      const activeCount = items.filter(i => !['completed','cancelled','no_show'].includes(i.status)).length;
+      const statusCounts = {};
+      items.forEach(i => { statusCounts[i.status] = (statusCounts[i.status]||0) + 1; });
 
       summary.innerHTML = `
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
           <div style="font-size:18px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px">
-            📡 <span>${boardDate === today ? '오늘' : boardDate}</span>
-            <span style="font-size:14px;font-weight:600;color:var(--text-muted)">총 ${items.length}명</span>
+            📡 <span>${boardDate === today ? '오늘의 진료보드' : boardDate}</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text-muted)">총 ${items.length}명 (진행 ${activeCount})</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
-            ${statusFlow.map(s => `<div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:${s.color}15;font-size:12px;font-weight:600;color:${s.color}">${s.emoji} ${s.label} <strong>${statusCounts[s.id]||0}</strong></div>`).join('')}
+            ${Object.entries(statusCounts).filter(([k])=>!['cancelled','no_show'].includes(k)).map(([k,v]) => `<div style="display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;background:${statusColors[k]||'#94a3b8'}15;font-size:11px;font-weight:600;color:${statusColors[k]||'#94a3b8'}">${statusEmojis[k]||''} ${statusLabels[k]||k} ${v}</div>`).join('')}
           </div>
         </div>
         ${doctorNeeded.length ? `<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;animation:pulse 1.5s infinite">
           <span style="font-size:20px">🔔</span>
-          <span style="font-weight:700;color:#ef4444">원장님 필요!</span>
-          ${doctorNeeded.map(d => `<span style="background:white;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #fecaca">${d.chair_number ? d.chair_number+'번 체어' : ''} ${esc(d.patient_name)} - ${esc(d.treatment_desc||treatmentTypeLabels[d.treatment_type]||'')}</span>`).join('')}
+          <span style="font-weight:700;color:#ef4444">원장님 호출!</span>
+          ${doctorNeeded.map(d => `<span style="background:white;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #fecaca">${d.chair_number ? d.chair_number+'번 체어 ' : ''}${esc(d.patient_name)} - ${esc(d.treatment_desc||treatmentTypeLabels[d.treatment_type]||'')}</span>`).join('')}
         </div>` : ''}`;
 
-      // Board columns by status
-      container.innerHTML = statusFlow.map(col => {
-        const colItems = items.filter(i => i.status === col.id);
-        return `<div class="kb-col" data-status="${col.id}" style="min-width:220px">
-          <div class="kb-col-header" style="--col-color:${col.color}">
-            <span>${col.emoji} ${col.label}</span>
-            <span class="kb-col-count" style="background:${col.color}">${colItems.length}</span>
+      // ── 컬럼 빌드: [📋 대기] + [원장별] + [✅ 완료] ──
+      function renderCard(item) {
+        const sc = statusColors[item.status] || '#94a3b8';
+        const ptColor = patientTypeColors[item.patient_type] || '#3b82f6';
+        const isDoctorNeeded = item.status === 'doctor_needed';
+        const isCompleted = ['completed','cancelled','no_show'].includes(item.status);
+        return `<div class="kb-card" draggable="${isCompleted?'false':'true'}" data-id="${item.id}" style="--accent:${isDoctorNeeded?'#ef4444':sc};${isDoctorNeeded?'animation:pulse 2s infinite;':''}${isCompleted?'opacity:0.55;':''}cursor:pointer">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+            <span style="font-size:11px">${statusEmojis[item.status]||''}</span>
+            <span class="kb-card-badge" style="--badge-color:${ptColor};font-size:9px">${patientTypeLabels[item.patient_type]||'구환'}</span>
+            <strong style="font-size:13px">${esc(item.patient_name)}</strong>
+            ${item.chart_number ? `<span style="font-size:9px;color:var(--text-muted)">#${esc(item.chart_number)}</span>` : ''}
           </div>
-          <div class="kb-col-body">
-            ${colItems.length ? colItems.map(item => {
-              const ptColor = patientTypeColors[item.patient_type] || '#3b82f6';
-              return `<div class="kb-card" draggable="true" data-id="${item.id}" style="--accent:${col.id==='doctor_needed'?'#ef4444':ptColor};${col.id==='doctor_needed'?'animation:pulse 2s infinite;':''}">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                  <span class="kb-card-badge" style="--badge-color:${ptColor}">${patientTypeLabels[item.patient_type]||'구환'}</span>
-                  <strong style="font-size:14px">${esc(item.patient_name)}</strong>
-                  ${item.chart_number ? `<span style="font-size:10px;color:var(--text-muted)">#${esc(item.chart_number)}</span>` : ''}
-                </div>
-                <div class="kb-card-desc">${esc(item.treatment_desc || treatmentTypeLabels[item.treatment_type] || '')}</div>
-                <div class="kb-card-meta">
-                  ${item.chair_number ? `<span class="kb-card-info">💺 ${item.chair_number}번</span>` : ''}
-                  ${item.doctor_name ? `<span class="kb-card-info">👨‍⚕️ ${esc(item.doctor_name)}</span>` : ''}
-                  ${item.staff_name ? `<span class="kb-card-info">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
-                  ${item.appointment_time ? `<span class="kb-card-info" style="margin-left:auto">⏰ ${item.appointment_time}</span>` : ''}
-                </div>
-              </div>`;
-            }).join('') : `<div class="kb-col-empty">${col.id==='doctor_needed'?'👍 원장님 호출 없음':'없음'}</div>`}
+          <div class="kb-card-desc">${esc(item.treatment_desc || treatmentTypeLabels[item.treatment_type] || '')}</div>
+          <div class="kb-card-meta">
+            ${item.chair_number ? `<span class="kb-card-info">💺 ${item.chair_number}번</span>` : ''}
+            ${item.staff_name ? `<span class="kb-card-info">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
+            ${item.appointment_time ? `<span class="kb-card-info" style="margin-left:auto">⏰ ${item.appointment_time}</span>` : ''}
           </div>
         </div>`;
-      }).join('');
-
-      // Also show cancelled/no-show if any
-      const others = items.filter(i => ['cancelled','no_show'].includes(i.status));
-      if (others.length) {
-        container.insertAdjacentHTML('beforeend', `
-          <div class="kb-col" style="min-width:200px;opacity:0.5">
-            <div class="kb-col-header" style="--col-color:#94a3b8"><span>🚫 취소/노쇼</span><span class="kb-col-count" style="background:#94a3b8">${others.length}</span></div>
-            <div class="kb-col-body">${others.map(i => `
-              <div class="kb-card" data-id="${i.id}" style="--accent:#94a3b8;cursor:pointer">
-                <div class="kb-card-title" style="text-decoration:line-through;opacity:0.7">${esc(i.patient_name)}</div>
-                <div class="kb-card-meta"><span class="kb-card-info">${i.status==='no_show'?'노쇼':'취소'}</span></div>
-              </div>`).join('')}</div>
-          </div>`);
       }
 
-      // Drag & Drop
-      initKanbanDnD(container, async (itemId, newStatus) => {
-        try {
-          await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ status: newStatus }});
-          toast(statusFlow.find(s=>s.id===newStatus)?.label + ' 처리됨', 'success');
-          loadBoard();
-        } catch(e) { toast(e.message, 'error'); loadBoard(); }
+      let html = '';
+
+      // 1) 📋 대기 컬럼 (원장 미배정)
+      html += `<div class="kb-col" data-doctor-id="" style="min-width:240px">
+        <div class="kb-col-header" style="--col-color:#94a3b8">
+          <span>📋 진료실 대기</span>
+          <span class="kb-col-count" style="background:#94a3b8">${waitingItems.length}</span>
+        </div>
+        <div class="kb-col-body">
+          ${waitingItems.length ? waitingItems.map(renderCard).join('') : '<div class="kb-col-empty">대기 환자 없음 👍</div>'}
+        </div>
+      </div>`;
+
+      // 2) 원장별 컬럼
+      const docColors = ['#0f766e', '#6366f1', '#c026d3', '#ea580c', '#0284c7', '#b91c1c'];
+      doctors.forEach((doc, idx) => {
+        const docItems = items.filter(i => i.assigned_doctor === doc.id && !['completed','cancelled','no_show'].includes(i.status));
+        const docColor = docColors[idx % docColors.length];
+        const hasUrgent = docItems.some(i => i.status === 'doctor_needed');
+        html += `<div class="kb-col" data-doctor-id="${doc.id}" style="min-width:260px;${hasUrgent?'border:2px solid #ef4444;':''}">
+          <div class="kb-col-header" style="--col-color:${docColor}">
+            <span>👨‍⚕️ ${esc(doc.name)} ${doc.role==='admin'?'원장':'선생'}</span>
+            <span class="kb-col-count" style="background:${docColor}">${docItems.length}</span>
+          </div>
+          <div class="kb-col-body">
+            ${docItems.length ? docItems.map(renderCard).join('') : '<div class="kb-col-empty">배정된 환자 없음</div>'}
+          </div>
+        </div>`;
       });
 
-      // Click card for detail
+      // 3) ✅ 완료 컬럼
+      if (completedItems.length) {
+        html += `<div class="kb-col" data-doctor-id="__completed__" style="min-width:200px;opacity:0.6">
+          <div class="kb-col-header" style="--col-color:#22c55e">
+            <span>✅ 완료</span>
+            <span class="kb-col-count" style="background:#22c55e">${completedItems.length}</span>
+          </div>
+          <div class="kb-col-body">${completedItems.map(renderCard).join('')}</div>
+        </div>`;
+      }
+
+      container.innerHTML = html;
+
+      // ── 드래그 & 드롭: 원장 컬럼 간 이동 ──
+      let _tbDrag = null;
+      container.addEventListener('dragstart', (e) => {
+        const card = e.target.closest('[draggable="true"]');
+        if (!card) return;
+        _tbDrag = { id: card.dataset.id, fromCol: card.closest('.kb-col')?.dataset.doctorId };
+        card.classList.add('kb-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+      });
+      container.addEventListener('dragend', (e) => {
+        const card = e.target.closest('[draggable="true"]');
+        if (card) card.classList.remove('kb-dragging');
+        container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+        _tbDrag = null;
+      });
+      container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const col = e.target.closest('.kb-col');
+        container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+        if (col && _tbDrag && col.dataset.doctorId !== '__completed__' && col.dataset.doctorId !== _tbDrag.fromCol) col.classList.add('kb-drag-over');
+      });
+      container.addEventListener('dragleave', (e) => {
+        const col = e.target.closest('.kb-col');
+        if (col && !col.contains(e.relatedTarget)) col.classList.remove('kb-drag-over');
+      });
+      container.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const col = e.target.closest('.kb-col');
+        container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+        if (!col || !_tbDrag || col.dataset.doctorId === '__completed__') return;
+        const newDocId = col.dataset.doctorId; // '' = 대기, 'u-xxx' = 원장
+        if (newDocId === _tbDrag.fromCol) return;
+
+        // 이동한 카드를 새 컬럼의 맨 위(sort_order=0)에 넣고, 기존 카드들 순서 재정렬
+        const draggedId = _tbDrag.id;
+        _tbDrag = null;
+
+        // 새 컬럼의 기존 카드들
+        const existingInCol = allItems.filter(i =>
+          (newDocId === '' ? !i.assigned_doctor : i.assigned_doctor === newDocId) &&
+          !['completed','cancelled','no_show'].includes(i.status) &&
+          i.id !== draggedId
+        );
+        const reorderItems = [
+          { id: draggedId, assigned_doctor: newDocId || null, sort_order: 1 },
+          ...existingInCol.map((item, idx) => ({
+            id: item.id, assigned_doctor: newDocId || null, sort_order: idx + 2
+          }))
+        ];
+        try {
+          await api('/api/protected/treatment-board-reorder', { method:'PUT', json:{ items: reorderItems }});
+          const docName = newDocId ? doctors.find(d=>d.id===newDocId)?.name||'' : '대기';
+          toast(`${docName}${newDocId?'에게':''} 배정됨 (맨 위)`, 'success');
+          loadBoard();
+        } catch(err) { toast(err.message, 'error'); loadBoard(); }
+      });
+
+      // 카드 클릭 → 상세
       container.querySelectorAll('.kb-card').forEach(el => {
         el.addEventListener('click', (e) => {
           if (el.classList.contains('kb-dragging')) return;
-          openTreatmentDetail(el.dataset.id, items, loadBoard);
+          openTreatmentDetail(el.dataset.id, allItems, loadBoard, doctors, chairs);
         });
       });
+
     } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
   }
   loadBoard();
@@ -2485,10 +2560,6 @@ async function renderTreatmentBoard(body, actions) {
   });
 
   document.getElementById('addTreatmentBtn').addEventListener('click', async () => {
-    let staffList = [];
-    try { staffList = await api('/api/protected/chairs'); } catch(e) {}
-    let users = [];
-    // Can't easily get users, so we'll skip that
     const modal = document.getElementById('modalContent');
     modal.style.maxWidth = '600px';
     modal.innerHTML = `
@@ -2508,6 +2579,10 @@ async function renderTreatmentBoard(body, actions) {
           </select></div>
           <div class="form-group"><label>체어</label><select class="form-input" id="tbChair"><option value="">미배정</option>${chairs.map(c => `<option value="${c.id}">${c.chair_number}번 ${c.room_name?'('+esc(c.room_name)+')':''}</option>`).join('')}</select></div>
         </div>
+        <div class="form-group"><label>담당 원장</label><select class="form-input" id="tbDoctor">
+          <option value="">📋 대기 (미배정)</option>
+          ${doctors.map(d => `<option value="${d.id}">👨‍⚕️ ${esc(d.name)} ${d.role==='admin'?'원장':'선생'}</option>`).join('')}
+        </select></div>
         <div class="form-group"><label>진료 내용</label><input class="form-input" id="tbDesc" placeholder="예: 임플란트 2차 수술, 크라운 세팅 등"></div>
         <div class="form-group"><label>메모</label><textarea class="form-input" id="tbNotes" rows="2" placeholder="특이사항, 주의사항"></textarea></div>
       </form></div>
@@ -2525,6 +2600,7 @@ async function renderTreatmentBoard(body, actions) {
           patient_type: document.getElementById('tbType').value,
           chart_number: document.getElementById('tbChart').value,
           chair_id: document.getElementById('tbChair').value || null,
+          assigned_doctor: document.getElementById('tbDoctor').value || null,
           treatment_type: document.getElementById('tbTreatType').value,
           treatment_desc: document.getElementById('tbDesc').value,
           appointment_time: document.getElementById('tbTime').value || null,
@@ -2537,7 +2613,7 @@ async function renderTreatmentBoard(body, actions) {
   });
 }
 
-function openTreatmentDetail(itemId, items, reload) {
+function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
   const item = items.find(i => i.id === itemId);
   if (!item) return;
   const statusFlow = [
@@ -2545,7 +2621,7 @@ function openTreatmentDetail(itemId, items, reload) {
     { id: 'arrived', label: '도착', emoji: '🚶' },
     { id: 'seating', label: '자리안내', emoji: '💺' },
     { id: 'in_treatment', label: '진료중', emoji: '🦷' },
-    { id: 'doctor_needed', label: '원장 필요!', emoji: '🔔' },
+    { id: 'doctor_needed', label: '원장호출', emoji: '🔔' },
     { id: 'completed', label: '완료', emoji: '✅' },
   ];
   const treatmentTypeLabels = { general:'일반진료', implant:'임플란트', ortho:'교정', prosth:'보철', endo:'신경치료', perio:'치주', extraction:'발치', esthetic:'심미', pedo:'소아', emergency:'응급', checkup:'검진', other:'기타' };
@@ -2564,13 +2640,20 @@ function openTreatmentDetail(itemId, items, reload) {
         ${item.chart_number ? `<span class="meta-pill">📋 #${esc(item.chart_number)}</span>` : ''}
         <span class="meta-pill">🦷 ${treatmentTypeLabels[item.treatment_type]||item.treatment_type}</span>
         ${item.chair_number ? `<span class="meta-pill">💺 ${item.chair_number}번 체어</span>` : ''}
-        ${item.doctor_name ? `<span class="meta-pill">👨‍⚕️ ${esc(item.doctor_name)}</span>` : ''}
+        ${item.doctor_name ? `<span class="meta-pill">👨‍⚕️ ${esc(item.doctor_name)}</span>` : '<span class="meta-pill" style="background:#fef2f2;color:#ef4444">📋 대기 (미배정)</span>'}
         ${item.staff_name ? `<span class="meta-pill">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
         ${item.appointment_time ? `<span class="meta-pill">⏰ ${item.appointment_time}</span>` : ''}
       </div>
       ${item.treatment_desc ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px">${esc(item.treatment_desc)}</div>` : ''}
       ${item.notes ? `<div style="background:#eff6ff;padding:10px 12px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:16px"><strong>메모:</strong> ${esc(item.notes)}</div>` : ''}
-      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">진료 진행 상태</div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">담당 원장 변경</div>
+      <select class="form-input" id="tbDocSelect" style="margin-bottom:16px;font-size:13px">
+        <option value="" ${!item.assigned_doctor?'selected':''}>📋 대기 (미배정)</option>
+        ${(doctors||[]).map(d => `<option value="${d.id}" ${item.assigned_doctor===d.id?'selected':''}}>👨‍⚕️ ${esc(d.name)}</option>`).join('')}
+      </select>
+
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">진료 상태</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap" id="tbStatusBtns">
         ${statusFlow.map(s => `<button class="btn ${item.status===s.id?'btn-primary':'btn-secondary'} btn-sm" data-status="${s.id}" style="flex:1;min-width:70px;font-size:11px">${s.emoji} ${s.label}</button>`).join('')}
       </div>
@@ -2591,6 +2674,13 @@ function openTreatmentDetail(itemId, items, reload) {
     await api('/api/protected/treatment-board/' + itemId, { method:'DELETE' });
     toast('삭제됨', 'success'); modal.style.maxWidth=''; closeModal(); reload();
   });
+  // 원장 변경
+  document.getElementById('tbDocSelect').addEventListener('change', async (e) => {
+    const newDoc = e.target.value || null;
+    await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ assigned_doctor: newDoc }});
+    toast('원장 변경됨', 'success'); modal.style.maxWidth=''; closeModal(); reload();
+  });
+  // 상태 변경
   modal.querySelectorAll('[data-status]').forEach(btn => {
     btn.addEventListener('click', async () => {
       await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ status: btn.dataset.status }});

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   name          TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'staff' CHECK(role IN ('admin','manager','staff')),
+  is_doctor     INTEGER DEFAULT 0,
   is_active     INTEGER DEFAULT 1,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -370,6 +371,7 @@ CREATE TABLE IF NOT EXISTS treatment_board (
   treatment_type  TEXT DEFAULT 'general' CHECK(treatment_type IN ('general','implant','ortho','prosth','endo','perio','extraction','esthetic','pedo','emergency','checkup','other')),
   status          TEXT DEFAULT 'waiting' CHECK(status IN ('waiting','arrived','seating','in_treatment','doctor_needed','completed','cancelled','no_show')),
   priority        TEXT DEFAULT 'normal' CHECK(priority IN ('urgent','high','normal','low')),
+  sort_order      INTEGER DEFAULT 0,
   appointment_time TEXT,
   arrived_at      DATETIME,
   treatment_started_at DATETIME,
@@ -380,6 +382,7 @@ CREATE TABLE IF NOT EXISTS treatment_board (
 );
 CREATE INDEX idx_treatment_board_date    ON treatment_board(hospital_id, board_date, status);
 CREATE INDEX idx_treatment_board_chair   ON treatment_board(chair_id, board_date);
+CREATE INDEX idx_treatment_board_doctor  ON treatment_board(assigned_doctor, board_date);
 
 -- ═══ 9. 상담관리: 파이프라인 + 기록 + 전환율 ═══
 
