@@ -3,5 +3,3 @@ dist/
 .wrangler/
 .dev.vars
 *.log
-.pm2/
-pids/

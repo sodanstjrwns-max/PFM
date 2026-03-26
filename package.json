@@ -1,20 +1,22 @@
 {
-  "name": "webapp",
+  "name": "patient-funnel-manager",
+  "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "wrangler pages dev",
-    "deploy": "npm run build && wrangler pages deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
+    "deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
-    "hono": "^4.12.9"
+    "hono": "^4.7.0"
   },
   "devDependencies": {
-    "@hono/vite-build": "^1.2.0",
-    "@hono/vite-dev-server": "^0.18.2",
-    "vite": "^6.3.5",
-    "wrangler": "^4.4.0"
+    "@cloudflare/workers-types": "^4.20250313.0",
+    "@hono/vite-cloudflare-pages": "^0.4.2",
+    "vite": "^6.2.0",
+    "wrangler": "^3.114.0",
+    "typescript": "^5.7.0"
   }
 }

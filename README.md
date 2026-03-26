@@ -1,139 +1,124 @@
-# Patient Hire - 병의원 채용 관리 시스템
+# Patient Funnel Manager (PF Manager)
 
 ## 프로젝트 개요
-- **이름**: Patient Hire
-- **목표**: 병의원에 특화된 올인원 채용 관리 도구. 지원자 접수부터 면접, 합격, 온보딩까지 전 과정을 한 화면에서 관리합니다.
-- **대상**: 치과, 내과, 정형외과 등 병의원 원장 및 채용 담당자
-- **기술**: Hono + Vanilla JS + localStorage (외부 의존성 없이 Google Fonts만 사용)
+- **이름**: Patient Funnel Manager
+- **목표**: 병의원 통합 관리 플랫폼 - 환자 설명자료, 비용 안내, 케이스 사진 관리를 한 곳에서
+- **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
+- **참고**: [Dental Connect](https://dentalconnet.com)의 기능을 발전시킨 플랫폼
 
-## URLs
-- **Sandbox**: https://3000-iuvrp0m93fbco7sqya61k-8f57ffe2.sandbox.novita.ai
-
-### v2.1 고도화 업데이트 (2026-03-26)
-
-#### 대시보드 개선
-- **KPI 카드**: 아이콘+그래디언트 배경 추가 (전체 지원자/신규/면접/합격)
-- **차트 타이틀**: 모든 차트에 SVG 아이콘 추가 (월별 추이, 채용 기간, 전형단계, ROI, 직종별, 활동)
-- **퍼널 차트**: 트라페조이드 스타일 깔때기형 리디자인 + 전체 전환율 요약
-- **오늘의 할일**: 체크마크 아이콘 추가
-
-#### 모달 UX 개선
-- **등록 모달**: 2열 그리드 레이아웃으로 폼 필드 정리, 타이틀 아이콘
-- **상세 뷰**: 모든 섹션 타이틀에 SVG 아이콘 (기본정보, 첨부링크, 전형단계, 타임라인, 면접일정, 면접질문, 면접평가, 온보딩)
-- **info-item**: 카드형 디자인 (배경+보더+호버 효과)
-
-#### 접근성/반응형
-- **ARIA**: kanban-body에 aria-label, 카드에 role="listitem" + aria-label
-- **모바일**: form-grid 1열 대응 추가
-- **콘솔 에러**: 0건 유지
-
-## 완성된 기능
-
-### 핵심 기능
-- **칸반 보드**: 5단계(서류검토, 1차면접, 2차면접, 최종합격, 불합격) 드래그앤드롭
-- **지원자 목록**: 검색/필터/정렬/페이지네이션 + CSV 내보내기
-- **채용 현황**: 4개 요약 카드 + 전환율 퍼널 + 단계별/직종별/경로별 차트 + 활동 로그
-
-### Phase 1 개선사항 (즉시 적용)
-1. **중복 지원자 방지** - 연락처 기반 중복 체크 + 팝업 안내
-2. **D-Day 뱃지** - 칸반 카드에 가장 가까운 면접까지 D-3 등 표시
-3. **칸반 정렬** - 최신순/오래된순/이름순/면접임박순/평가점수순 드롭다운
-4. **면접 일정 삭제** - 면접 일정별 삭제 버튼
-5. **전화 바로 걸기** - 연락처 tel: 링크
-6. **JSON 백업/복원** - 데이터 전체 백업 다운로드 및 복원
-
-### Phase 2 개선사항 (효율성)
-7. **전환율 퍼널 차트** - 단계별 전환율 시각화 (예: 전체 27%)
-8. **채용공고 분류** - Position 필드 추가, 필터 및 공고별 통계
-9. **일괄 단계 변경** - 체크박스 선택 후 일괄 단계 이동
-10. **경로별 ROI 차트** - 지원경로별 지원수/합격수/합격률
-11. **다크 모드** - 토글 버튼으로 다크/라이트 전환
-
-### Phase 3 개선사항 (차별화)
-12. **면허번호 검증** - 직종별 패턴 검증 (치위YYYY-NNNNN 등)
-13. **타임라인 뷰** - 지원자별 전형 이동 히스토리 시각화
-14. **알림 문구 템플릿** - 단계별 SMS/이메일 템플릿 자동 생성 + 복사
-15. **평가 점수 자동합산** - 5개 항목 평균 + 동일 직종 순위 비교
-16. **통합 검색** - 이름+연락처+메모+면허번호 동시 검색
-
-### 기타 기능
-- **지원자 등록 모달** - 10개 필드 (이름, 연락처, 직종, 경력, 면허번호, 전문과목 등)
-- **지원자 상세 모달** - 기본정보, 단계변경, 면접일정, AI질문, 평가, 온보딩
-- **AI 면접 질문 생성** - Claude sonnet-4 API로 직종/경력 맞춤 질문 5개
-- **온보딩 체크리스트** - 최종합격자 12개 항목 진행률 관리
-- **샘플 데이터** - 6명 (김지은, 박수연, 이미래, 정다은, 최유나, 한소희)
-- **반응형 디자인** - 모바일(<768px) / 태블릿(768-1200px) / 데스크탑(>1200px)
-- **키보드 단축키** - ESC(모달 닫기), Ctrl+N(등록 모달)
-- **정렬 가능한 테이블** - 열 클릭으로 오름차순/내림차순 정렬
-- **마우스 휠 가로 스크롤** - 칸반 보드 편리한 탐색
-- **Favicon** - SVG 인라인 파비콘
-
-## 데이터 구조
-
-### localStorage 키
-- `patientHire_applicants` - 지원자 배열
-- `patientHire_activityLog` - 활동 로그 (최대 200건)
-- `patientHire_apiKey` - Claude API 키
-- `patientHire_theme` - 다크모드 설정
-
-### 지원자 객체
-```json
-{
-  "id": "uuid",
-  "name": "이름",
-  "phone": "010-0000-0000",
-  "role": "치과위생사",
-  "career": "3-5년",
-  "licenseNumber": "치위2019-12345",
-  "specialties": ["치과"],
-  "salary": "350만원",
-  "source": "치과잡",
-  "position": "치과위생사 3월 채용",
-  "memo": "메모",
-  "startDate": "2026-04-01",
-  "stage": "서류검토",
-  "registeredAt": "ISO날짜",
-  "interviewSchedules": [{"type":"1차면접","date":"2026-04-01","time":"14:00","interviewer":"김원장","method":"대면"}],
-  "evaluation": {"expertise":4,"communication":5,"service":4,"teamwork":3,"attitude":5,"comment":"메모"},
-  "aiQuestions": ["질문1","질문2"],
-  "onboarding": {"합격 통보 완료":true},
-  "history": [{"from":"서류검토","to":"1차면접","time":"ISO날짜"}]
-}
-```
-
-## 사용 가이드
-
-1. **지원자 등록**: 헤더의 `+ 지원자 등록` 버튼 또는 `Ctrl+N`
-2. **단계 이동**: 칸반 카드를 드래그하거나 상세 모달에서 단계 버튼 클릭
-3. **면접 일정**: 상세 모달에서 날짜/시간/면접관/방식 입력 후 추가
-4. **AI 질문 생성**: 상세 모달에서 Claude API Key 입력 후 생성 버튼
-5. **평가 입력**: 상세 모달에서 별점(5항목) + 종합의견 입력
-6. **온보딩**: 최종합격 단계에서 12개 체크항목 관리
-7. **데이터 백업**: 헤더 💾 버튼으로 JSON 백업, 📂으로 복원
-8. **다크 모드**: 헤더 🌙 버튼
-
-## 배포
-
-### 기술 스택
-- **Backend**: Hono (Cloudflare Workers)
-- **Frontend**: Vanilla JS + Inline CSS
+## 기술 스택
+- **Backend**: Hono (TypeScript) on Cloudflare Workers
+- **Database**: Cloudflare D1 (SQLite)
+- **Storage**: Cloudflare R2 (파일/이미지)
+- **Auth**: JWT (PBKDF2 + Web Crypto API)
+- **Frontend**: Vanilla JS + CSS (CDN 없이 경량)
 - **Font**: Noto Sans KR (Google Fonts)
-- **저장소**: localStorage (서버 불필요)
-- **AI**: Claude sonnet-4 API (선택사항)
 
-### 로컬 실행
+## 현재 완료된 기능 ✅
+
+### 인증 시스템
+- 병원 등록 (회원가입) - 병원명, 이름, 이메일, 비밀번호
+- 로그인/로그아웃 - JWT 토큰 기반 7일 유효
+- 병원별 데이터 격리 (multi-tenant)
+
+### 대시보드
+- 통계 카드 (설명자료, 비용항목, 케이스, 이미지 수)
+- 빠른 메뉴 (각 모듈 바로가기)
+
+### 사이드바 네비게이션
+- 접을 수 있는 그룹 메뉴 (진료 관리 > 하위메뉴)
+- 확장 가능한 구조 (새 모듈 추가 용이)
+- 모바일 반응형 (햄버거 메뉴)
+
+### 모듈 1: 설명자료 관리
+- 카테고리별 필터링 (임플란트, 충치, 교정 등 10개)
+- 자료 검색 (제목/설명 기반)
+- 파일 업로드 (이미지/동영상/PDF → R2 저장)
+- 카드형 그리드 뷰
+- 프레젠테이션 모드 (전체화면 + 키보드 네비게이션)
+
+### 모듈 2: 비용 안내
+- 카테고리별 시술 비용 테이블
+- 시술명, 최소/최대 비용, 설명 관리
+- CRUD (추가, 수정, 삭제)
+- 병원별 독립 비용 설정
+
+### 모듈 3: 케이스 사진
+- 카테고리별 케이스 카드 뷰
+- Before/During/After 사진 타입 구분
+- 환자 정보 (나이, 성별, 치료기간)
+- 사진 업로드 및 프레젠테이션 모드
+- 케이스 상세 보기 모달
+
+### 설정
+- 병원 정보 확인
+- 계정 관리 (로그아웃)
+
+## URI 구조
+
+### 페이지 (SPA)
+| URL | 설명 |
+|-----|------|
+| `/` | 메인 SPA (로그인/대시보드) |
+| `/static/style.css` | CSS |
+| `/static/app.js` | Frontend JS |
+
+### API 엔드포인트
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/api/auth/register` | 병원 등록 |
+| POST | `/api/auth/login` | 로그인 |
+| GET | `/api/protected/dashboard` | 대시보드 통계 |
+| GET | `/api/protected/categories/:module` | 카테고리 목록 |
+| GET | `/api/protected/materials` | 설명자료 목록 |
+| POST | `/api/protected/materials` | 설명자료 추가 (FormData) |
+| DELETE | `/api/protected/materials/:id` | 설명자료 삭제 |
+| GET | `/api/protected/pricing` | 비용 항목 목록 |
+| POST | `/api/protected/pricing` | 비용 항목 추가 |
+| PUT | `/api/protected/pricing/:id` | 비용 항목 수정 |
+| DELETE | `/api/protected/pricing/:id` | 비용 항목 삭제 |
+| GET | `/api/protected/cases` | 케이스 목록 |
+| POST | `/api/protected/cases` | 케이스 등록 |
+| GET | `/api/protected/cases/:id` | 케이스 상세 |
+| DELETE | `/api/protected/cases/:id` | 케이스 삭제 |
+| POST | `/api/protected/cases/:id/images` | 케이스 사진 추가 |
+| DELETE | `/api/protected/case-images/:id` | 케이스 사진 삭제 |
+| GET | `/api/protected/files/*` | R2 파일 서빙 |
+
+## DB 스키마
+- **hospitals**: 병원 정보 (id, name, phone, address, logo_url)
+- **users**: 사용자 (id, hospital_id, email, password_hash, name, role)
+- **categories**: 카테고리 (module별, 글로벌/병원전용)
+- **materials**: 설명자료 (파일 URL, 타입, 카테고리)
+- **pricing**: 비용 항목 (시술명, 가격 범위)
+- **cases**: 케이스 (환자정보, 치료기간)
+- **case_images**: 케이스 이미지 (before/during/after)
+
+## 데모 계정
+- **이메일**: admin@seoulbd.com
+- **비밀번호**: admin123
+- **병원**: 서울비디치과
+
+## 로컬 실행
 ```bash
 npm install
 npm run build
-npm run preview
+npx wrangler d1 migrations apply pfm-production --local
+npx wrangler d1 execute pfm-production --local --file=./seed.sql
+pm2 start ecosystem.config.cjs
+# http://localhost:3000
 ```
 
-### Cloudflare Pages 배포
-```bash
-npm run build
-npx wrangler pages deploy dist
-```
+## 향후 개발 예정 🔮
+1. **환자 관리(CRM)** - 환자 등록, 방문 이력, 만족도 조사
+2. **채용 관리** - 기존 Patient Hire 기능 통합
+3. **직원 관리** - 스태프 계정, 권한 관리
+4. **마케팅** - 광고 ROI, 유입 경로 분석
+5. **프레젠테이션 도구** - 드로잉/펜 도구, 주석 기능
+6. **Q&A 게시판** - 병원 간 지식 공유
+7. **알림 시스템** - 업데이트, 리마인더
 
+## 배포
 - **플랫폼**: Cloudflare Pages
-- **상태**: ✅ Active
-- **마지막 업데이트**: 2026-03-26
+- **상태**: 🟢 개발 중 (v1.0 MVP)
+- **최종 업데이트**: 2026-03-26
