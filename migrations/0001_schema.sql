@@ -34,7 +34,7 @@ CREATE INDEX idx_users_email    ON users(email);
 CREATE TABLE IF NOT EXISTS categories (
   id            TEXT PRIMARY KEY,
   hospital_id   TEXT REFERENCES hospitals(id) ON DELETE CASCADE,  -- NULL = 글로벌
-  module        TEXT NOT NULL CHECK(module IN ('materials','pricing','cases','scripts','hire')),
+  module        TEXT NOT NULL CHECK(module IN ('materials','pricing','cases','scripts','hire','treatment','consultation')),
   name          TEXT NOT NULL,
   icon          TEXT DEFAULT '📁',
   sort_order    INTEGER DEFAULT 0,
@@ -342,7 +342,82 @@ CREATE TABLE IF NOT EXISTS onboarding_tasks (
 );
 CREATE INDEX idx_onboarding_hospital ON onboarding_tasks(hospital_id, applicant_id);
 
--- ═══ 8. LMS: 교육 과정 ═══
+-- ═══ 8. 진료보드: 실시간 체어 현황판 ═══
+
+CREATE TABLE IF NOT EXISTS chairs (
+  id            TEXT PRIMARY KEY,
+  hospital_id   TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  chair_number  INTEGER NOT NULL,
+  floor         TEXT DEFAULT '',
+  room_name     TEXT DEFAULT '',
+  is_active     INTEGER DEFAULT 1,
+  sort_order    INTEGER DEFAULT 0,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_chairs_hospital ON chairs(hospital_id);
+
+CREATE TABLE IF NOT EXISTS treatment_board (
+  id              TEXT PRIMARY KEY,
+  hospital_id     TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  chair_id        TEXT REFERENCES chairs(id) ON DELETE SET NULL,
+  board_date      TEXT NOT NULL,
+  patient_name    TEXT NOT NULL,
+  patient_type    TEXT DEFAULT 'new' CHECK(patient_type IN ('new','existing','emergency','referral')),
+  chart_number    TEXT DEFAULT '',
+  assigned_doctor TEXT REFERENCES users(id),
+  assigned_staff  TEXT REFERENCES users(id),
+  treatment_desc  TEXT DEFAULT '',
+  treatment_type  TEXT DEFAULT 'general' CHECK(treatment_type IN ('general','implant','ortho','prosth','endo','perio','extraction','esthetic','pedo','emergency','checkup','other')),
+  status          TEXT DEFAULT 'waiting' CHECK(status IN ('waiting','arrived','seating','in_treatment','doctor_needed','completed','cancelled','no_show')),
+  priority        TEXT DEFAULT 'normal' CHECK(priority IN ('urgent','high','normal','low')),
+  appointment_time TEXT,
+  arrived_at      DATETIME,
+  treatment_started_at DATETIME,
+  completed_at    DATETIME,
+  notes           TEXT DEFAULT '',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_treatment_board_date    ON treatment_board(hospital_id, board_date, status);
+CREATE INDEX idx_treatment_board_chair   ON treatment_board(chair_id, board_date);
+
+-- ═══ 9. 상담관리: 파이프라인 + 기록 + 전환율 ═══
+
+CREATE TABLE IF NOT EXISTS consultations (
+  id              TEXT PRIMARY KEY,
+  hospital_id     TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  patient_name    TEXT NOT NULL,
+  patient_phone   TEXT DEFAULT '',
+  patient_age     TEXT DEFAULT '',
+  patient_gender  TEXT DEFAULT '',
+  source_channel  TEXT DEFAULT 'walk_in' CHECK(source_channel IN ('walk_in','phone','naver','instagram','youtube','blog','referral','kakao','homepage','other')),
+  treatment_type  TEXT DEFAULT 'general' CHECK(treatment_type IN ('general','implant','ortho','prosth','endo','perio','extraction','esthetic','pedo','checkup','other')),
+  status          TEXT DEFAULT 'inquiry' CHECK(status IN ('inquiry','reserved','visited','consulting','agreed','payment','treatment','completed','lost','cancelled')),
+  assigned_counselor TEXT REFERENCES users(id),
+  estimated_amount REAL,
+  agreed_amount   REAL,
+  paid_amount     REAL,
+  consultation_date TEXT,
+  next_visit_date TEXT,
+  priority        TEXT DEFAULT 'normal' CHECK(priority IN ('urgent','high','normal','low')),
+  lost_reason     TEXT DEFAULT '',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_consultations_hospital  ON consultations(hospital_id, status);
+CREATE INDEX idx_consultations_date      ON consultations(hospital_id, consultation_date);
+
+CREATE TABLE IF NOT EXISTS consultation_notes (
+  id              TEXT PRIMARY KEY,
+  consultation_id TEXT NOT NULL REFERENCES consultations(id) ON DELETE CASCADE,
+  author_id       TEXT NOT NULL REFERENCES users(id),
+  note_type       TEXT DEFAULT 'general' CHECK(note_type IN ('general','objection','follow_up','treatment_plan','payment','phone_call')),
+  content         TEXT NOT NULL,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_consultation_notes ON consultation_notes(consultation_id);
+
+-- ═══ 10. LMS: 교육 과정 ═══
 
 CREATE TABLE IF NOT EXISTS courses (
   id            TEXT PRIMARY KEY,

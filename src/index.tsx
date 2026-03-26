@@ -683,6 +683,224 @@ app.put('/api/protected/hire/onboarding/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/* ═══ 진료보드 (Treatment Board) ═══ */
+
+// 체어 목록
+app.get('/api/protected/chairs', async (c) => {
+  const user = c.get('user')!
+  const chairs = await c.env.DB.prepare('SELECT * FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number').bind(user.hospitalId).all()
+  return c.json(chairs.results)
+})
+
+app.post('/api/protected/chairs', async (c) => {
+  const user = c.get('user')!
+  const { chair_number, floor, room_name } = await c.req.json()
+  if (!chair_number) return c.json({ error: '체어 번호를 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare('INSERT INTO chairs (id, hospital_id, chair_number, floor, room_name, sort_order) VALUES (?,?,?,?,?,?)').bind(id, user.hospitalId, chair_number, floor||'', room_name||'', chair_number).run()
+  return c.json({ id })
+})
+
+app.delete('/api/protected/chairs/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('UPDATE chairs SET is_active=0 WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// 진료보드 (날짜별)
+app.get('/api/protected/treatment-board', async (c) => {
+  const user = c.get('user')!
+  const date = c.req.query('date') || new Date().toISOString().split('T')[0]
+  const rows = await c.env.DB.prepare(`
+    SELECT tb.*, c.chair_number, c.floor, c.room_name,
+           d.name as doctor_name, s.name as staff_name
+    FROM treatment_board tb
+    LEFT JOIN chairs c ON tb.chair_id = c.id
+    LEFT JOIN users d ON tb.assigned_doctor = d.id
+    LEFT JOIN users s ON tb.assigned_staff = s.id
+    WHERE tb.hospital_id = ? AND tb.board_date = ?
+    ORDER BY
+      CASE tb.status
+        WHEN 'doctor_needed' THEN 0
+        WHEN 'in_treatment' THEN 1
+        WHEN 'seating' THEN 2
+        WHEN 'arrived' THEN 3
+        WHEN 'waiting' THEN 4
+        WHEN 'completed' THEN 5
+        WHEN 'cancelled' THEN 6
+        WHEN 'no_show' THEN 7
+      END,
+      CASE tb.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      tb.appointment_time
+  `).bind(user.hospitalId, date).all()
+  return c.json(rows.results)
+})
+
+app.post('/api/protected/treatment-board', async (c) => {
+  const user = c.get('user')!
+  const { patient_name, patient_type, chart_number, chair_id, assigned_doctor, assigned_staff, treatment_desc, treatment_type, appointment_time, notes, priority, board_date } = await c.req.json()
+  if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  const date = board_date || new Date().toISOString().split('T')[0]
+  await c.env.DB.prepare(`INSERT INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, appointment_time, notes, priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, chair_id||null, date, patient_name, patient_type||'existing', chart_number||'', assigned_doctor||null, assigned_staff||null, treatment_desc||'', treatment_type||'general', appointment_time||null, notes||'', priority||'normal').run()
+  return c.json({ id })
+})
+
+app.put('/api/protected/treatment-board/:id', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const id = c.req.param('id')
+  const updates: string[] = []
+  const vals: any[] = []
+  const fields: Record<string, string> = { status:'status', chair_id:'chair_id', assigned_doctor:'assigned_doctor', assigned_staff:'assigned_staff', treatment_desc:'treatment_desc', notes:'notes', priority:'priority' }
+  for (const [k, col] of Object.entries(fields)) {
+    if (body[k] !== undefined) { updates.push(`${col}=?`); vals.push(body[k]) }
+  }
+  if (body.status === 'arrived') { updates.push('arrived_at=?'); vals.push(new Date().toISOString()) }
+  if (body.status === 'in_treatment') { updates.push('treatment_started_at=?'); vals.push(new Date().toISOString()) }
+  if (body.status === 'completed') { updates.push('completed_at=?'); vals.push(new Date().toISOString()) }
+  updates.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE treatment_board SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+app.delete('/api/protected/treatment-board/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM treatment_board WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// 진료보드 통계
+app.get('/api/protected/treatment-board/stats', async (c) => {
+  const user = c.get('user')!
+  const date = c.req.query('date') || new Date().toISOString().split('T')[0]
+  const stats = await c.env.DB.prepare(`
+    SELECT status, COUNT(*) as count FROM treatment_board
+    WHERE hospital_id=? AND board_date=? GROUP BY status
+  `).bind(user.hospitalId, date).all()
+  const total = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM treatment_board WHERE hospital_id=? AND board_date=?').bind(user.hospitalId, date).first()
+  return c.json({ stats: stats.results, total: (total as any)?.cnt || 0 })
+})
+
+/* ═══ 상담관리 (Consultation) ═══ */
+
+app.get('/api/protected/consultations', async (c) => {
+  const user = c.get('user')!
+  const status = c.req.query('status')
+  const source = c.req.query('source')
+  const treatment = c.req.query('treatment')
+  const period = c.req.query('period') // YYYY-MM
+  let sql = 'SELECT c.*, u.name as counselor_name FROM consultations c LEFT JOIN users u ON c.assigned_counselor = u.id WHERE c.hospital_id = ?'
+  const params: any[] = [user.hospitalId]
+  if (status) { sql += ' AND c.status = ?'; params.push(status) }
+  if (source) { sql += ' AND c.source_channel = ?'; params.push(source) }
+  if (treatment) { sql += ' AND c.treatment_type = ?'; params.push(treatment) }
+  if (period) { sql += ' AND c.consultation_date LIKE ?'; params.push(period + '%') }
+  sql += ' ORDER BY c.created_at DESC'
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
+})
+
+app.post('/api/protected/consultations', async (c) => {
+  const user = c.get('user')!
+  const { patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, assigned_counselor, estimated_amount, consultation_date, notes, priority } = await c.req.json()
+  if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(`INSERT INTO consultations (id, hospital_id, patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, assigned_counselor, estimated_amount, consultation_date, priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, patient_name, patient_phone||'', patient_age||'', patient_gender||'', source_channel||'walk_in', treatment_type||'general', assigned_counselor||null, estimated_amount||null, consultation_date || new Date().toISOString().split('T')[0], priority||'normal').run()
+  // Add initial note if provided
+  if (notes) {
+    const noteId = crypto.randomUUID()
+    await c.env.DB.prepare('INSERT INTO consultation_notes (id, consultation_id, author_id, note_type, content) VALUES (?,?,?,?,?)').bind(noteId, id, user.id, 'general', notes).run()
+  }
+  return c.json({ id })
+})
+
+app.put('/api/protected/consultations/:id', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const id = c.req.param('id')
+  const updates: string[] = []
+  const vals: any[] = []
+  const fields = ['status','assigned_counselor','estimated_amount','agreed_amount','paid_amount','next_visit_date','priority','lost_reason','patient_phone','treatment_type']
+  for (const f of fields) {
+    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
+  }
+  updates.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE consultations SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+app.delete('/api/protected/consultations/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM consultations WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// 상담 노트
+app.get('/api/protected/consultations/:id/notes', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(`
+    SELECT cn.*, u.name as author_name FROM consultation_notes cn
+    LEFT JOIN users u ON cn.author_id = u.id
+    WHERE cn.consultation_id = ?
+    ORDER BY cn.created_at DESC
+  `).bind(c.req.param('id')).all()
+  return c.json(rows.results)
+})
+
+app.post('/api/protected/consultations/:id/notes', async (c) => {
+  const user = c.get('user')!
+  const { content, note_type } = await c.req.json()
+  if (!content) return c.json({ error: '내용을 입력해주세요' }, 400)
+  const noteId = crypto.randomUUID()
+  await c.env.DB.prepare('INSERT INTO consultation_notes (id, consultation_id, author_id, note_type, content) VALUES (?,?,?,?,?)').bind(noteId, c.req.param('id'), user.id, note_type||'general', content).run()
+  return c.json({ id: noteId })
+})
+
+// 상담 전환율 통계
+app.get('/api/protected/consultations/stats/conversion', async (c) => {
+  const user = c.get('user')!
+  const period = c.req.query('period') || new Date().toISOString().slice(0,7)
+  const all = await c.env.DB.prepare(`
+    SELECT status, source_channel, treatment_type, estimated_amount, agreed_amount, paid_amount
+    FROM consultations WHERE hospital_id = ? AND consultation_date LIKE ?
+  `).bind(user.hospitalId, period + '%').all()
+  const rows = all.results as any[]
+  const total = rows.length
+  const visited = rows.filter(r => !['inquiry','reserved','cancelled'].includes(r.status)).length
+  const agreed = rows.filter(r => ['agreed','payment','treatment','completed'].includes(r.status)).length
+  const paid = rows.filter(r => ['payment','treatment','completed'].includes(r.status)).length
+  const completed = rows.filter(r => r.status === 'completed').length
+  const lost = rows.filter(r => r.status === 'lost').length
+  const totalEstimated = rows.reduce((s: number, r: any) => s + (r.estimated_amount||0), 0)
+  const totalAgreed = rows.reduce((s: number, r: any) => s + (r.agreed_amount||0), 0)
+  const totalPaid = rows.reduce((s: number, r: any) => s + (r.paid_amount||0), 0)
+  // By source
+  const bySource: Record<string, { total: number; agreed: number; paid: number }> = {}
+  rows.forEach(r => {
+    if (!bySource[r.source_channel]) bySource[r.source_channel] = { total:0, agreed:0, paid:0 }
+    bySource[r.source_channel].total++
+    if (['agreed','payment','treatment','completed'].includes(r.status)) bySource[r.source_channel].agreed++
+    if (['payment','treatment','completed'].includes(r.status)) bySource[r.source_channel].paid++
+  })
+  // By treatment
+  const byTreatment: Record<string, { total: number; agreed: number; amount: number }> = {}
+  rows.forEach(r => {
+    if (!byTreatment[r.treatment_type]) byTreatment[r.treatment_type] = { total:0, agreed:0, amount:0 }
+    byTreatment[r.treatment_type].total++
+    if (['agreed','payment','treatment','completed'].includes(r.status)) { byTreatment[r.treatment_type].agreed++; byTreatment[r.treatment_type].amount += (r.agreed_amount||0) }
+  })
+  return c.json({
+    total, visited, agreed, paid, completed, lost,
+    conversionRate: total ? Math.round(agreed/total*100) : 0,
+    paymentRate: agreed ? Math.round(paid/agreed*100) : 0,
+    totalEstimated, totalAgreed, totalPaid,
+    bySource, byTreatment
+  })
+})
+
 /* ─── Main Page (SPA) ─── */
 app.get('*', async (c) => {
   // Serve static files from R2 first, then SPA

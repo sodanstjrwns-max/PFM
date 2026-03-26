@@ -132,3 +132,46 @@ INSERT OR IGNORE INTO applicants (id, hospital_id, job_posting_id, name, email, 
   ('ap-2', 'h-demo', 'jp-1', '김민정', 'kimm@email.com', '010-2345-6789', 'screening', 3, '신입, 성실한 태도'),
   ('ap-3', 'h-demo', 'jp-1', '이서연', 'lee@email.com', '010-3456-7890', 'applied', 0, ''),
   ('ap-4', 'h-demo', 'jp-2', '정하나', 'jung@email.com', '010-4567-8901', 'evaluation', 5, '대형치과 5년 경력, 전환율 62% 달성');
+
+-- ═══ 샘플 체어 ═══
+INSERT OR IGNORE INTO chairs (id, hospital_id, chair_number, floor, room_name, sort_order) VALUES
+  ('ch-1', 'h-demo', 1, '2F', '진료실 A', 1),
+  ('ch-2', 'h-demo', 2, '2F', '진료실 A', 2),
+  ('ch-3', 'h-demo', 3, '2F', '진료실 B', 3),
+  ('ch-4', 'h-demo', 4, '3F', '수술실 1', 4),
+  ('ch-5', 'h-demo', 5, '3F', '수술실 2', 5),
+  ('ch-6', 'h-demo', 6, '3F', '수술실 3', 6),
+  ('ch-7', 'h-demo', 7, '4F', '교정실', 7);
+
+-- ═══ 샘플 진료보드 (오늘 날짜는 seed시 수동 설정 필요. 일단 고정 날짜) ═══
+INSERT OR IGNORE INTO treatment_board (id, hospital_id, chair_id, board_date, patient_name, patient_type, chart_number, assigned_doctor, assigned_staff, treatment_desc, treatment_type, status, priority, appointment_time) VALUES
+  ('tb-1', 'h-demo', 'ch-2', '2026-03-26', '강민우', 'existing', '20240312', 'u-admin', 'u-staff1', '라미네이트 + 브릿지 셋팅 리메이크', 'prosth', 'arrived', 'normal', '09:30'),
+  ('tb-2', 'h-demo', 'ch-4', '2026-03-26', '김학권', 'existing', '20250115', 'u-admin', 'u-staff2', '전체적 검진 후 임플란트 상담', 'implant', 'waiting', 'normal', '10:00'),
+  ('tb-3', 'h-demo', 'ch-7', '2026-03-26', '맹선영', 'new', '', NULL, 'u-staff1', '오른쪽 윗 어금니 시림/통증', 'general', 'seating', 'high', '10:30'),
+  ('tb-4', 'h-demo', 'ch-7', '2026-03-26', '윤명한', 'existing', '20231108', 'u-admin', 'u-staff2', '상악 틀니 체크', 'prosth', 'completed', 'normal', '09:00'),
+  ('tb-5', 'h-demo', 'ch-3', '2026-03-26', '이동희', 'existing', '20240520', 'u-mgr', 'u-staff1', '3개월 정기검진', 'checkup', 'completed', 'low', '09:30'),
+  ('tb-6', 'h-demo', 'ch-1', '2026-03-26', '박서준', 'new', '', 'u-admin', NULL, '임플란트 1차 식립 (46번)', 'implant', 'in_treatment', 'high', '11:00'),
+  ('tb-7', 'h-demo', 'ch-5', '2026-03-26', '최유나', 'existing', '20250201', 'u-admin', 'u-staff2', '신경치료 2회차', 'endo', 'doctor_needed', 'urgent', '10:30'),
+  ('tb-8', 'h-demo', NULL, '2026-03-26', '한지민', 'referral', '', NULL, NULL, '교정 상담 (소개 환자)', 'ortho', 'waiting', 'normal', '11:30');
+
+-- ═══ 샘플 상담 데이터 ═══
+INSERT OR IGNORE INTO consultations (id, hospital_id, patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, status, assigned_counselor, estimated_amount, agreed_amount, paid_amount, consultation_date) VALUES
+  ('cs-1', 'h-demo', '김영희', '010-1111-2222', '45', 'F', 'naver', 'implant', 'agreed', 'u-mgr', 800, 750, NULL, '2026-03-20'),
+  ('cs-2', 'h-demo', '이철수', '010-2222-3333', '52', 'M', 'referral', 'implant', 'payment', 'u-mgr', 1200, 1100, 550, '2026-03-18'),
+  ('cs-3', 'h-demo', '박민수', '010-3333-4444', '35', 'M', 'instagram', 'ortho', 'consulting', NULL, 600, NULL, NULL, '2026-03-25'),
+  ('cs-4', 'h-demo', '정수아', '010-4444-5555', '28', 'F', 'phone', 'esthetic', 'visited', 'u-staff1', 200, NULL, NULL, '2026-03-26'),
+  ('cs-5', 'h-demo', '한서연', '010-5555-6666', '40', 'F', 'walk_in', 'prosth', 'completed', 'u-mgr', 500, 480, 480, '2026-03-10'),
+  ('cs-6', 'h-demo', '오진우', '010-6666-7777', '33', 'M', 'youtube', 'implant', 'lost', NULL, 900, NULL, NULL, '2026-03-15'),
+  ('cs-7', 'h-demo', '강민지', '010-7777-8888', '29', 'F', 'naver', 'checkup', 'treatment', 'u-staff1', 50, 50, 50, '2026-03-22'),
+  ('cs-8', 'h-demo', '윤재호', '010-8888-9999', '55', 'M', 'blog', 'perio', 'inquiry', NULL, 300, NULL, NULL, '2026-03-26'),
+  ('cs-9', 'h-demo', '조은별', '010-9999-0000', '38', 'F', 'kakao', 'implant', 'reserved', 'u-mgr', 700, NULL, NULL, '2026-03-27'),
+  ('cs-10', 'h-demo', '신동현', '010-1234-0000', '48', 'M', 'referral', 'prosth', 'payment', 'u-mgr', 400, 380, 380, '2026-03-12');
+
+-- 상담 노트
+INSERT OR IGNORE INTO consultation_notes (id, consultation_id, author_id, note_type, content) VALUES
+  ('cn-1', 'cs-1', 'u-mgr', 'general', '임플란트 2개 식립 희망. 골질 양호. CT 촬영 완료.'),
+  ('cn-2', 'cs-1', 'u-mgr', 'objection', '환자: "비용이 부담됩니다." → 무이자 6개월 할부 안내 후 긍정적 반응'),
+  ('cn-3', 'cs-2', 'u-mgr', 'treatment_plan', '상악 4개 임플란트 + 하악 브릿지. 1차 수술 3/25 예정'),
+  ('cn-4', 'cs-2', 'u-admin', 'payment', '1차 수납 550만원 완료. 잔금 550만원 보철 세팅 시 수납 예정'),
+  ('cn-5', 'cs-3', 'u-staff1', 'general', '투명교정 관심. 비용 상담 진행 중. 치아 사진 촬영 완료'),
+  ('cn-6', 'cs-6', 'u-mgr', 'follow_up', '3회 전화 연결 안 됨. 비용 부담으로 보류 상태로 판단');
