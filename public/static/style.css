@@ -934,3 +934,15 @@ textarea.form-input { resize: vertical; font-family: inherit; }
 select.form-input { cursor: pointer; }
 .post-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 hr { border: none; border-top: 1px solid var(--border); }
+
+/* ─── Hire Module ─── */
+.hire-posting-card:hover, .hire-applicant-card:hover, .hire-interview-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.onboard-task:hover { background: var(--border-light) !important; }
+#hireStatusFilter .active, #appStatusFilter .active {
+  background: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
+}
