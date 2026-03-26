@@ -80,6 +80,21 @@ INSERT OR IGNORE INTO kanban_boards (id, hospital_id, board_type, title) VALUES
   ('kb-purchase', 'h-demo', 'purchase', '물품 구매 요청'),
   ('kb-repair', 'h-demo', 'repair', '수리/정비 요청');
 
+-- ═══ 샘플 칸반 카드: 물품 구매 ═══
+INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, requested_by, estimated_cost, status) VALUES
+  ('kc-p1', 'kb-purchase', 'h-demo', '글러브 L사이즈 3박스', '진료용 니트릴 글러브 재고 부족', 'urgent', 'u-staff1', 5, 'requested'),
+  ('kc-p2', 'kb-purchase', 'h-demo', '석션팁 일회용 500개', '일회용 석션팁 재고 소진 예정', 'high', 'u-staff2', 8, 'approved'),
+  ('kc-p3', 'kb-purchase', 'h-demo', '인상용 트레이 세트', '상악/하악 각 사이즈별 2세트', 'normal', 'u-mgr', 12, 'in_progress'),
+  ('kc-p4', 'kb-purchase', 'h-demo', '광중합기 배터리', '3번 진료실 광중합기 배터리 교체용', 'normal', 'u-admin', 15, 'completed'),
+  ('kc-p5', 'kb-purchase', 'h-demo', 'A2 레진 5개', '필텍 A2 쉐이드 재고 부족', 'high', 'u-staff1', 25, 'requested');
+
+-- ═══ 샘플 칸반 카드: 수리/정비 ═══
+INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, requested_by, estimated_cost, status) VALUES
+  ('kc-r1', 'kb-repair', 'h-demo', '2번 유닛 체어 리클라인 고장', '환자 체어가 뒤로 안 넘어감, 모터 점검 필요', 'urgent', 'u-staff1', 50, 'requested'),
+  ('kc-r2', 'kb-repair', 'h-demo', '파노라마 센서 교정', '촬영 영상 일부 흐림 발생', 'high', 'u-admin', 80, 'approved'),
+  ('kc-r3', 'kb-repair', 'h-demo', '에어컨 필터 교체 (3층)', '냉방 효율 저하, 필터 교체 시기', 'normal', 'u-mgr', 10, 'in_progress'),
+  ('kc-r4', 'kb-repair', 'h-demo', '멸균기 패킹 교체', '고압증기멸균기 패킹 마모', 'high', 'u-staff2', 20, 'requested');
+
 -- ═══ 샘플 체크리스트 ═══
 INSERT OR IGNORE INTO checklists (id, hospital_id, title, checklist_type, items) VALUES
   ('cl-open', 'h-demo', '개원 전 체크리스트', 'daily_open',

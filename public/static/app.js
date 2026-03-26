@@ -1184,6 +1184,46 @@ async function openPostDetail(postId, boardType, reload) {
   } catch(e) { modal.innerHTML = `<div class="modal-body"><h3>로딩 실패</h3></div>`; }
 }
 
+/* ─── Drag & Drop Kanban Engine ─── */
+let _dragData = null;
+function initKanbanDnD(container, onDrop) {
+  container.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('[draggable="true"]');
+    if (!card) return;
+    _dragData = { id: card.dataset.id, fromCol: card.closest('.kb-col')?.dataset.status };
+    card.classList.add('kb-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+  });
+  container.addEventListener('dragend', (e) => {
+    const card = e.target.closest('[draggable="true"]');
+    if (card) card.classList.remove('kb-dragging');
+    container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+    _dragData = null;
+  });
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const col = e.target.closest('.kb-col');
+    container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+    if (col && _dragData && col.dataset.status !== _dragData.fromCol) col.classList.add('kb-drag-over');
+  });
+  container.addEventListener('dragleave', (e) => {
+    const col = e.target.closest('.kb-col');
+    if (col && !col.contains(e.relatedTarget)) col.classList.remove('kb-drag-over');
+  });
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const col = e.target.closest('.kb-col');
+    container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
+    if (!col || !_dragData) return;
+    const newStatus = col.dataset.status;
+    if (newStatus === _dragData.fromCol) return;
+    onDrop(_dragData.id, newStatus);
+    _dragData = null;
+  });
+}
+
 /* ─── Kanban Board (물품구매 / 수리정비) ─── */
 async function renderKanban(body, actions, boardType) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addCardBtn">${ICONS.plus} ${boardType==='purchase'?'구매 요청':'수리 요청'}</button>`;
@@ -1197,7 +1237,7 @@ async function renderKanban(body, actions, boardType) {
   const priorityColors = { urgent:'#ef4444', high:'#f59e0b', normal:'#6366f1', low:'#94a3b8' };
   const priorityLabels = { urgent:'긴급', high:'높음', normal:'보통', low:'낮음' };
 
-  body.innerHTML = `<div id="kanbanBoard" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;min-height:500px"></div>`;
+  body.innerHTML = `<div class="kb-hint">💡 카드를 드래그하여 상태를 변경할 수 있습니다</div><div class="kb-board" id="kanbanBoard"></div>`;
 
   async function loadBoard() {
     const container = document.getElementById('kanbanBoard');
@@ -1207,28 +1247,42 @@ async function renderKanban(body, actions, boardType) {
 
       container.innerHTML = statusCols.map(col => {
         const colCards = cards.filter(c => c.status === col.id);
-        return `<div class="kanban-col" style="min-width:240px;flex:1;background:var(--bg);border-radius:var(--radius);padding:12px">
-          <div style="font-weight:700;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:6px">
-            <span>${col.emoji}</span>
-            <span>${col.label}</span>
-            <span style="background:${col.color};color:white;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:auto">${colCards.length}</span>
+        return `<div class="kb-col" data-status="${col.id}">
+          <div class="kb-col-header" style="--col-color:${col.color}">
+            <span>${col.emoji} ${col.label}</span>
+            <span class="kb-col-count" style="background:${col.color}">${colCards.length}</span>
           </div>
-          ${colCards.map(card => `
-            <div class="kanban-card" data-id="${card.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer;border-left:3px solid ${priorityColors[card.priority]||'#6366f1'}">
-              <div style="font-weight:600;font-size:13px">${esc(card.title)}</div>
-              ${card.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;max-height:32px;overflow:hidden">${esc(card.description)}</div>` : ''}
-              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-                <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${priorityColors[card.priority]}22;color:${priorityColors[card.priority]}">${priorityLabels[card.priority]}</span>
-                ${card.estimated_cost ? `<span style="font-size:10px;color:var(--text-muted)">💰 ${card.estimated_cost}만원</span>` : ''}
-                <span style="font-size:10px;color:var(--text-muted);margin-left:auto">by ${esc(card.requested_by_name)}</span>
+          <div class="kb-col-body">
+            ${colCards.length ? colCards.map(card => `
+              <div class="kb-card" draggable="true" data-id="${card.id}" style="--accent:${priorityColors[card.priority]||'#6366f1'}">
+                <div class="kb-card-title">${esc(card.title)}</div>
+                ${card.description ? `<div class="kb-card-desc">${esc(card.description)}</div>` : ''}
+                <div class="kb-card-meta">
+                  <span class="kb-card-badge" style="--badge-color:${priorityColors[card.priority]}">${priorityLabels[card.priority]}</span>
+                  ${card.estimated_cost ? `<span class="kb-card-info">💰 ${card.estimated_cost}만</span>` : ''}
+                  <span class="kb-card-info" style="margin-left:auto">${esc(card.requested_by_name)}</span>
+                </div>
               </div>
-            </div>
-          `).join('')}
+            `).join('') : '<div class="kb-col-empty">카드 없음</div>'}
+          </div>
         </div>`;
       }).join('');
 
-      container.querySelectorAll('.kanban-card').forEach(el => {
-        el.addEventListener('click', () => openKanbanCardModal(el.dataset.id, cards, boardType, loadBoard));
+      // Drag & Drop
+      initKanbanDnD(container, async (cardId, newStatus) => {
+        try {
+          await api('/api/protected/kanban/cards/' + cardId, { method:'PUT', json:{ status: newStatus }});
+          toast('상태 변경됨!', 'success');
+          loadBoard();
+        } catch(e) { toast(e.message, 'error'); }
+      });
+
+      // Click to open detail
+      container.querySelectorAll('.kb-card').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (el.classList.contains('kb-dragging')) return;
+          openKanbanCardModal(el.dataset.id, cards, boardType, loadBoard);
+        });
       });
     } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3></div>`; }
   }
@@ -1275,7 +1329,7 @@ function openKanbanCardModal(cardId, cards, boardType, reload) {
   const statusLabels = { requested:'요청됨', approved:'승인됨', in_progress:'진행중', completed:'완료' };
   const modal = document.getElementById('modalContent');
   modal.innerHTML = `
-    <div class="modal-header"><h3>${esc(card.title)}</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+    <div class="modal-header"><h3>${esc(card.title)}</h3><div style="display:flex;gap:8px"><button class="btn-icon" id="delCardBtn" title="삭제">${ICONS.trash}</button><button class="btn-icon" id="modalClose">${ICONS.close}</button></div></div>
     <div class="modal-body">
       ${card.description ? `<p style="color:var(--text-secondary);margin-bottom:16px;white-space:pre-line">${esc(card.description)}</p>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
@@ -1283,26 +1337,23 @@ function openKanbanCardModal(cardId, cards, boardType, reload) {
         <span class="meta-pill">👤 ${esc(card.requested_by_name)}</span>
         <span class="meta-pill">📅 ${card.created_at?.split('T')[0] || ''}</span>
       </div>
-      <div class="form-group" style="margin-bottom:16px">
-        <label>상태 변경</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${statuses.map(s => `
-          <button class="btn ${card.status===s?'btn-primary':'btn-secondary'} btn-sm status-btn" data-status="${s}">${statusLabels[s]}</button>
-        `).join('')}</div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn btn-danger btn-sm" id="delCardBtn">${ICONS.trash} 삭제</button></div>`;
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">상태 변경</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${statuses.map(s => `
+        <button class="btn ${card.status===s?'btn-primary':'btn-secondary'} btn-sm status-btn" data-status="${s}">${statusLabels[s]}</button>
+      `).join('')}</div>
+    </div>`;
   showModal();
   document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('delCardBtn').addEventListener('click', async () => {
+    if (!confirm('삭제?')) return;
+    await api('/api/protected/kanban/cards/' + cardId, { method:'DELETE' });
+    toast('삭제됨', 'success'); closeModal(); reload();
+  });
   modal.querySelectorAll('.status-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       await api('/api/protected/kanban/cards/' + cardId, { method:'PUT', json:{ status: btn.dataset.status }});
       toast('상태가 변경되었습니다', 'success'); closeModal(); reload();
     });
-  });
-  document.getElementById('delCardBtn').addEventListener('click', async () => {
-    if (!confirm('삭제?')) return;
-    await api('/api/protected/kanban/cards/' + cardId, { method:'DELETE' });
-    toast('삭제됨', 'success'); closeModal(); reload();
   });
 }
 
@@ -1836,68 +1887,97 @@ function openPostingDetail(postingId, postings, reload) {
   });
 }
 
-/* ─── PF Hire: 지원자 관리 ─── */
+/* ─── PF Hire: 지원자 관리 (칸반보드 파이프라인) ─── */
 async function renderHireApplicants(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addApplicantBtn">${ICONS.plus} 지원자 등록</button>`;
 
+  const statusCols = [
+    { id: 'applied', label: '지원', color: '#6366f1', emoji: '📥' },
+    { id: 'screening', label: '서류검토', color: '#3b82f6', emoji: '📄' },
+    { id: 'interview', label: '면접', color: '#8b5cf6', emoji: '🎤' },
+    { id: 'evaluation', label: '평가', color: '#f59e0b', emoji: '📊' },
+    { id: 'offer', label: '제안', color: '#14b8a6', emoji: '🤝' },
+    { id: 'hired', label: '채용', color: '#22c55e', emoji: '🎉' },
+  ];
   const statusLabels = { applied:'지원', screening:'서류검토', interview:'면접', evaluation:'평가', offer:'제안', hired:'채용', rejected:'불합격', withdrawn:'철회' };
   const statusColors = { applied:'#6366f1', screening:'#3b82f6', interview:'#8b5cf6', evaluation:'#f59e0b', offer:'#14b8a6', hired:'#22c55e', rejected:'#ef4444', withdrawn:'#94a3b8' };
-  const statusOrder = ['applied','screening','interview','evaluation','offer','hired','rejected','withdrawn'];
 
-  body.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap" id="appStatusFilter">
-      <button class="btn btn-secondary btn-sm active" data-status="">전체</button>
-      ${statusOrder.slice(0,6).map(s => `<button class="btn btn-secondary btn-sm" data-status="${s}">${statusLabels[s]}</button>`).join('')}
-    </div>
-    <div id="applicantContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
-
-  let filterStatus = '';
+  body.innerHTML = `<div class="kb-hint">💡 카드를 드래그하여 채용 단계를 변경할 수 있습니다</div><div class="kb-board" id="applicantBoard"></div>`;
 
   async function loadApplicants() {
-    const container = document.getElementById('applicantContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    const container = document.getElementById('applicantBoard');
     try {
-      let url = '/api/protected/hire/applicants';
-      if (filterStatus) url += '?status=' + filterStatus;
-      const applicants = await api(url);
+      const applicants = await api('/api/protected/hire/applicants');
       if (!applicants.length) {
-        container.innerHTML = `<div class="empty-state">${ICONS_HIRE.userPlus}<h3>지원자가 없습니다</h3><p>"지원자 등록" 버튼으로 추가하세요</p></div>`;
+        container.innerHTML = `<div class="empty-state" style="width:100%">${ICONS_HIRE.userPlus}<h3>지원자가 없습니다</h3><p>"지원자 등록" 버튼으로 추가하세요</p></div>`;
         return;
       }
-      container.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${applicants.map(a => `
-        <div class="hire-applicant-card" data-id="${a.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:16px">
-          <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,${statusColors[a.status]||'#6366f1'}33,${statusColors[a.status]||'#6366f1'}11);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${statusColors[a.status]||'#6366f1'};flex-shrink:0">${(a.name||'?')[0]}</div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-weight:700;font-size:15px">${esc(a.name)}</span>
-              <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${statusColors[a.status]||'#94a3b8'}22;color:${statusColors[a.status]||'#94a3b8'};font-weight:600">${statusLabels[a.status]||a.status}</span>
-              ${a.rating ? `<span style="font-size:12px;color:#f59e0b">${'⭐'.repeat(a.rating)}</span>` : ''}
-            </div>
-            <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:var(--text-muted);flex-wrap:wrap">
-              <span>📋 ${esc(a.job_title||'')}</span>
-              ${a.email ? `<span>✉️ ${esc(a.email)}</span>` : ''}
-              ${a.phone ? `<span>📱 ${esc(a.phone)}</span>` : ''}
-            </div>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);flex-shrink:0">${timeAgo(a.applied_at)}</div>
-        </div>
-      `).join('')}</div>`;
 
-      container.querySelectorAll('.hire-applicant-card').forEach(card => {
-        card.addEventListener('click', () => openApplicantDetail(card.dataset.id, applicants, loadApplicants));
+      container.innerHTML = statusCols.map(col => {
+        const colApps = applicants.filter(a => a.status === col.id);
+        return `<div class="kb-col" data-status="${col.id}">
+          <div class="kb-col-header" style="--col-color:${col.color}">
+            <span>${col.emoji} ${col.label}</span>
+            <span class="kb-col-count" style="background:${col.color}">${colApps.length}</span>
+          </div>
+          <div class="kb-col-body">
+            ${colApps.length ? colApps.map(a => `
+              <div class="kb-card" draggable="true" data-id="${a.id}" style="--accent:${col.color}">
+                <div class="kb-card-title">${esc(a.name)}</div>
+                <div class="kb-card-desc">${esc(a.job_title||'')}</div>
+                <div class="kb-card-meta">
+                  ${a.rating ? `<span style="font-size:11px;color:#f59e0b">${'⭐'.repeat(a.rating)}</span>` : ''}
+                  ${a.email ? `<span class="kb-card-info">✉️ ${esc(a.email)}</span>` : ''}
+                  <span class="kb-card-info" style="margin-left:auto">${timeAgo(a.applied_at)}</span>
+                </div>
+              </div>
+            `).join('') : '<div class="kb-col-empty">지원자 없음</div>'}
+          </div>
+        </div>`;
+      }).join('');
+
+      // 탈락/철회 지원자 별도 표시
+      const droppedApps = applicants.filter(a => ['rejected','withdrawn'].includes(a.status));
+      if (droppedApps.length) {
+        container.insertAdjacentHTML('beforeend', `
+          <div class="kb-col" style="opacity:0.6">
+            <div class="kb-col-header" style="--col-color:#94a3b8">
+              <span>🚫 탈락/철회</span>
+              <span class="kb-col-count" style="background:#94a3b8">${droppedApps.length}</span>
+            </div>
+            <div class="kb-col-body">
+              ${droppedApps.map(a => `
+                <div class="kb-card" data-id="${a.id}" style="--accent:#94a3b8;cursor:pointer">
+                  <div class="kb-card-title" style="text-decoration:line-through;opacity:0.7">${esc(a.name)}</div>
+                  <div class="kb-card-meta">
+                    <span class="kb-card-badge" style="--badge-color:${statusColors[a.status]}">${statusLabels[a.status]}</span>
+                    <span class="kb-card-info">${esc(a.job_title||'')}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`);
+      }
+
+      // Drag & Drop
+      initKanbanDnD(container, async (appId, newStatus) => {
+        try {
+          await api('/api/protected/hire/applicants/' + appId, { method:'PUT', json:{ status: newStatus }});
+          toast('단계 변경: ' + (statusLabels[newStatus]||newStatus), 'success');
+          loadApplicants();
+        } catch(e) { toast(e.message, 'error'); loadApplicants(); }
+      });
+
+      // Click to open detail
+      container.querySelectorAll('.kb-card').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (el.classList.contains('kb-dragging')) return;
+          openApplicantDetail(el.dataset.id, applicants, loadApplicants);
+        });
       });
     } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
   }
   loadApplicants();
-
-  document.getElementById('appStatusFilter').querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('appStatusFilter').querySelectorAll('button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      filterStatus = btn.dataset.status;
-      loadApplicants();
-    });
-  });
 
   document.getElementById('addApplicantBtn').addEventListener('click', async () => {
     let postings = [];
