@@ -925,4 +925,12 @@ html, body {
   .form-grid { grid-template-columns: 1fr; }
   .modal { max-width: calc(100% - 32px); }
   .auth-card { margin: 16px; padding: 32px 24px; }
+  .kanban-col { min-width: 200px !important; }
 }
+
+/* ─── Extra utilities ─── */
+.is_active_0 { opacity: 0.5; }
+textarea.form-input { resize: vertical; font-family: inherit; }
+select.form-input { cursor: pointer; }
+.post-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+hr { border: none; border-top: 1px solid var(--border); }
