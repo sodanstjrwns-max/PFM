@@ -488,7 +488,9 @@ app.delete('/api/protected/events/:id', async (c) => {
 app.get('/api/protected/dashboard', async (c) => {
   const user = c.get('user')!
   const hid = user.hospitalId
-  const [matCount, prcCount, caseCount, imgCount, postCount, kanbanCount, hireCount, applicantCount] = await Promise.all([
+  const today = new Date().toISOString().split('T')[0]
+  const thisMonth = new Date().toISOString().slice(0,7)
+  const [matCount, prcCount, caseCount, imgCount, postCount, kanbanCount, hireCount, applicantCount, tbTotal, tbDoctorNeeded, tbInTreatment, tbCompleted, csTotal, csAgreed, csPaid, csLost] = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as c FROM materials WHERE hospital_id=? OR hospital_id IS NULL').bind(hid).first<{ c: number }>(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM pricing WHERE hospital_id=?').bind(hid).first<{ c: number }>(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM cases WHERE hospital_id=?').bind(hid).first<{ c: number }>(),
@@ -497,11 +499,28 @@ app.get('/api/protected/dashboard', async (c) => {
     c.env.DB.prepare("SELECT COUNT(*) as c FROM kanban_cards WHERE hospital_id=? AND status!='completed'").bind(hid).first<{ c: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) as c FROM job_postings WHERE hospital_id=? AND status='open'").bind(hid).first<{ c: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) as c FROM applicants WHERE hospital_id=? AND status NOT IN ('hired','rejected','withdrawn')").bind(hid).first<{ c: number }>(),
+    // 진료보드
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM treatment_board WHERE hospital_id=? AND board_date=?").bind(hid, today).first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM treatment_board WHERE hospital_id=? AND board_date=? AND status='doctor_needed'").bind(hid, today).first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM treatment_board WHERE hospital_id=? AND board_date=? AND status='in_treatment'").bind(hid, today).first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM treatment_board WHERE hospital_id=? AND board_date=? AND status='completed'").bind(hid, today).first<{ c: number }>(),
+    // 상담관리 (이번 달)
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ?").bind(hid, thisMonth+'%').first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND status IN ('agreed','payment','treatment','completed')").bind(hid, thisMonth+'%').first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COALESCE(SUM(paid_amount),0) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND paid_amount IS NOT NULL").bind(hid, thisMonth+'%').first<{ c: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND status='lost'").bind(hid, thisMonth+'%').first<{ c: number }>(),
   ])
   return c.json({
     materials: matCount?.c||0, pricing: prcCount?.c||0, cases: caseCount?.c||0, caseImages: imgCount?.c||0,
     posts: postCount?.c||0, pendingTasks: kanbanCount?.c||0,
     openJobs: hireCount?.c||0, activeApplicants: applicantCount?.c||0,
+    // 진료보드
+    todayPatients: tbTotal?.c||0, doctorNeeded: tbDoctorNeeded?.c||0,
+    inTreatment: tbInTreatment?.c||0, completedToday: tbCompleted?.c||0,
+    // 상담관리
+    monthConsultations: csTotal?.c||0, monthAgreed: csAgreed?.c||0,
+    monthPaid: csPaid?.c||0, monthLost: csLost?.c||0,
+    conversionRate: (csTotal?.c||0) > 0 ? Math.round((csAgreed?.c||0)/(csTotal?.c||0)*100) : 0,
   })
 })
 

@@ -925,7 +925,21 @@ html, body {
   .form-grid { grid-template-columns: 1fr; }
   .modal { max-width: calc(100% - 32px); }
   .auth-card { margin: 16px; padding: 32px 24px; }
-  .kanban-col { min-width: 200px !important; }
+  .kb-col { min-width: 200px !important; }
+  .kb-board { gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .stat-card { padding: 14px; }
+  .stat-card-value { font-size: 20px; }
+  .main-header { padding: 0 12px; }
+  .main-body { padding: 12px; }
+  .kb-col { min-width: 180px !important; max-width: 260px; }
+}
+
+@media (min-width: 1400px) {
+  .kb-col { min-width: 280px; max-width: 360px; }
 }
 
 /* ─── Extra utilities ─── */
@@ -934,6 +948,27 @@ textarea.form-input { resize: vertical; font-family: inherit; }
 select.form-input { cursor: pointer; }
 .post-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 hr { border: none; border-top: 1px solid var(--border); }
+
+/* ─── Scrollbar styling for kanban ─── */
+.kb-board::-webkit-scrollbar { height: 8px; }
+.kb-board::-webkit-scrollbar-track { background: var(--border-light); border-radius: 4px; }
+.kb-board::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+.kb-board::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* ─── Selection & Focus ─── */
+::selection { background: var(--primary-bg); color: var(--primary-dark); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15,118,110,0.1); }
+
+/* ─── Smooth transitions ─── */
+.btn, .stat-card, .content-card, .post-card, .kb-card, .quick-link-card {
+  transition: all 0.2s ease;
+}
+
+/* ─── Status Colors (global) ─── */
+.status-urgent { color: #ef4444; }
+.status-high { color: #f59e0b; }
+.status-normal { color: #6366f1; }
+.status-low { color: #94a3b8; }
 
 /* ─── Kanban Board ─── */
 .kb-hint {
