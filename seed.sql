@@ -6,6 +6,9 @@
 INSERT OR IGNORE INTO hospitals (id, name, phone, address) VALUES
   ('h-demo', '서울비디치과', '02-1234-5678', '서울특별시 강남구 테헤란로 123');
 
+-- 병원 설정 (위치 용어 커스텀)
+UPDATE hospitals SET settings = '{"location_terms":{"chair":"체어","room":"진료실","floor":"층","surgery_room":"수술실","waiting_room":"대기실","consult_room":"상담실","xray_room":"촬영실","sterilization":"소독실"},"location_presets":[{"label":"2F 진료실A","floor":"2F","room":"진료실 A"},{"label":"2F 진료실B","floor":"2F","room":"진료실 B"},{"label":"3F 수술실1","floor":"3F","room":"수술실 1"},{"label":"3F 수술실2","floor":"3F","room":"수술실 2"},{"label":"4F 교정실","floor":"4F","room":"교정실"}]}' WHERE id = 'h-demo';
+
 INSERT OR IGNORE INTO users (id, hospital_id, email, password_hash, name, role, is_doctor) VALUES
   ('u-admin',  'h-demo', 'admin@seoulbd.com',      '$pbkdf2$admin123', '문석준', 'admin',   1),
   ('u-mgr',    'h-demo', 'manager@seoulbd.com',     '$pbkdf2$manager1', '김수현', 'manager', 1),

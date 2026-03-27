@@ -26,22 +26,25 @@ async function renderTreatmentBoard(body, actions) {
   let doctors = [];
   let allItems = [];
   let onDutyDoctors = [];
+  let T = { chair:'체어', room:'진료실', floor:'층', surgery_room:'수술실', waiting_room:'대기실', consult_room:'상담실', xray_room:'촬영실', sterilization:'소독실' };
 
   async function loadBoard() {
     const container = document.getElementById('treatmentBoard');
     const summary = document.getElementById('tbSummary');
     const doctorBar = document.getElementById('tbDoctorBar');
     try {
-      const [items, chairList, doctorList, dutyList] = await Promise.all([
+      const [items, chairList, doctorList, dutyList, settings] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
         api('/api/protected/chairs'),
         api('/api/protected/doctors'),
-        api('/api/protected/doctors/on-duty?date=' + boardDate)
+        api('/api/protected/doctors/on-duty?date=' + boardDate),
+        api('/api/protected/hospital/settings')
       ]);
       chairs = chairList;
       doctors = doctorList;
       allItems = items;
       onDutyDoctors = dutyList;
+      if (settings.location_terms) T = { ...T, ...settings.location_terms };
 
       // ── 상단: 오늘 출근한 원장님 표시 ──
       const statusConfig = {
@@ -107,7 +110,7 @@ async function renderTreatmentBoard(body, actions) {
         ${doctorNeeded.length ? `<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;animation:pulse 1.5s infinite">
           <span style="font-size:20px">🔔</span>
           <span style="font-weight:700;color:#ef4444">원장님 호출!</span>
-          ${doctorNeeded.map(d => `<span style="background:white;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #fecaca">${d.chair_number ? d.chair_number+'번 체어 ' : ''}${esc(d.patient_name)} - ${esc(d.treatment_desc||treatmentTypeLabels[d.treatment_type]||'')}</span>`).join('')}
+          ${doctorNeeded.map(d => `<span style="background:white;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #fecaca">${d.chair_number ? d.chair_number+'번 '+T.chair+' ' : ''}${esc(d.patient_name)} - ${esc(d.treatment_desc||treatmentTypeLabels[d.treatment_type]||'')}</span>`).join('')}
         </div>` : ''}`;
 
       // ── 컬럼 빌드: [📋 대기] + [원장별] + [✅ 완료] ──
@@ -117,9 +120,9 @@ async function renderTreatmentBoard(body, actions) {
         const isDoctorNeeded = item.status === 'doctor_needed';
         const isCompleted = ['completed','cancelled','no_show'].includes(item.status);
         const locationInfo = [];
-        if (item.chair_number) locationInfo.push(`💺 ${item.chair_number}번`);
+        if (item.chair_number) locationInfo.push(`💺 ${item.chair_number}번 ${T.chair}`);
         if (item.room_name) locationInfo.push(`🚪 ${esc(item.room_name)}`);
-        if (item.floor) locationInfo.push(`${esc(item.floor)}층`);
+        if (item.floor) locationInfo.push(`${esc(item.floor)}`);
         return `<div class="kb-card" draggable="${isCompleted?'false':'true'}" data-id="${item.id}" style="--accent:${isDoctorNeeded?'#ef4444':sc};${isDoctorNeeded?'animation:pulse 2s infinite;':''}${isCompleted?'opacity:0.55;':''}cursor:pointer">
           <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
             <span style="font-size:11px">${statusEmojis[item.status]||''}</span>
@@ -242,7 +245,7 @@ async function renderTreatmentBoard(body, actions) {
       container.querySelectorAll('.kb-card').forEach(el => {
         el.addEventListener('click', (e) => {
           if (el.classList.contains('kb-dragging')) return;
-          openTreatmentDetail(el.dataset.id, allItems, loadBoard, doctors, chairs);
+          openTreatmentDetail(el.dataset.id, allItems, loadBoard, doctors, chairs, T);
         });
       });
 
@@ -266,10 +269,10 @@ async function renderTreatmentBoard(body, actions) {
     const chairSelectHtml = Object.entries(chairsByLocation).length > 0
       ? Object.entries(chairsByLocation).map(([loc, chs]) =>
           `<optgroup label="📍 ${esc(loc)}">${chs.map(c =>
-            `<option value="${c.id}">${c.chair_number}번 체어${c.room_name?' ('+esc(c.room_name)+')':''}${c.floor?' · '+esc(c.floor)+'층':''}</option>`
+            `<option value="${c.id}">${c.chair_number}번 ${T.chair}${c.room_name?' ('+esc(c.room_name)+')':''}${c.floor?' · '+esc(c.floor):''}</option>`
           ).join('')}</optgroup>`
         ).join('')
-      : '<option value="" disabled>등록된 체어가 없습니다</option>';
+      : '<option value="" disabled>등록된 ' + T.chair + '가 없습니다</option>';
 
     const modal = document.getElementById('modalContent');
     modal.style.maxWidth = '640px';
@@ -287,14 +290,14 @@ async function renderTreatmentBoard(body, actions) {
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:var(--radius);padding:14px;margin-bottom:16px">
           <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;display:flex;align-items:center;gap:6px">📍 위치 배정</div>
           <div class="form-grid">
-            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">체어 / 방</label>
+            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">${T.chair} / ${T.room}</label>
               <select class="form-input" id="tbChair" style="font-size:13px">
                 <option value="">미배정</option>
                 ${chairSelectHtml}
               </select>
             </div>
             <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">위치 메모 <span style="color:var(--text-muted);font-weight:400">(선택)</span></label>
-              <input class="form-input" id="tbLocationNote" placeholder="예: 3층 수술실, VIP룸 등" style="font-size:13px">
+              <input class="form-input" id="tbLocationNote" placeholder="예: ${T.surgery_room}, VIP${T.room} 등" style="font-size:13px">
             </div>
           </div>
           <div id="tbChairInfo" style="margin-top:8px;font-size:11px;color:#0369a1;display:none"></div>
@@ -325,7 +328,7 @@ async function renderTreatmentBoard(body, actions) {
         const chair = chairs.find(c => c.id === chairId);
         if (chair) {
           infoEl.style.display = 'block';
-          infoEl.innerHTML = `💺 <strong>${chair.chair_number}번 체어</strong>${chair.room_name?' · 🚪 '+esc(chair.room_name):''}${chair.floor?' · 🏢 '+esc(chair.floor)+'층':''}`;
+          infoEl.innerHTML = `💺 <strong>${chair.chair_number}번 ${T.chair}</strong>${chair.room_name?' · 🚪 '+esc(chair.room_name):''}${chair.floor?' · 🏢 '+esc(chair.floor):''}`;
         }
       } else {
         infoEl.style.display = 'none';
@@ -360,7 +363,8 @@ async function renderTreatmentBoard(body, actions) {
   });
 }
 
-function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
+function openTreatmentDetail(itemId, items, reload, doctors, chairs, T) {
+  T = T || { chair:'체어', room:'진료실', floor:'층', surgery_room:'수술실' };
   const item = items.find(i => i.id === itemId);
   if (!item) return;
   const statusFlow = [
@@ -386,9 +390,9 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
         ${item.chart_number ? `<span class="meta-pill">📋 #${esc(item.chart_number)}</span>` : ''}
         <span class="meta-pill">🦷 ${treatmentTypeLabels[item.treatment_type]||item.treatment_type}</span>
-        ${item.chair_number ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">💺 ${item.chair_number}번 체어</span>` : ''}
+        ${item.chair_number ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">💺 ${item.chair_number}번 ${T.chair}</span>` : ''}
         ${item.room_name ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">🚪 ${esc(item.room_name)}</span>` : ''}
-        ${item.floor ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">🏢 ${esc(item.floor)}층</span>` : ''}
+        ${item.floor ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">🏢 ${esc(item.floor)}</span>` : ''}
         ${item.doctor_name ? `<span class="meta-pill">👨‍⚕️ ${esc(item.doctor_name)}</span>` : '<span class="meta-pill" style="background:#fef2f2;color:#ef4444">📋 대기 (미배정)</span>'}
         ${item.staff_name ? `<span class="meta-pill">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
         ${item.appointment_time ? `<span class="meta-pill">⏰ ${item.appointment_time}</span>` : ''}
@@ -402,10 +406,10 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
         ${(doctors||[]).map(d => `<option value="${d.id}" ${item.assigned_doctor===d.id?'selected':''}}>👨‍⚕️ ${esc(d.name)}</option>`).join('')}
       </select>
 
-      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">체어 / 위치 변경</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">${T.chair} / 위치 변경</div>
       <select class="form-input" id="tbChairSelect" style="margin-bottom:16px;font-size:13px">
         <option value="" ${!item.chair_id?'selected':''}>미배정</option>
-        ${(chairs||[]).map(ch => `<option value="${ch.id}" ${item.chair_id===ch.id?'selected':''}}>💺 ${ch.chair_number}번${ch.room_name?' · '+esc(ch.room_name):''}${ch.floor?' · '+esc(ch.floor)+'층':''}</option>`).join('')}
+        ${(chairs||[]).map(ch => `<option value="${ch.id}" ${item.chair_id===ch.id?'selected':''}}>💺 ${ch.chair_number}번 ${T.chair}${ch.room_name?' · '+esc(ch.room_name):''}${ch.floor?' · '+esc(ch.floor):''}</option>`).join('')}
       </select>
 
       <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">진료 상태</div>
@@ -440,7 +444,7 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
     const newChair = e.target.value || null;
     await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ chair_id: newChair }});
     const chair = (chairs||[]).find(c => c.id === newChair);
-    toast(chair ? `${chair.chair_number}번 체어로 이동` : '체어 해제됨', 'success'); modal.style.maxWidth=''; closeModal(); reload();
+    toast(chair ? `${chair.chair_number}번 ${T.chair}(으)로 이동` : `${T.chair} 해제됨`, 'success'); modal.style.maxWidth=''; closeModal(); reload();
   });
   // 상태 변경
   modal.querySelectorAll('[data-status]').forEach(btn => {
