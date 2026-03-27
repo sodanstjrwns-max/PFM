@@ -240,7 +240,6 @@ function getNavConfig() {
         { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
         { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
         { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
-        { id: 'meetings', label: '회의록', icon: ICONS.edit },
       ]
     },
     {
@@ -250,6 +249,7 @@ function getNavConfig() {
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
         { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
         { id: 'calendar', label: '일정 관리', icon: ICONS.calendar },
+        { id: 'meetings', label: '회의록', icon: ICONS.edit },
       ]
     },
     {
