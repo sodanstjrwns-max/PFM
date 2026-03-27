@@ -9,22 +9,46 @@ const CATEGORIES = {
 const CAT_COLORS = {
   implant: '#3b82f6', orthodontics: '#8b5cf6', complex: '#f59e0b', general: '#6b7280'
 };
+// ═══ 내원경로 분류체계 (4대분류 + 세부) ═══
+// 대분류: 1.소개 2.온라인 3.그냥 4.미입력
 const VISIT_SOURCES = {
-  referral: '👥 소개',
+  // 1. 소개
+  ref_patient: '👥 환자 소개',
+  ref_acquaintance: '🤝 지인 소개',
+  ref_staff: '👩‍⚕️ 직원 소개',
+  ref_doctor: '👨‍⚕️ 원장 소개',
+  // 2. 온라인
+  online_search: '🔍 검색',
   online_naver: '🟢 네이버',
-  online_google: '🔵 구글',
-  online_youtube: '🔴 유튜브',
+  online_blog: '📝 블로그',
   online_insta: '📸 인스타그램',
-  online_etc: '🌐 기타 온라인',
-  walk_in: '🚶 통행',
-  hospital_referral: '🏥 타병원 의뢰',
-  recall: '📞 리콜',
-  etc: '📋 기타'
+  online_youtube: '🔴 유튜브',
+  online_homepage: '🌐 홈페이지',
+  online_homepage_db: '📊 홈페이지(DB)',
+  online_cafe: '☕ 네이버카페',
+  online_daangn: '🥕 당근마켓',
+  online_ad: '📢 광고',
+  online_etc: '💻 기타 온라인',
+  // 3. 그냥
+  walk_sign: '🚶 간판보고',
+  walk_near: '📍 가까워서',
+  // 4. 미입력은 빈값('')으로 처리
 };
+const SOURCE_GROUPS = {
+  ref_patient: '소개', ref_acquaintance: '소개', ref_staff: '소개', ref_doctor: '소개',
+  online_search: '온라인', online_naver: '온라인', online_blog: '온라인', online_insta: '온라인',
+  online_youtube: '온라인', online_homepage: '온라인', online_homepage_db: '온라인',
+  online_cafe: '온라인', online_daangn: '온라인', online_ad: '온라인', online_etc: '온라인',
+  walk_sign: '그냥', walk_near: '그냥'
+};
+const SOURCE_GROUP_LABELS = { '소개': '👥 소개', '온라인': '💻 온라인', '그냥': '🚶 그냥', '미입력': '⬜ 미입력' };
+const SOURCE_GROUP_COLORS = { '소개': '#22c55e', '온라인': '#3b82f6', '그냥': '#f59e0b', '미입력': '#cbd5e1' };
 const SOURCE_COLORS = {
-  referral: '#22c55e', online_naver: '#2db400', online_google: '#4285f4',
-  online_youtube: '#ff0000', online_insta: '#e1306c', online_etc: '#0ea5e9',
-  walk_in: '#f59e0b', hospital_referral: '#8b5cf6', recall: '#06b6d4', etc: '#94a3b8'
+  ref_patient: '#22c55e', ref_acquaintance: '#16a34a', ref_staff: '#15803d', ref_doctor: '#166534',
+  online_search: '#3b82f6', online_naver: '#2db400', online_blog: '#0ea5e9', online_insta: '#e1306c',
+  online_youtube: '#ff0000', online_homepage: '#6366f1', online_homepage_db: '#8b5cf6',
+  online_cafe: '#059669', online_daangn: '#f97316', online_ad: '#ec4899', online_etc: '#64748b',
+  walk_sign: '#f59e0b', walk_near: '#d97706'
 };
 
 function fmtWon(n) {
@@ -461,13 +485,16 @@ function openRecordForm(record, staffData, onSave) {
             </div>
             <div>
               <label style="${labelStyle}">📋 챠트번호</label>
-              <input type="text" name="chart_number" value="${esc(r.chart_number||'')}" placeholder="예: 741003" style="${inputStyle}">
+              <input type="text" name="chart_number" value="${esc(r.chart_number||'')}" placeholder="예: 741003" style="${inputStyle}" id="crChartNumber">
             </div>
           </div>
-          <div>
-            <label style="${labelStyle}">👤 환자 성함 <span style="color:#ef4444">*</span></label>
-            <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" required placeholder="환자명 입력" style="${inputStyle};font-weight:700">
+          <div style="position:relative">
+            <label style="${labelStyle}">👤 환자 성함 <span style="color:#ef4444">*</span> <span style="font-size:9px;color:var(--primary);font-weight:500">(환자DB 자동검색)</span></label>
+            <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" required placeholder="환자명 또는 차트번호 입력" style="${inputStyle};font-weight:700" id="crPatientName" autocomplete="off">
+            <div id="crAutoSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto;margin-top:2px"></div>
+            <input type="hidden" name="patient_id" id="crPatientId" value="${r.patient_id||''}">
           </div>
+          <div id="crLinkedPatient" style="display:none;margin-top:8px;padding:8px 12px;background:var(--primary-light);border-radius:8px;font-size:11px;display:flex;align-items:center;gap:6px"></div>
         </div>
         
         <!-- 상담 담당 카드 -->
@@ -634,6 +661,110 @@ function openRecordForm(record, staffData, onSave) {
       if (onSave) onSave();
     } catch(e) { toast('❌ 삭제 실패', 'error'); }
   });
+  
+  // ═══ 환자 자동완성 ═══
+  const patientInput = document.getElementById('crPatientName');
+  const suggestBox = document.getElementById('crAutoSuggest');
+  const patientIdField = document.getElementById('crPatientId');
+  const chartField = document.getElementById('crChartNumber');
+  const linkedDiv = document.getElementById('crLinkedPatient');
+  let acTimeout = null;
+  let acResults = [];
+  let acIdx = -1;
+  
+  function showLinkedBadge(pt) {
+    if (linkedDiv) {
+      linkedDiv.style.display = 'flex';
+      linkedDiv.innerHTML = `<span style="font-weight:700;color:var(--primary)">✓ DB 연결:</span> ${esc(pt.patient_name)} (${pt.patient_type==='new'?'신환':'구환'}) ${pt.chart_number ? '/ #'+esc(pt.chart_number) : ''} <button type="button" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px" id="crUnlink">&times;</button>`;
+      document.getElementById('crUnlink')?.addEventListener('click', () => {
+        patientIdField.value = '';
+        linkedDiv.style.display = 'none';
+      });
+    }
+  }
+  
+  // 이미 연결된 환자가 있으면 표시
+  if (r.patient_id) showLinkedBadge(r);
+  
+  if (patientInput) {
+    patientInput.addEventListener('input', () => {
+      clearTimeout(acTimeout);
+      const q = patientInput.value.trim();
+      if (q.length < 1) { suggestBox.style.display = 'none'; return; }
+      acTimeout = setTimeout(async () => {
+        try {
+          acResults = await api(`/api/protected/patients/search/autocomplete?q=${encodeURIComponent(q)}`);
+          acIdx = -1;
+          if (acResults.length === 0) {
+            suggestBox.style.display = 'none';
+            return;
+          }
+          suggestBox.style.display = 'block';
+          suggestBox.innerHTML = acResults.map((pt, i) => {
+            const typeTag = pt.patient_type === 'new' ? '<span style="color:#3b82f6;font-weight:700;font-size:10px">신환</span>' : '<span style="color:#22c55e;font-weight:700;font-size:10px">구환</span>';
+            return `<div class="cr-ac-item" data-idx="${i}" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+              <div style="flex:1">
+                <strong style="font-size:13px">${esc(pt.patient_name)}</strong>
+                ${pt.chart_number ? `<span style="color:var(--text-muted);font-size:11px;margin-left:6px">#${esc(pt.chart_number)}</span>` : ''}
+                <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${pt.phone||''} ${pt.treatment_area||''}</div>
+              </div>
+              ${typeTag}
+            </div>`;
+          }).join('');
+          
+          suggestBox.querySelectorAll('.cr-ac-item').forEach(item => {
+            item.addEventListener('click', () => selectPatient(parseInt(item.dataset.idx)));
+          });
+        } catch(e) { suggestBox.style.display = 'none'; }
+      }, 200);
+    });
+    
+    patientInput.addEventListener('keydown', (e) => {
+      if (suggestBox.style.display === 'none' || acResults.length === 0) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); acIdx = Math.min(acIdx+1, acResults.length-1); highlightAc(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); acIdx = Math.max(acIdx-1, 0); highlightAc(); }
+      else if (e.key === 'Enter' && acIdx >= 0) { e.preventDefault(); selectPatient(acIdx); }
+      else if (e.key === 'Escape') { suggestBox.style.display = 'none'; }
+    });
+    
+    // 바깥 클릭 시 닫기
+    document.addEventListener('click', (e) => {
+      if (!suggestBox.contains(e.target) && e.target !== patientInput) suggestBox.style.display = 'none';
+    }, { once: false });
+  }
+  
+  function highlightAc() {
+    suggestBox.querySelectorAll('.cr-ac-item').forEach((el, i) => {
+      el.style.background = i === acIdx ? 'var(--bg-hover)' : '';
+    });
+  }
+  
+  function selectPatient(idx) {
+    const pt = acResults[idx];
+    if (!pt) return;
+    patientInput.value = pt.patient_name;
+    if (chartField) chartField.value = pt.chart_number || '';
+    if (patientIdField) patientIdField.value = pt.id;
+    // 상담의/상담사도 자동 채움 (비어있는 경우만)
+    const docSel = form.querySelector('[name="doctor_name"]');
+    const counSel = form.querySelector('[name="counselor_name"]');
+    if (docSel && !docSel.value && pt.primary_doctor) {
+      for (const opt of docSel.options) { if (opt.value === pt.primary_doctor) { docSel.value = pt.primary_doctor; break; } }
+    }
+    if (counSel && !counSel.value && pt.assigned_counselor) {
+      for (const opt of counSel.options) { if (opt.value === pt.assigned_counselor) { counSel.value = pt.assigned_counselor; break; } }
+    }
+    // 환자구분
+    const typeSel = form.querySelector('[name="patient_type"]');
+    if (typeSel && pt.patient_type) typeSel.value = pt.patient_type;
+    // 내원경로
+    const srcSel = form.querySelector('[name="visit_source"]');
+    if (srcSel && pt.visit_source) {
+      for (const opt of srcSel.options) { if (opt.value === pt.visit_source) { srcSel.value = pt.visit_source; break; } }
+    }
+    suggestBox.style.display = 'none';
+    showLinkedBadge(pt);
+  }
 }
 
 // ═══ 상담 분석 대시보드 ═══

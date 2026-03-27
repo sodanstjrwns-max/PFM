@@ -1429,24 +1429,34 @@ app.delete('/api/protected/consult-records/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 상담사/의사 목록 (드롭다운용)
+// 상담사/의사 목록 (드롭다운용 - staff_presets 우선)
 app.get('/api/protected/consult-records/staff', async (c) => {
   const user = c.get('user')!
-  const counselors = await c.env.DB.prepare(
-    'SELECT DISTINCT counselor_name FROM consult_records WHERE hospital_id=? AND counselor_name != "" ORDER BY counselor_name'
+  // staff_presets에서 가져오기 (우선순위)
+  const presetDoctors = await c.env.DB.prepare(
+    "SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='doctor' AND is_active=1 ORDER BY sort_order"
   ).bind(user.hospitalId).all()
-  const doctors = await c.env.DB.prepare(
-    'SELECT DISTINCT doctor_name FROM consult_records WHERE hospital_id=? AND doctor_name != "" ORDER BY doctor_name'
+  const presetCounselors = await c.env.DB.prepare(
+    "SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='counselor' AND is_active=1 ORDER BY sort_order"
   ).bind(user.hospitalId).all()
-  // 또한 users 테이블에서도
+  
+  // 프리셋이 없으면 기존 방식 (DISTINCT from records)
+  let doctors = (presetDoctors.results as any[]).map(r => r.name)
+  let counselors = (presetCounselors.results as any[]).map(r => r.name)
+  
+  if (doctors.length === 0) {
+    const d = await c.env.DB.prepare('SELECT DISTINCT doctor_name FROM consult_records WHERE hospital_id=? AND doctor_name != "" ORDER BY doctor_name').bind(user.hospitalId).all()
+    doctors = (d.results as any[]).map(r => r.doctor_name)
+  }
+  if (counselors.length === 0) {
+    const c2 = await c.env.DB.prepare('SELECT DISTINCT counselor_name FROM consult_records WHERE hospital_id=? AND counselor_name != "" ORDER BY counselor_name').bind(user.hospitalId).all()
+    counselors = (c2.results as any[]).map(r => r.counselor_name)
+  }
+  
   const staffUsers = await c.env.DB.prepare(
     'SELECT name, role, position, is_doctor FROM users WHERE hospital_id=? AND is_active=1 ORDER BY name'
   ).bind(user.hospitalId).all()
-  return c.json({
-    counselors: (counselors.results as any[]).map(r => r.counselor_name),
-    doctors: (doctors.results as any[]).map(r => r.doctor_name),
-    users: staffUsers.results
-  })
+  return c.json({ counselors, doctors, users: staffUsers.results })
 })
 
 // ═══ 상담 대시보드 통계 ═══
@@ -2515,6 +2525,201 @@ app.get('/api/protected/kpi/dashboard', async (c) => {
   })
 })
 
+/* ═══ 스태프 프리셋 (상담의/상담사 목록) ═══ */
+
+// 프리셋 조회
+app.get('/api/protected/staff-presets', async (c) => {
+  const user = c.get('user')!
+  const type = c.req.query('type') // doctor / counselor
+  let sql = 'SELECT * FROM staff_presets WHERE hospital_id=? AND is_active=1'
+  const params: any[] = [user.hospitalId]
+  if (type) { sql += ' AND preset_type=?'; params.push(type) }
+  sql += ' ORDER BY sort_order, name'
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
+})
+
+// 프리셋 추가
+app.post('/api/protected/staff-presets', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const { preset_type, name } = await c.req.json()
+  if (!preset_type || !name) return c.json({ error: '필수 항목 누락' }, 400)
+  const id = 'sp-' + crypto.randomUUID().slice(0,8)
+  const maxSort: any = await c.env.DB.prepare('SELECT COALESCE(MAX(sort_order),0) as mx FROM staff_presets WHERE hospital_id=? AND preset_type=?').bind(user.hospitalId, preset_type).first()
+  await c.env.DB.prepare('INSERT INTO staff_presets (id, hospital_id, preset_type, name, sort_order) VALUES (?,?,?,?,?)').bind(id, user.hospitalId, preset_type, name, (maxSort?.mx||0)+1).run()
+  return c.json({ id, name })
+})
+
+// 프리셋 삭제 (비활성화)
+app.delete('/api/protected/staff-presets/:id', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('UPDATE staff_presets SET is_active=0 WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+/* ═══ 환자 데이터베이스 (Patient Registry) ═══ */
+
+// 환자 목록 (검색/필터)
+app.get('/api/protected/patients', async (c) => {
+  const user = c.get('user')!
+  const search = c.req.query('search')
+  const type = c.req.query('type')
+  const source = c.req.query('source')
+  const doctor = c.req.query('doctor')
+  const counselor = c.req.query('counselor')
+  const area = c.req.query('area')
+  const status = c.req.query('status')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const limit = parseInt(c.req.query('limit') || '200')
+  const offset = parseInt(c.req.query('offset') || '0')
+
+  let sql = 'SELECT * FROM patients WHERE hospital_id=?'
+  const params: any[] = [user.hospitalId]
+  if (search) { sql += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
+  if (type) { sql += ' AND patient_type=?'; params.push(type) }
+  if (source) { sql += ' AND visit_source=?'; params.push(source) }
+  if (doctor) { sql += ' AND primary_doctor=?'; params.push(doctor) }
+  if (counselor) { sql += ' AND assigned_counselor=?'; params.push(counselor) }
+  if (area) { sql += ' AND treatment_area=?'; params.push(area) }
+  if (status) { sql += ' AND status=?'; params.push(status) }
+  else { sql += " AND status='active'" }
+  if (from) { sql += ' AND first_visit_date>=?'; params.push(from) }
+  if (to) { sql += ' AND first_visit_date<=?'; params.push(to) }
+  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset)
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  // 전체 건수
+  let countSql = 'SELECT COUNT(*) as c FROM patients WHERE hospital_id=?'
+  const countParams: any[] = [user.hospitalId]
+  if (search) { countSql += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; countParams.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
+  if (type) { countSql += ' AND patient_type=?'; countParams.push(type) }
+  if (source) { countSql += ' AND visit_source=?'; countParams.push(source) }
+  if (doctor) { countSql += ' AND primary_doctor=?'; countParams.push(doctor) }
+  if (counselor) { countSql += ' AND assigned_counselor=?'; countParams.push(counselor) }
+  if (area) { countSql += ' AND treatment_area=?'; countParams.push(area) }
+  if (status) { countSql += ' AND status=?'; countParams.push(status) }
+  else { countSql += " AND status='active'" }
+  if (from) { countSql += ' AND first_visit_date>=?'; countParams.push(from) }
+  if (to) { countSql += ' AND first_visit_date<=?'; countParams.push(to) }
+  const cnt: any = await c.env.DB.prepare(countSql).bind(...countParams).first()
+  return c.json({ patients: rows.results, total: cnt?.c || 0 })
+})
+
+// 환자 자동완성 (상담기록에서 사용) - :id 보다 먼저 선언해야 함
+app.get('/api/protected/patients/search/autocomplete', async (c) => {
+  const user = c.get('user')!
+  const q = c.req.query('q')
+  if (!q || q.length < 1) return c.json([])
+  const rows = await c.env.DB.prepare(
+    `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, first_visit_date, last_visit_date, visit_count
+    FROM patients WHERE hospital_id=? AND status='active' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ?)
+    ORDER BY last_visit_date DESC LIMIT 15`
+  ).bind(user.hospitalId, `%${q}%`, `%${q}%`, `%${q}%`).all()
+  return c.json(rows.results)
+})
+
+// 환자 통계 (대시보드용) - :id 보다 먼저 선언해야 함
+app.get('/api/protected/patients/stats/summary', async (c) => {
+  const user = c.get('user')!
+  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const [total, newThisMonth, bySource, byArea] = await Promise.all([
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active'").bind(user.hospitalId).first(),
+    c.env.DB.prepare("SELECT COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active' AND first_visit_date LIKE ?").bind(user.hospitalId, month+'%').first(),
+    c.env.DB.prepare("SELECT visit_source, COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active' AND first_visit_date LIKE ? GROUP BY visit_source ORDER BY c DESC").bind(user.hospitalId, month+'%').all(),
+    c.env.DB.prepare("SELECT treatment_area, COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active' AND first_visit_date LIKE ? GROUP BY treatment_area ORDER BY c DESC").bind(user.hospitalId, month+'%').all(),
+  ])
+  return c.json({
+    totalActive: (total as any)?.c || 0,
+    newThisMonth: (newThisMonth as any)?.c || 0,
+    bySource: bySource.results,
+    byArea: byArea.results,
+  })
+})
+
+// 환자 상세 (상담 이력 포함)
+app.get('/api/protected/patients/:id', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const patient: any = await c.env.DB.prepare('SELECT * FROM patients WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  if (!patient) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
+  // 상담 이력 연결
+  const consults = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND patient_name=? ORDER BY record_date DESC LIMIT 50').bind(user.hospitalId, patient.patient_name).all()
+  return c.json({ ...patient, consult_history: consults.results })
+})
+
+// 환자 등록
+app.post('/api/protected/patients', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  if (!body.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const id = 'pt-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare(`
+    INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender,
+      patient_type, visit_source, visit_source_detail, referrer_name,
+      first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor,
+      visit_reason, address, memo, status, kakao_registered, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).bind(
+    id, user.hospitalId,
+    body.chart_number||'', body.patient_name, body.phone||'', body.birth_date||'', body.gender||'',
+    body.patient_type||'new',
+    body.visit_source||'', body.visit_source_detail||'', body.referrer_name||'',
+    body.first_visit_date || new Date().toISOString().slice(0,10),
+    body.last_visit_date || body.first_visit_date || new Date().toISOString().slice(0,10),
+    body.visit_count||1,
+    body.treatment_area||'', body.primary_doctor||'', body.assigned_counselor||'',
+    body.visit_reason||'', body.address||'', body.memo||'',
+    body.status||'active', body.kakao_registered||'', user.id
+  ).run()
+  return c.json({ success: true, id })
+})
+
+// 환자 수정
+app.put('/api/protected/patients/:id', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const id = c.req.param('id')
+  const fields = ['chart_number','patient_name','phone','birth_date','gender','patient_type',
+    'visit_source','visit_source_detail','referrer_name','first_visit_date','last_visit_date',
+    'visit_count','treatment_area','primary_doctor','assigned_counselor',
+    'visit_reason','address','memo','status','kakao_registered']
+  const updates: string[] = []; const vals: any[] = []
+  for (const f of fields) {
+    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
+  }
+  if (updates.length === 0) return c.json({ error: '수정할 내용이 없습니다' }, 400)
+  updates.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE patients SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 환자 삭제 (비활성화)
+app.delete('/api/protected/patients/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare("UPDATE patients SET status='inactive', updated_at=? WHERE id=? AND hospital_id=?").bind(new Date().toISOString(), c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// (autocomplete & stats routes moved above :id route)
+
+// 환자 벌크 임포트
+app.post('/api/protected/patients/bulk', requireRole('admin'), async (c) => {
+  const user = c.get('user')!
+  const { patients } = await c.req.json()
+  if (!Array.isArray(patients) || patients.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
+  let inserted = 0
+  for (const p of patients) {
+    const id = 'pt-' + crypto.randomUUID().slice(0,8)
+    try {
+      await c.env.DB.prepare(`INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, visit_source_detail, referrer_name, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, visit_reason, address, memo, status, kakao_registered, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(id, user.hospitalId, p.chart_number||'', p.patient_name||'', p.phone||'', p.birth_date||'', p.gender||'', p.patient_type||'new', p.visit_source||'', p.visit_source_detail||'', p.referrer_name||'', p.first_visit_date||'', p.last_visit_date||'', p.visit_count||1, p.treatment_area||'', p.primary_doctor||'', p.assigned_counselor||'', p.visit_reason||'', p.address||'', p.memo||'', 'active', p.kakao_registered||'', user.id).run()
+      inserted++
+    } catch(e) {}
+  }
+  return c.json({ success: true, inserted, total: patients.length })
+})
+
 /* ─── Main Page (SPA) ─── */
 app.get('*', async (c) => {
   // Serve static files from R2 first, then SPA
@@ -2547,6 +2752,7 @@ function getHTML(): string {
 <script src="/static/modules/hr.js"><` + `/script>
 <script src="/static/modules/clinical.js"><` + `/script>
 <script src="/static/modules/consult.js"><` + `/script>
+<script src="/static/modules/patients.js"><` + `/script>
 <script src="/static/modules/leave.js"><` + `/script>
 <script src="/static/modules/meetings.js"><` + `/script>
 <script src="/static/modules/fee-schedule.js"><` + `/script>

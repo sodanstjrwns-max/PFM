@@ -378,6 +378,7 @@ function getNavConfig() {
   ];
   if (isManager) {
     nav.push({ id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart });
+    nav.push({ id: 'patients', label: '👥 환자 DB', icon: ICONS.users });
     nav.push({
       id: 'consult_group', label: '상담관리', icon: ICONS.message,
       children: [
@@ -708,6 +709,7 @@ function renderPage() {
     consult_dashboard: ['📊 상담 분석', ICONS.chart],
     fee_schedule: ['💰 수가표', ICONS.pricing],
     funnel: ['🔄 Patient Funnel', ICONS.chart],
+    patients: ['👥 환자 DB', ICONS.users],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
     kpi_targets: ['🎯 목표 설정', ICONS.star],
@@ -750,6 +752,7 @@ function renderPage() {
     case 'meetings': M.meetings.renderMeetings(body, actions); break;
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
+    case 'patients': M.patients.renderPatients(body, actions); break;
     case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
     case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
