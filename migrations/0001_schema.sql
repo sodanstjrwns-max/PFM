@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS kanban_cards (
   description     TEXT DEFAULT '',
   status          TEXT DEFAULT 'requested' CHECK(status IN ('requested','approved','in_progress','completed','rejected')),
   priority        TEXT DEFAULT 'normal' CHECK(priority IN ('urgent','high','normal','low')),
+  department      TEXT DEFAULT 'general' CHECK(department IN ('clinical','desk','general')),
   requested_by    TEXT NOT NULL REFERENCES users(id),
   assigned_to     TEXT REFERENCES users(id),
   estimated_cost  REAL,
@@ -185,6 +186,29 @@ CREATE TABLE IF NOT EXISTS kanban_cards (
 );
 CREATE INDEX idx_kanban_cards_board  ON kanban_cards(board_id, status);
 CREATE INDEX idx_kanban_cards_hospital ON kanban_cards(hospital_id);
+
+-- ═══ 직원용품 주문 관리 ═══
+
+CREATE TABLE IF NOT EXISTS staff_supplies (
+  id              TEXT PRIMARY KEY,
+  hospital_id     TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id),
+  item_type       TEXT NOT NULL CHECK(item_type IN ('uniform','cardigan','nametag','crocs','shoes','other')),
+  item_name       TEXT NOT NULL,
+  size            TEXT DEFAULT '',
+  color           TEXT DEFAULT '',
+  quantity        INTEGER DEFAULT 1,
+  notes           TEXT DEFAULT '',
+  status          TEXT DEFAULT 'requested' CHECK(status IN ('requested','approved','ordered','delivered','cancelled')),
+  requested_by    TEXT NOT NULL REFERENCES users(id),
+  approved_by     TEXT REFERENCES users(id),
+  order_date      TEXT,
+  delivery_date   TEXT,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_staff_supplies_hospital ON staff_supplies(hospital_id, status);
+CREATE INDEX idx_staff_supplies_user ON staff_supplies(user_id);
 
 CREATE TABLE IF NOT EXISTS checklists (
   id              TEXT PRIMARY KEY,

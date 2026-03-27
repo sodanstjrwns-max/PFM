@@ -350,6 +350,7 @@ app.post('/api/protected/posts/:id/like', async (c) => {
 app.get('/api/protected/kanban/:boardType', async (c) => {
   const user = c.get('user')!
   const boardType = c.req.param('boardType')
+  const department = c.req.query('department') || ''
   let board: any = await c.env.DB.prepare('SELECT * FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
   if (!board) {
     const id = crypto.randomUUID()
@@ -357,7 +358,11 @@ app.get('/api/protected/kanban/:boardType', async (c) => {
     await c.env.DB.prepare('INSERT INTO kanban_boards (id, hospital_id, board_type, title) VALUES (?,?,?,?)').bind(id, user.hospitalId, boardType, title).run()
     board = { id, board_type: boardType, title }
   }
-  const cards = await c.env.DB.prepare('SELECT kc.*, u.name as requested_by_name FROM kanban_cards kc JOIN users u ON kc.requested_by=u.id WHERE kc.board_id=? ORDER BY CASE kc.priority WHEN \'urgent\' THEN 0 WHEN \'high\' THEN 1 WHEN \'normal\' THEN 2 ELSE 3 END, kc.created_at DESC').bind(board.id).all()
+  let sql = 'SELECT kc.*, u.name as requested_by_name FROM kanban_cards kc JOIN users u ON kc.requested_by=u.id WHERE kc.board_id=?'
+  const params: any[] = [board.id]
+  if (department) { sql += ' AND kc.department=?'; params.push(department) }
+  sql += " ORDER BY CASE kc.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, kc.created_at DESC"
+  const cards = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json({ board, cards: cards.results })
 })
 
@@ -366,10 +371,10 @@ app.post('/api/protected/kanban/:boardType/cards', async (c) => {
   const boardType = c.req.param('boardType')
   const board: any = await c.env.DB.prepare('SELECT id FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
   if (!board) return c.json({ error: '보드를 찾을 수 없습니다' }, 404)
-  const { title, description, priority, estimated_cost, due_date } = await c.req.json()
+  const { title, description, priority, estimated_cost, due_date, department } = await c.req.json()
   if (!title) return c.json({ error: '제목을 입력하세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO kanban_cards (id, board_id, hospital_id, title, description, priority, requested_by, estimated_cost, due_date) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, board.id, user.hospitalId, title, description||'', priority||'normal', user.id, estimated_cost||null, due_date||null).run()
+  await c.env.DB.prepare('INSERT INTO kanban_cards (id, board_id, hospital_id, title, description, priority, department, requested_by, estimated_cost, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id, board.id, user.hospitalId, title, description||'', priority||'normal', department||'general', user.id, estimated_cost||null, due_date||null).run()
   return c.json({ id })
 })
 
@@ -384,6 +389,68 @@ app.put('/api/protected/kanban/cards/:id', async (c) => {
 app.delete('/api/protected/kanban/cards/:id', async (c) => {
   const user = c.get('user')!
   await c.env.DB.prepare('DELETE FROM kanban_cards WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+/* ─── Staff Supplies (직원용품 주문) API ─── */
+app.get('/api/protected/staff-supplies', async (c) => {
+  const user = c.get('user')!
+  const status = c.req.query('status') || ''
+  const item_type = c.req.query('item_type') || ''
+  let sql = `SELECT ss.*, u.name as user_name, u2.name as requested_by_name, u3.name as approved_by_name 
+    FROM staff_supplies ss 
+    JOIN users u ON ss.user_id=u.id 
+    JOIN users u2 ON ss.requested_by=u2.id 
+    LEFT JOIN users u3 ON ss.approved_by=u3.id 
+    WHERE ss.hospital_id=?`
+  const params: any[] = [user.hospitalId]
+  if (status) { sql += ' AND ss.status=?'; params.push(status) }
+  if (item_type) { sql += ' AND ss.item_type=?'; params.push(item_type) }
+  sql += ' ORDER BY ss.created_at DESC'
+  const results = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(results.results)
+})
+
+app.post('/api/protected/staff-supplies', async (c) => {
+  const user = c.get('user')!
+  const { user_id, item_type, item_name, size, color, quantity, notes } = await c.req.json()
+  if (!item_type || !item_name) return c.json({ error: '필수 항목 누락' }, 400)
+  const id = 'ss-' + crypto.randomUUID().slice(0,8)
+  const targetUser = user_id || user.id
+  await c.env.DB.prepare(`INSERT INTO staff_supplies (id, hospital_id, user_id, item_type, item_name, size, color, quantity, notes, requested_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .bind(id, user.hospitalId, targetUser, item_type, item_name, size||'', color||'', quantity||1, notes||'', user.id).run()
+  return c.json({ id })
+})
+
+app.put('/api/protected/staff-supplies/:id', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const fields: string[] = []
+  const vals: any[] = []
+  for (const k of ['status','size','color','quantity','notes','order_date','delivery_date']) {
+    if (body[k] !== undefined) { fields.push(`${k} = ?`); vals.push(body[k]) }
+  }
+  if (body.status === 'approved' || body.status === 'ordered') {
+    fields.push('approved_by = ?'); vals.push(user.id)
+  }
+  if (body.status === 'ordered' && !body.order_date) {
+    fields.push('order_date = ?'); vals.push(new Date().toISOString().slice(0,10))
+  }
+  if (body.status === 'delivered' && !body.delivery_date) {
+    fields.push('delivery_date = ?'); vals.push(new Date().toISOString().slice(0,10))
+  }
+  if (fields.length > 0) {
+    fields.push('updated_at = CURRENT_TIMESTAMP')
+    vals.push(id, user.hospitalId)
+    await c.env.DB.prepare(`UPDATE staff_supplies SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  }
+  return c.json({ success: true })
+})
+
+app.delete('/api/protected/staff-supplies/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM staff_supplies WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
 
@@ -1248,6 +1315,14 @@ app.post('/api/protected/meetings', async (c) => {
       await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(pId, id, p.user_id, p.role || 'attendee').run()
     }
   }
+
+  // 캘린더에 자동 등록
+  const eventId = 'ev-' + crypto.randomUUID().slice(0,8)
+  const eventTitle = '📝 ' + title
+  const eventDesc = (location ? '장소: ' + location + '\n' : '') + (description || '')
+  await c.env.DB.prepare('INSERT INTO events (id, hospital_id, title, description, event_type, start_date, end_date, all_day, color, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .bind(eventId, user.hospitalId, eventTitle, eventDesc.trim(), 'meeting', meeting_date, meeting_date, 0, '#3b82f6', user.id).run()
+
   return c.json({ id })
 })
 

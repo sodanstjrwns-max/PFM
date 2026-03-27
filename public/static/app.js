@@ -247,6 +247,7 @@ function getNavConfig() {
       children: [
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
+        { id: 'staff_supplies', label: '직원용품 주문', icon: ICONS.users },
         { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
         { id: 'calendar', label: '일정 관리', icon: ICONS.calendar },
         { id: 'meetings', label: '회의록', icon: ICONS.edit },
@@ -501,6 +502,7 @@ function renderPage() {
     mistake: ['실수노트 (이실직고)', ICONS.shield],
     kanban_purchase: ['물품 구매 요청', ICONS.cart],
     kanban_repair: ['수리/정비 요청', ICONS.wrench],
+    staff_supplies: ['👔 직원용품 주문', ICONS.users],
     checklists: ['체크리스트', ICONS.checklist],
     calendar: ['일정 관리', ICONS.calendar],
     marketing: ['마케팅 유입 분석', ICONS.chart],
@@ -533,6 +535,7 @@ function renderPage() {
       M.community.renderCommunity(body, actions, state.currentPage); break;
     case 'kanban_purchase': M.community.renderKanban(body, actions, 'purchase'); break;
     case 'kanban_repair': M.community.renderKanban(body, actions, 'repair'); break;
+    case 'staff_supplies': M.operations.renderStaffSupplies(body, actions); break;
     case 'checklists': M.operations.renderChecklists(body, actions); break;
     case 'calendar': M.operations.renderCalendar(body, actions); break;
     case 'marketing': M.operations.renderMarketing(body, actions); break;

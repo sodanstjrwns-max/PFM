@@ -80,20 +80,34 @@ INSERT OR IGNORE INTO kanban_boards (id, hospital_id, board_type, title) VALUES
   ('kb-purchase', 'h-demo', 'purchase', '물품 구매 요청'),
   ('kb-repair', 'h-demo', 'repair', '수리/정비 요청');
 
--- ═══ 샘플 칸반 카드: 물품 구매 ═══
-INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, requested_by, estimated_cost, status) VALUES
-  ('kc-p1', 'kb-purchase', 'h-demo', '글러브 L사이즈 3박스', '진료용 니트릴 글러브 재고 부족', 'urgent', 'u-staff1', 5, 'requested'),
-  ('kc-p2', 'kb-purchase', 'h-demo', '석션팁 일회용 500개', '일회용 석션팁 재고 소진 예정', 'high', 'u-staff2', 8, 'approved'),
-  ('kc-p3', 'kb-purchase', 'h-demo', '인상용 트레이 세트', '상악/하악 각 사이즈별 2세트', 'normal', 'u-mgr', 12, 'in_progress'),
-  ('kc-p4', 'kb-purchase', 'h-demo', '광중합기 배터리', '3번 진료실 광중합기 배터리 교체용', 'normal', 'u-admin', 15, 'completed'),
-  ('kc-p5', 'kb-purchase', 'h-demo', 'A2 레진 5개', '필텍 A2 쉐이드 재고 부족', 'high', 'u-staff1', 25, 'requested');
+-- ═══ 샘플 칸반 카드: 물품 구매 (부서별 분리) ═══
+INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, department, requested_by, estimated_cost, status) VALUES
+  ('kc-p1', 'kb-purchase', 'h-demo', '글러브 L사이즈 3박스', '진료용 니트릴 글러브 재고 부족', 'urgent', 'clinical', 'u-staff1', 5, 'requested'),
+  ('kc-p2', 'kb-purchase', 'h-demo', '석션팁 일회용 500개', '일회용 석션팁 재고 소진 예정', 'high', 'clinical', 'u-staff2', 8, 'approved'),
+  ('kc-p3', 'kb-purchase', 'h-demo', '인상용 트레이 세트', '상악/하악 각 사이즈별 2세트', 'normal', 'clinical', 'u-mgr', 12, 'in_progress'),
+  ('kc-p4', 'kb-purchase', 'h-demo', '광중합기 배터리', '3번 진료실 광중합기 배터리 교체용', 'normal', 'clinical', 'u-admin', 15, 'completed'),
+  ('kc-p5', 'kb-purchase', 'h-demo', 'A2 레진 5개', '필텍 A2 쉐이드 재고 부족', 'high', 'clinical', 'u-staff1', 25, 'requested'),
+  ('kc-p6', 'kb-purchase', 'h-demo', '영수증 프린터 용지 10롤', '수납용 프린터 용지 재고 소진 예정', 'normal', 'desk', 'u-staff2', 3, 'requested'),
+  ('kc-p7', 'kb-purchase', 'h-demo', '손소독제 대용량 5개', '데스크 및 대기실용 손소독제 보충', 'high', 'desk', 'u-staff2', 5, 'approved'),
+  ('kc-p8', 'kb-purchase', 'h-demo', '대기실 잡지 갱신', '3월호 잡지 비치', 'low', 'desk', 'u-mgr', 2, 'completed'),
+  ('kc-p9', 'kb-purchase', 'h-demo', '화장실 방향제 3개', '1층, 3층, 5층 화장실 방향제 교체', 'normal', 'general', 'u-staff1', 2, 'requested');
 
 -- ═══ 샘플 칸반 카드: 수리/정비 ═══
-INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, requested_by, estimated_cost, status) VALUES
-  ('kc-r1', 'kb-repair', 'h-demo', '2번 유닛 체어 리클라인 고장', '환자 체어가 뒤로 안 넘어감, 모터 점검 필요', 'urgent', 'u-staff1', 50, 'requested'),
-  ('kc-r2', 'kb-repair', 'h-demo', '파노라마 센서 교정', '촬영 영상 일부 흐림 발생', 'high', 'u-admin', 80, 'approved'),
-  ('kc-r3', 'kb-repair', 'h-demo', '에어컨 필터 교체 (3층)', '냉방 효율 저하, 필터 교체 시기', 'normal', 'u-mgr', 10, 'in_progress'),
-  ('kc-r4', 'kb-repair', 'h-demo', '멸균기 패킹 교체', '고압증기멸균기 패킹 마모', 'high', 'u-staff2', 20, 'requested');
+INSERT OR IGNORE INTO kanban_cards (id, board_id, hospital_id, title, description, priority, department, requested_by, estimated_cost, status) VALUES
+  ('kc-r1', 'kb-repair', 'h-demo', '2번 유닛 체어 리클라인 고장', '환자 체어가 뒤로 안 넘어감, 모터 점검 필요', 'urgent', 'clinical', 'u-staff1', 50, 'requested'),
+  ('kc-r2', 'kb-repair', 'h-demo', '파노라마 센서 교정', '촬영 영상 일부 흐림 발생', 'high', 'clinical', 'u-admin', 80, 'approved'),
+  ('kc-r3', 'kb-repair', 'h-demo', '에어컨 필터 교체 (3층)', '냉방 효율 저하, 필터 교체 시기', 'normal', 'general', 'u-mgr', 10, 'in_progress'),
+  ('kc-r4', 'kb-repair', 'h-demo', '멸균기 패킹 교체', '고압증기멸균기 패킹 마모', 'high', 'clinical', 'u-staff2', 20, 'requested'),
+  ('kc-r5', 'kb-repair', 'h-demo', '1층 자동문 센서 오작동', '문이 열린 채 닫히지 않는 경우 발생', 'high', 'desk', 'u-staff2', 30, 'requested');
+
+-- ═══ 직원용품 주문 데이터 ═══
+INSERT OR IGNORE INTO staff_supplies (id, hospital_id, user_id, item_type, item_name, size, color, quantity, notes, status, requested_by, order_date, delivery_date) VALUES
+  ('ss-1', 'h-demo', 'u-staff1', 'uniform', '수술복 상의', '55', '네이비', 2, '', 'delivered', 'u-staff1', '2026-02-15', '2026-02-22'),
+  ('ss-2', 'h-demo', 'u-staff1', 'crocs', '크록스 슬리퍼', '230', '화이트', 1, '', 'delivered', 'u-staff1', '2026-02-15', '2026-02-20'),
+  ('ss-3', 'h-demo', 'u-staff2', 'uniform', '수술복 상하의 세트', '66', '네이비', 1, '신규입사 지급', 'ordered', 'u-mgr', '2026-03-20', NULL),
+  ('ss-4', 'h-demo', 'u-staff2', 'nametag', '명찰', '', '', 1, '이하늘 / 진료실', 'delivered', 'u-mgr', '2026-03-10', '2026-03-12'),
+  ('ss-5', 'h-demo', 'u-mgr', 'cardigan', '가디건', 'F', '차콜', 1, '사이즈 교환 요청', 'requested', 'u-mgr', NULL, NULL),
+  ('ss-6', 'h-demo', 'u-staff1', 'crocs', '크록스 슬리퍼', '235', '화이트', 1, '기존 것 마모 심함', 'approved', 'u-staff1', NULL, NULL);
 
 -- ═══ 샘플 체크리스트 ═══
 INSERT OR IGNORE INTO checklists (id, hospital_id, title, checklist_type, items) VALUES

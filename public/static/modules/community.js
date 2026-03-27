@@ -148,13 +148,26 @@ async function renderKanban(body, actions, boardType) {
   ];
   const priorityColors = { urgent:'#ef4444', high:'#f59e0b', normal:'#6366f1', low:'#94a3b8' };
   const priorityLabels = { urgent:'긴급', high:'높음', normal:'보통', low:'낮음' };
+  const deptLabels = { clinical:'🏥 진료실', desk:'💻 데스크', general:'🏢 기타' };
 
-  body.innerHTML = `<div class="kb-hint">💡 카드를 드래그하여 상태를 변경할 수 있습니다</div><div class="kb-board" id="kanbanBoard"></div>`;
+  let currentDept = '';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap" id="deptTabs">
+      <button class="btn btn-sm dept-tab active" data-dept="" style="border-radius:20px">전체</button>
+      <button class="btn btn-sm dept-tab" data-dept="clinical" style="border-radius:20px">🏥 진료실</button>
+      <button class="btn btn-sm dept-tab" data-dept="desk" style="border-radius:20px">💻 데스크</button>
+      <button class="btn btn-sm dept-tab" data-dept="general" style="border-radius:20px">🏢 기타</button>
+    </div>
+    <div class="kb-hint">💡 카드를 드래그하여 상태를 변경할 수 있습니다</div>
+    <div class="kb-board" id="kanbanBoard"></div>`;
 
   async function loadBoard() {
     const container = document.getElementById('kanbanBoard');
     try {
-      const data = await api('/api/protected/kanban/' + boardType);
+      let url = '/api/protected/kanban/' + boardType;
+      if (currentDept) url += '?department=' + currentDept;
+      const data = await api(url);
       const cards = data.cards || [];
 
       container.innerHTML = statusCols.map(col => {
@@ -171,6 +184,7 @@ async function renderKanban(body, actions, boardType) {
                 ${card.description ? `<div class="kb-card-desc">${esc(card.description)}</div>` : ''}
                 <div class="kb-card-meta">
                   <span class="kb-card-badge" style="--badge-color:${priorityColors[card.priority]}">${priorityLabels[card.priority]}</span>
+                  ${card.department && card.department !== 'general' ? `<span class="kb-card-badge" style="--badge-color:#6b7280;font-weight:500">${deptLabels[card.department]||card.department}</span>` : ''}
                   ${card.estimated_cost ? `<span class="kb-card-info">💰 ${card.estimated_cost}만</span>` : ''}
                   <span class="kb-card-info" style="margin-left:auto">${esc(card.requested_by_name)}</span>
                 </div>
@@ -200,6 +214,16 @@ async function renderKanban(body, actions, boardType) {
   }
   loadBoard();
 
+  // Department tab events
+  document.querySelectorAll('.dept-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentDept = tab.dataset.dept;
+      loadBoard();
+    });
+  });
+
   document.getElementById('addCardBtn').addEventListener('click', () => {
     const modal = document.getElementById('modalContent');
     modal.innerHTML = `
@@ -208,12 +232,15 @@ async function renderKanban(body, actions, boardType) {
         <div class="form-group"><label>요청 항목</label><input class="form-input" id="cardTitle" placeholder="${boardType==='purchase'?'예: 글러브 L사이즈 2박스':'예: 3번 유닛 체어 수리'}"></div>
         <div class="form-group"><label>상세 설명</label><textarea class="form-input" id="cardDesc" rows="3" placeholder="수량, 사양, 상세 내용"></textarea></div>
         <div class="form-grid">
+          <div class="form-group"><label>부서</label><select class="form-input" id="cardDept"><option value="clinical">🏥 진료실</option><option value="desk">💻 데스크</option><option value="general">🏢 기타</option></select></div>
           <div class="form-group"><label>우선순위</label><select class="form-input" id="cardPriority"><option value="normal">보통</option><option value="urgent">긴급</option><option value="high">높음</option><option value="low">낮음</option></select></div>
-          <div class="form-group"><label>예상 비용 (만원)</label><input class="form-input" type="number" id="cardCost" placeholder="0"></div>
         </div>
+        <div class="form-group"><label>예상 비용 (만원)</label><input class="form-input" type="number" id="cardCost" placeholder="0"></div>
       </form></div>
       <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="cardSubmitBtn">요청</button></div>`;
     showModal();
+    // 현재 선택된 부서 기본값 설정
+    if (currentDept) document.getElementById('cardDept').value = currentDept;
     document.getElementById('modalClose').addEventListener('click', closeModal);
     document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
     document.getElementById('cardSubmitBtn').addEventListener('click', async () => {
@@ -227,6 +254,7 @@ async function renderKanban(body, actions, boardType) {
           description: document.getElementById('cardDesc').value,
           priority: document.getElementById('cardPriority').value,
           estimated_cost: parseFloat(document.getElementById('cardCost').value) || null,
+          department: document.getElementById('cardDept').value,
         }});
         toast('요청이 등록되었습니다!', 'success'); closeModal(); loadBoard();
       } catch(e) { toast(e.message, 'error'); }
