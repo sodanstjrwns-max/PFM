@@ -1047,6 +1047,57 @@ app.get('/api/protected/doctors', async (c) => {
   return c.json(rows.results)
 })
 
+// 오늘 출근한 원장(doctor) 목록 — 진료보드 상단 표시용
+app.get('/api/protected/doctors/on-duty', async (c) => {
+  const user = c.get('user')!
+  const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
+  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
+  const dayOfWeek = dayNames[new Date(date + 'T00:00:00').getDay()]
+
+  // 전체 의사(원장) 가져오기
+  const doctorRows = await c.env.DB.prepare(
+    `SELECT id, name, role, work_schedule FROM users WHERE hospital_id=? AND is_doctor=1 AND is_active=1 AND work_status='active' ORDER BY role DESC, name`
+  ).bind(user.hospitalId).all()
+  const doctors = doctorRows.results as any[]
+
+  // 오늘 출근 기록
+  const attRows = await c.env.DB.prepare(
+    `SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`
+  ).bind(user.hospitalId, date).all()
+  const attMap: Record<string, any> = {}
+  for (const a of attRows.results as any[]) attMap[a.user_id] = a
+
+  // 오늘 휴가 기록
+  const leaveRows = await c.env.DB.prepare(
+    `SELECT user_id FROM leave_requests WHERE hospital_id=? AND status='approved' AND start_date<=? AND end_date>=?`
+  ).bind(user.hospitalId, date, date).all()
+  const onLeaveSet = new Set((leaveRows.results as any[]).map((r: any) => r.user_id))
+
+  const result = doctors.map((d: any) => {
+    let schedule: any = {}
+    try { schedule = JSON.parse(d.work_schedule || '{}') } catch(e) {}
+    const todaySchedule = schedule[dayOfWeek] || null
+    const isScheduledOff = todaySchedule === null
+    const isOnLeave = onLeaveSet.has(d.id) || (attMap[d.id]?.status === 'vacation')
+    const att = attMap[d.id]
+    const isPresent = att && ['present','late','half_day'].includes(att.status)
+
+    let status = 'scheduled' // 근무 예정
+    if (isScheduledOff) status = 'day_off'
+    else if (isOnLeave) status = 'vacation'
+    else if (isPresent) status = 'on_duty'   // 출근 완료
+
+    return {
+      id: d.id, name: d.name, role: d.role,
+      status,
+      check_in: att?.check_in || null,
+      today_schedule: todaySchedule,
+    }
+  })
+
+  return c.json(result)
+})
+
 // 진료보드 (날짜별) — sort_order 기준 정렬 (원장이 이동해야 할 순서)
 app.get('/api/protected/treatment-board', async (c) => {
   const user = c.get('user')!

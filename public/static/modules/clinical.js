@@ -17,6 +17,7 @@ async function renderTreatmentBoard(body, actions) {
   const treatmentTypeLabels = { general:'일반진료', implant:'임플란트', ortho:'교정', prosth:'보철', endo:'신경치료', perio:'치주', extraction:'발치', esthetic:'심미', pedo:'소아', emergency:'응급', checkup:'검진', other:'기타' };
 
   body.innerHTML = `
+    <div class="tb-doctor-bar" id="tbDoctorBar"></div>
     <div class="tb-summary" id="tbSummary"></div>
     <div class="kb-board" id="treatmentBoard" style="min-height:500px"></div>`;
 
@@ -24,19 +25,64 @@ async function renderTreatmentBoard(body, actions) {
   let chairs = [];
   let doctors = [];
   let allItems = [];
+  let onDutyDoctors = [];
 
   async function loadBoard() {
     const container = document.getElementById('treatmentBoard');
     const summary = document.getElementById('tbSummary');
+    const doctorBar = document.getElementById('tbDoctorBar');
     try {
-      const [items, chairList, doctorList] = await Promise.all([
+      const [items, chairList, doctorList, dutyList] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
         api('/api/protected/chairs'),
-        api('/api/protected/doctors')
+        api('/api/protected/doctors'),
+        api('/api/protected/doctors/on-duty?date=' + boardDate)
       ]);
       chairs = chairList;
       doctors = doctorList;
       allItems = items;
+      onDutyDoctors = dutyList;
+
+      // ── 상단: 오늘 출근한 원장님 표시 ──
+      const statusConfig = {
+        on_duty: { label: '진료중', color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0', icon: '🟢' },
+        scheduled: { label: '근무예정', color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', icon: '🔵' },
+        day_off: { label: '휴무', color: '#94a3b8', bg: '#f1f5f9', border: '#e2e8f0', icon: '⚪' },
+        vacation: { label: '휴가', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', icon: '🟡' },
+      };
+      const onDutyCount = dutyList.filter(d => d.status === 'on_duty' || d.status === 'scheduled').length;
+
+      doctorBar.innerHTML = `
+        <div style="background:linear-gradient(135deg,#f8fafc,#eef2ff);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:18px">👨‍⚕️</span>
+            <span style="font-size:14px;font-weight:800;color:var(--text)">오늘의 진료 원장</span>
+            <span style="font-size:12px;font-weight:600;color:var(--primary);background:var(--primary)12;padding:2px 8px;border-radius:12px">${onDutyCount}명 근무</span>
+            <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${boardDate === today ? new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'}) : boardDate}</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            ${dutyList.map(d => {
+              const cfg = statusConfig[d.status] || statusConfig.scheduled;
+              const patientCount = items.filter(i => i.assigned_doctor === d.id && !['completed','cancelled','no_show'].includes(i.status)).length;
+              const scheduleStr = d.today_schedule ? d.today_schedule.start + '~' + d.today_schedule.end : '';
+              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:${cfg.bg};border:1.5px solid ${cfg.border};min-width:140px;transition:all 0.2s" title="${d.name} ${d.role==='admin'?'원장':'선생'} · ${cfg.label}${scheduleStr?' · '+scheduleStr:''}">
+                <div style="width:36px;height:36px;border-radius:50%;background:${cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:${cfg.color};border:2px solid ${cfg.color}44">
+                  ${d.name.charAt(0)}
+                </div>
+                <div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${esc(d.name)} <span style="font-size:10px;color:var(--text-muted);font-weight:500">${d.role==='admin'?'원장':'선생'}</span></div>
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:1px">
+                    <span style="font-size:10px">${cfg.icon}</span>
+                    <span style="font-size:10px;font-weight:600;color:${cfg.color}">${cfg.label}</span>
+                    ${d.check_in ? `<span style="font-size:9px;color:var(--text-muted);margin-left:2px">${d.check_in.slice(11,16)} 출근</span>` : ''}
+                    ${patientCount > 0 ? `<span style="font-size:9px;background:${cfg.color}22;color:${cfg.color};padding:0 5px;border-radius:8px;font-weight:700;margin-left:2px">${patientCount}명</span>` : ''}
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+            ${dutyList.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:8px">등록된 원장이 없습니다</div>' : ''}
+          </div>
+        </div>`;
 
       // 원장별 환자 분류
       const waitingItems = items.filter(i => !i.assigned_doctor && !['completed','cancelled','no_show'].includes(i.status));
@@ -70,6 +116,10 @@ async function renderTreatmentBoard(body, actions) {
         const ptColor = patientTypeColors[item.patient_type] || '#3b82f6';
         const isDoctorNeeded = item.status === 'doctor_needed';
         const isCompleted = ['completed','cancelled','no_show'].includes(item.status);
+        const locationInfo = [];
+        if (item.chair_number) locationInfo.push(`💺 ${item.chair_number}번`);
+        if (item.room_name) locationInfo.push(`🚪 ${esc(item.room_name)}`);
+        if (item.floor) locationInfo.push(`${esc(item.floor)}층`);
         return `<div class="kb-card" draggable="${isCompleted?'false':'true'}" data-id="${item.id}" style="--accent:${isDoctorNeeded?'#ef4444':sc};${isDoctorNeeded?'animation:pulse 2s infinite;':''}${isCompleted?'opacity:0.55;':''}cursor:pointer">
           <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
             <span style="font-size:11px">${statusEmojis[item.status]||''}</span>
@@ -79,7 +129,7 @@ async function renderTreatmentBoard(body, actions) {
           </div>
           <div class="kb-card-desc">${esc(item.treatment_desc || treatmentTypeLabels[item.treatment_type] || '')}</div>
           <div class="kb-card-meta">
-            ${item.chair_number ? `<span class="kb-card-info">💺 ${item.chair_number}번</span>` : ''}
+            ${locationInfo.length ? `<span class="kb-card-info" style="background:#e0f2fe;color:#0369a1;font-weight:600">${locationInfo.join(' · ')}</span>` : ''}
             ${item.staff_name ? `<span class="kb-card-info">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
             ${item.appointment_time ? `<span class="kb-card-info" style="margin-left:auto">⏰ ${item.appointment_time}</span>` : ''}
           </div>
@@ -206,8 +256,23 @@ async function renderTreatmentBoard(body, actions) {
   });
 
   document.getElementById('addTreatmentBtn').addEventListener('click', async () => {
+    // 체어를 층/방 기준으로 그룹핑
+    const chairsByLocation = {};
+    chairs.forEach(c => {
+      const key = (c.floor ? c.floor + ' ' : '') + (c.room_name || '기타');
+      if (!chairsByLocation[key]) chairsByLocation[key] = [];
+      chairsByLocation[key].push(c);
+    });
+    const chairSelectHtml = Object.entries(chairsByLocation).length > 0
+      ? Object.entries(chairsByLocation).map(([loc, chs]) =>
+          `<optgroup label="📍 ${esc(loc)}">${chs.map(c =>
+            `<option value="${c.id}">${c.chair_number}번 체어${c.room_name?' ('+esc(c.room_name)+')':''}${c.floor?' · '+esc(c.floor)+'층':''}</option>`
+          ).join('')}</optgroup>`
+        ).join('')
+      : '<option value="" disabled>등록된 체어가 없습니다</option>';
+
     const modal = document.getElementById('modalContent');
-    modal.style.maxWidth = '600px';
+    modal.style.maxWidth = '640px';
     modal.innerHTML = `
       <div class="modal-header"><h3>🦷 환자 등록</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
       <div class="modal-body"><form class="auth-form">
@@ -219,27 +284,63 @@ async function renderTreatmentBoard(body, actions) {
           <div class="form-group"><label>환자 유형</label><select class="form-input" id="tbType"><option value="existing">구환</option><option value="new">신환</option><option value="emergency">응급</option><option value="referral">소개</option></select></div>
           <div class="form-group"><label>예약 시간</label><input class="form-input" type="time" id="tbTime"></div>
         </div>
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:var(--radius);padding:14px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;display:flex;align-items:center;gap:6px">📍 위치 배정</div>
+          <div class="form-grid">
+            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">체어 / 방</label>
+              <select class="form-input" id="tbChair" style="font-size:13px">
+                <option value="">미배정</option>
+                ${chairSelectHtml}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">위치 메모 <span style="color:var(--text-muted);font-weight:400">(선택)</span></label>
+              <input class="form-input" id="tbLocationNote" placeholder="예: 3층 수술실, VIP룸 등" style="font-size:13px">
+            </div>
+          </div>
+          <div id="tbChairInfo" style="margin-top:8px;font-size:11px;color:#0369a1;display:none"></div>
+        </div>
         <div class="form-grid">
           <div class="form-group"><label>진료 유형</label><select class="form-input" id="tbTreatType">
             ${Object.entries(treatmentTypeLabels).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
           </select></div>
-          <div class="form-group"><label>체어</label><select class="form-input" id="tbChair"><option value="">미배정</option>${chairs.map(c => `<option value="${c.id}">${c.chair_number}번 ${c.room_name?'('+esc(c.room_name)+')':''}</option>`).join('')}</select></div>
+          <div class="form-group"><label>담당 원장</label><select class="form-input" id="tbDoctor">
+            <option value="">📋 대기 (미배정)</option>
+            ${onDutyDoctors.filter(d => d.status === 'on_duty' || d.status === 'scheduled').length > 0
+              ? `<optgroup label="🟢 오늘 근무중">${onDutyDoctors.filter(d => d.status === 'on_duty' || d.status === 'scheduled').map(d => `<option value="${d.id}">👨‍⚕️ ${esc(d.name)} ${d.role==='admin'?'원장':'선생'}${d.status==='on_duty'?' ✓ 출근':''}</option>`).join('')}</optgroup>` : ''}
+            ${doctors.filter(d => !onDutyDoctors.some(od => od.id === d.id && (od.status === 'on_duty' || od.status === 'scheduled'))).length > 0
+              ? `<optgroup label="⚪ 기타">${doctors.filter(d => !onDutyDoctors.some(od => od.id === d.id && (od.status === 'on_duty' || od.status === 'scheduled'))).map(d => `<option value="${d.id}">👨‍⚕️ ${esc(d.name)} ${d.role==='admin'?'원장':'선생'}</option>`).join('')}</optgroup>` : ''}
+          </select></div>
         </div>
-        <div class="form-group"><label>담당 원장</label><select class="form-input" id="tbDoctor">
-          <option value="">📋 대기 (미배정)</option>
-          ${doctors.map(d => `<option value="${d.id}">👨‍⚕️ ${esc(d.name)} ${d.role==='admin'?'원장':'선생'}</option>`).join('')}
-        </select></div>
         <div class="form-group"><label>진료 내용</label><input class="form-input" id="tbDesc" placeholder="예: 임플란트 2차 수술, 크라운 세팅 등"></div>
         <div class="form-group"><label>메모</label><textarea class="form-input" id="tbNotes" rows="2" placeholder="특이사항, 주의사항"></textarea></div>
       </form></div>
       <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="tbSubmitBtn">등록</button></div>`;
     showModal();
+
+    // 체어 선택 시 상세정보 표시
+    document.getElementById('tbChair').addEventListener('change', (e) => {
+      const chairId = e.target.value;
+      const infoEl = document.getElementById('tbChairInfo');
+      if (chairId) {
+        const chair = chairs.find(c => c.id === chairId);
+        if (chair) {
+          infoEl.style.display = 'block';
+          infoEl.innerHTML = `💺 <strong>${chair.chair_number}번 체어</strong>${chair.room_name?' · 🚪 '+esc(chair.room_name):''}${chair.floor?' · 🏢 '+esc(chair.floor)+'층':''}`;
+        }
+      } else {
+        infoEl.style.display = 'none';
+      }
+    });
+
     document.getElementById('modalClose').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
     document.getElementById('modalCancelBtn').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
     document.getElementById('tbSubmitBtn').addEventListener('click', async () => {
       const name = document.getElementById('tbPatient').value.trim();
       if (!name) { toast('환자명을 입력해주세요', 'error'); return; }
       const btn = document.getElementById('tbSubmitBtn'); btn.disabled = true;
+      const locationNote = document.getElementById('tbLocationNote').value.trim();
+      const notesVal = document.getElementById('tbNotes').value;
+      const combinedNotes = locationNote ? (notesVal ? locationNote + ' | ' + notesVal : locationNote) : notesVal;
       try {
         await api('/api/protected/treatment-board', { method:'POST', json:{
           patient_name: name,
@@ -250,7 +351,7 @@ async function renderTreatmentBoard(body, actions) {
           treatment_type: document.getElementById('tbTreatType').value,
           treatment_desc: document.getElementById('tbDesc').value,
           appointment_time: document.getElementById('tbTime').value || null,
-          notes: document.getElementById('tbNotes').value,
+          notes: combinedNotes,
           board_date: boardDate,
         }});
         toast('환자가 등록되었습니다!', 'success'); modal.style.maxWidth=''; closeModal(); loadBoard();
@@ -285,7 +386,9 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
         ${item.chart_number ? `<span class="meta-pill">📋 #${esc(item.chart_number)}</span>` : ''}
         <span class="meta-pill">🦷 ${treatmentTypeLabels[item.treatment_type]||item.treatment_type}</span>
-        ${item.chair_number ? `<span class="meta-pill">💺 ${item.chair_number}번 체어</span>` : ''}
+        ${item.chair_number ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">💺 ${item.chair_number}번 체어</span>` : ''}
+        ${item.room_name ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">🚪 ${esc(item.room_name)}</span>` : ''}
+        ${item.floor ? `<span class="meta-pill" style="background:#e0f2fe;color:#0369a1">🏢 ${esc(item.floor)}층</span>` : ''}
         ${item.doctor_name ? `<span class="meta-pill">👨‍⚕️ ${esc(item.doctor_name)}</span>` : '<span class="meta-pill" style="background:#fef2f2;color:#ef4444">📋 대기 (미배정)</span>'}
         ${item.staff_name ? `<span class="meta-pill">👩‍⚕️ ${esc(item.staff_name)}</span>` : ''}
         ${item.appointment_time ? `<span class="meta-pill">⏰ ${item.appointment_time}</span>` : ''}
@@ -294,9 +397,15 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
       ${item.notes ? `<div style="background:#eff6ff;padding:10px 12px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:16px"><strong>메모:</strong> ${esc(item.notes)}</div>` : ''}
 
       <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">담당 원장 변경</div>
-      <select class="form-input" id="tbDocSelect" style="margin-bottom:16px;font-size:13px">
+      <select class="form-input" id="tbDocSelect" style="margin-bottom:12px;font-size:13px">
         <option value="" ${!item.assigned_doctor?'selected':''}>📋 대기 (미배정)</option>
         ${(doctors||[]).map(d => `<option value="${d.id}" ${item.assigned_doctor===d.id?'selected':''}}>👨‍⚕️ ${esc(d.name)}</option>`).join('')}
+      </select>
+
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">체어 / 위치 변경</div>
+      <select class="form-input" id="tbChairSelect" style="margin-bottom:16px;font-size:13px">
+        <option value="" ${!item.chair_id?'selected':''}>미배정</option>
+        ${(chairs||[]).map(ch => `<option value="${ch.id}" ${item.chair_id===ch.id?'selected':''}}>💺 ${ch.chair_number}번${ch.room_name?' · '+esc(ch.room_name):''}${ch.floor?' · '+esc(ch.floor)+'층':''}</option>`).join('')}
       </select>
 
       <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">진료 상태</div>
@@ -325,6 +434,13 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs) {
     const newDoc = e.target.value || null;
     await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ assigned_doctor: newDoc }});
     toast('원장 변경됨', 'success'); modal.style.maxWidth=''; closeModal(); reload();
+  });
+  // 체어 변경
+  document.getElementById('tbChairSelect').addEventListener('change', async (e) => {
+    const newChair = e.target.value || null;
+    await api('/api/protected/treatment-board/' + itemId, { method:'PUT', json:{ chair_id: newChair }});
+    const chair = (chairs||[]).find(c => c.id === newChair);
+    toast(chair ? `${chair.chair_number}번 체어로 이동` : '체어 해제됨', 'success'); modal.style.maxWidth=''; closeModal(); reload();
   });
   // 상태 변경
   modal.querySelectorAll('[data-status]').forEach(btn => {
