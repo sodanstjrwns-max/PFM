@@ -3294,64 +3294,121 @@ async function renderLeaveManagement(body, actions) {
 
   // 연차 신청 모달
   document.getElementById('leaveRequestBtn').onclick = async () => {
+    // 잔여일수 조회
+    const myBals = await api('/api/protected/leave/balances?year=' + currentYear + '&user_id=' + state.user.id);
+    const annualBal = (myBals||[]).find(b => b.leave_type === 'annual');
+    const sickBal = (myBals||[]).find(b => b.leave_type === 'sick');
+    const annualRemain = annualBal ? (annualBal.total_days - annualBal.used_days) : 0;
+    const sickRemain = sickBal ? (sickBal.total_days - sickBal.used_days) : 0;
+
     const modal = document.getElementById('modalContent');
+    modal.style.maxWidth = '480px';
     modal.innerHTML = `
-      <h2 style="margin-bottom:20px">🏖️ 연차 신청</h2>
-      <form id="leaveForm" class="form-grid">
-        <div class="form-group">
-          <label>휴가 유형</label>
-          <select name="leave_type" required>
-            <option value="annual">🏖️ 연차</option>
-            <option value="half_am">🌅 오전반차</option>
-            <option value="half_pm">🌇 오후반차</option>
-            <option value="sick">🤒 병가</option>
-            <option value="special">🎉 특별휴가</option>
-            <option value="compensation">🔄 대체휴무</option>
-          </select>
+      <div style="text-align:center;padding:8px 0 20px">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#3b82f6,#06b6d4);margin-bottom:12px">
+          <span style="font-size:28px">🏖️</span>
         </div>
-        <div class="form-group" id="dateFields">
-          <label>시작일</label>
-          <input type="date" name="start_date" required value="${today.toISOString().slice(0,10)}">
+        <h2 style="margin:0;font-size:20px;font-weight:800">연차 신청</h2>
+        <p style="margin:6px 0 0;font-size:13px;color:var(--text-secondary)">휴가 유형을 선택하고 날짜를 지정하세요</p>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <div style="flex:1;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:#3b82f6;font-weight:600;margin-bottom:4px">🏖️ 연차 잔여</div>
+          <div style="font-size:22px;font-weight:800;color:#1d4ed8">${annualRemain}<span style="font-size:12px;font-weight:500;color:#64748b"> / ${annualBal ? annualBal.total_days : 0}일</span></div>
         </div>
-        <div class="form-group" id="endDateField">
-          <label>종료일</label>
-          <input type="date" name="end_date" required value="${today.toISOString().slice(0,10)}">
+        <div style="flex:1;background:linear-gradient(135deg,#fef2f2,#fee2e2);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:#ef4444;font-weight:600;margin-bottom:4px">🤒 병가 잔여</div>
+          <div style="font-size:22px;font-weight:800;color:#dc2626">${sickRemain}<span style="font-size:12px;font-weight:500;color:#64748b"> / ${sickBal ? sickBal.total_days : 0}일</span></div>
         </div>
-        <div class="form-group full">
-          <label>사유</label>
-          <textarea name="reason" rows="3" placeholder="사유를 입력하세요 (선택사항)"></textarea>
+      </div>
+
+      <form id="leaveForm">
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">휴가 유형</label>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px" id="leaveTypeGrid">
+            <label class="leave-type-option selected" data-value="annual" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--primary);border-radius:10px;cursor:pointer;transition:all 0.15s;background:rgba(20,184,166,0.06)">
+              <span style="font-size:20px">🏖️</span><span style="font-size:11px;font-weight:600">연차</span>
+            </label>
+            <label class="leave-type-option" data-value="half_am" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <span style="font-size:20px">🌅</span><span style="font-size:11px;font-weight:600">오전반차</span>
+            </label>
+            <label class="leave-type-option" data-value="half_pm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <span style="font-size:20px">🌇</span><span style="font-size:11px;font-weight:600">오후반차</span>
+            </label>
+            <label class="leave-type-option" data-value="sick" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <span style="font-size:20px">🤒</span><span style="font-size:11px;font-weight:600">병가</span>
+            </label>
+            <label class="leave-type-option" data-value="special" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <span style="font-size:20px">🎉</span><span style="font-size:11px;font-weight:600">특별휴가</span>
+            </label>
+            <label class="leave-type-option" data-value="compensation" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <span style="font-size:20px">🔄</span><span style="font-size:11px;font-weight:600">대체휴무</span>
+            </label>
+          </div>
+          <input type="hidden" name="leave_type" value="annual">
         </div>
-        <div class="form-group full" id="daysPreview" style="background:#f0fdf4;padding:12px;border-radius:8px;font-size:14px;font-weight:600;text-align:center">
-          📅 1일 신청
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">시작일</label>
+            <input type="date" name="start_date" required value="${today.toISOString().slice(0,10)}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+          </div>
+          <div id="endDateField">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">종료일</label>
+            <input type="date" name="end_date" required value="${today.toISOString().slice(0,10)}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+          </div>
         </div>
-        <div class="form-group full" style="display:flex;gap:8px;justify-content:flex-end">
-          <button type="button" class="btn" onclick="closeModal()">취소</button>
-          <button type="submit" class="btn btn-primary">신청하기</button>
+
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">사유</label>
+          <textarea name="reason" rows="2" placeholder="사유를 입력하세요 (선택사항)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+        </div>
+
+        <div id="daysPreview" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);padding:14px;border-radius:10px;text-align:center;margin-bottom:20px;border:1px solid #bbf7d0">
+          <span style="font-size:24px">📅</span>
+          <div style="font-size:18px;font-weight:800;color:#15803d;margin-top:4px">1일 신청</div>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn" onclick="closeModal()" style="flex:1;padding:12px;font-size:14px;font-weight:600;border-radius:10px">취소</button>
+          <button type="submit" class="btn btn-primary" style="flex:2;padding:12px;font-size:14px;font-weight:700;border-radius:10px">🏖️ 신청하기</button>
         </div>
       </form>
     `;
     showModal();
 
     const form = document.getElementById('leaveForm');
-    const typeSelect = form.leave_type;
     const endField = document.getElementById('endDateField');
     const preview = document.getElementById('daysPreview');
+    let selectedType = 'annual';
+
+    // Type selection grid
+    document.querySelectorAll('.leave-type-option').forEach(opt => {
+      opt.addEventListener('click', function() {
+        document.querySelectorAll('.leave-type-option').forEach(o => { o.style.border = '2px solid var(--border)'; o.style.background = 'transparent'; o.classList.remove('selected'); });
+        this.style.border = '2px solid var(--primary)';
+        this.style.background = 'rgba(20,184,166,0.06)';
+        this.classList.add('selected');
+        selectedType = this.dataset.value;
+        form.leave_type.value = selectedType;
+        updatePreview();
+      });
+    });
 
     function updatePreview() {
-      const lt = typeSelect.value;
-      if (lt === 'half_am' || lt === 'half_pm') {
+      if (selectedType === 'half_am' || selectedType === 'half_pm') {
         endField.style.display = 'none';
         form.end_date.value = form.start_date.value;
-        preview.innerHTML = '📅 0.5일 (반차) 신청';
+        preview.innerHTML = '<span style="font-size:24px">🌤️</span><div style="font-size:18px;font-weight:800;color:#15803d;margin-top:4px">0.5일 (반차) 신청</div>';
       } else {
         endField.style.display = '';
         const s = new Date(form.start_date.value);
         const e = new Date(form.end_date.value);
         const d = Math.max(1, Math.round((e - s) / 86400000) + 1);
-        preview.innerHTML = `📅 ${d}일 신청`;
+        preview.innerHTML = '<span style="font-size:24px">📅</span><div style="font-size:18px;font-weight:800;color:#15803d;margin-top:4px">' + d + '일 신청</div>';
       }
     }
-    typeSelect.onchange = updatePreview;
     form.start_date.onchange = () => { if (form.end_date.value < form.start_date.value) form.end_date.value = form.start_date.value; updatePreview(); };
     form.end_date.onchange = updatePreview;
 
