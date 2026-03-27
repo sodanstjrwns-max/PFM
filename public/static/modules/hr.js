@@ -186,6 +186,7 @@ async function renderStaffManagement(body, actions) {
       });
 
       container.innerHTML = `
+        ${isAdmin ? '<div style="margin-bottom:12px;font-size:12px;color:var(--text-muted)">💡 직원 카드를 클릭하면 인적사항, 근무시간, 근무요일 등을 편집할 수 있습니다.</div>' : ''}
         <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;flex:1;min-width:120px;text-align:center">
             <div style="font-size:24px;font-weight:800;color:var(--primary)">${active.length}</div>

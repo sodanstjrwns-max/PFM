@@ -259,6 +259,39 @@ app.get('/api/protected/hr/staff', async (c) => {
   return c.json(rows.results)
 })
 
+// 내 정보 조회
+app.get('/api/protected/me', async (c) => {
+  const user = c.get('user')!
+  const row: any = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.email, u.role, u.position, u.team, u.phone, u.hire_date, u.work_schedule, u.work_status, u.is_doctor, u.created_at, h.name as hospital_name FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.id=?`
+  ).bind(user.id).first()
+  if (!row) return c.json({ error: '사용자를 찾을 수 없습니다' }, 404)
+  let schedule: any = {}
+  try { schedule = JSON.parse(row.work_schedule || '{}') } catch(e) {}
+  return c.json({ ...row, work_schedule: schedule })
+})
+
+// 내 정보 수정 (본인만)
+app.put('/api/protected/me', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  // 본인이 수정 가능한 필드 제한 (role, work_status 등은 관리자만)
+  const allowed = ['name','phone','work_schedule']
+  const fields: string[] = []
+  const vals: any[] = []
+  for (const k of allowed) {
+    if (body[k] !== undefined) {
+      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]
+      fields.push(`${k} = ?`); vals.push(v)
+    }
+  }
+  if (fields.length === 0) return c.json({ error: '변경 사항이 없습니다' }, 400)
+  fields.push('updated_at = CURRENT_TIMESTAMP')
+  vals.push(user.id)
+  await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
 // 직원 프로필 업데이트 (관리자 or 본인)
 app.put('/api/protected/hr/staff/:id', async (c) => {
   const user = c.get('user')!

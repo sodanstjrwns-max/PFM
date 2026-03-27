@@ -21,13 +21,22 @@ const termDescriptions = {
 };
 
 async function renderSettings(body) {
+  const isAdmin = state.user.role === 'admin';
+  const isManager = ['admin','manager'].includes(state.user.role);
+
   body.innerHTML = `
     <div style="max-width:720px">
+      <div class="section-title">👤 <span>내 정보</span></div>
+      <div id="myProfileSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
       <div class="section-title">${ICONS.settings}<span>병원 정보</span></div>
       <div id="hospitalInfoSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
 
+      ${isManager ? `
       <div class="section-title">📍 <span>위치 용어 설정</span></div>
       <div id="locationTermsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
@@ -37,6 +46,7 @@ async function renderSettings(body) {
       <div id="locationPresetsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
+      ` : ''}
 
       <div class="section-title">${ICONS.users}<span>계정</span></div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
@@ -48,16 +58,141 @@ async function renderSettings(body) {
 
   // 데이터 로드
   try {
-    const [hospitalInfo, hospitalSettings] = await Promise.all([
+    const requests = [
+      api('/api/protected/me'),
       api('/api/protected/hospital/info'),
-      api('/api/protected/hospital/settings')
-    ]);
+    ];
+    if (isManager) requests.push(api('/api/protected/hospital/settings'));
+    const [myProfile, hospitalInfo, hospitalSettings] = await Promise.all(requests);
+    renderMyProfile(myProfile);
     renderHospitalInfo(hospitalInfo);
-    renderLocationTerms(hospitalSettings);
-    renderLocationPresets(hospitalSettings);
+    if (isManager && hospitalSettings) {
+      renderLocationTerms(hospitalSettings);
+      renderLocationPresets(hospitalSettings);
+    }
   } catch(e) {
-    document.getElementById('hospitalInfoSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${e.message}</div>`;
+    document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${e.message}</div>`;
   }
+}
+
+function renderMyProfile(profile) {
+  const section = document.getElementById('myProfileSection');
+  const schedule = profile.work_schedule || {};
+  const dayLabels = ['월','화','수','목','금','토','일'];
+  const dayKeys = ['mon','tue','wed','thu','fri','sat','sun'];
+  const workDays = dayKeys.filter(d => schedule[d]).length;
+  const posLabels = {doctor:'원장/의사', director:'실장단', hygienist:'치과위생사', desk:'데스크', sterilization:'소독팀', management:'경영지원실'};
+  const posEmoji = {doctor:'🩺', director:'👑', hygienist:'🦷', desk:'💻', sterilization:'🧹', management:'📊'};
+  const teamLabels = {clinical:'진료팀', front:'프론트', support:'지원팀', management:'경영지원'};
+  const teamColors = {clinical:'#3b82f6', front:'#8b5cf6', support:'#f59e0b', management:'#22c55e'};
+  const roleLabels = {admin:'관리자(원장)', manager:'매니저(실장)', staff:'스태프'};
+  const tc = teamColors[profile.team] || '#6b7280';
+
+  section.innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border-light)">
+      <div style="width:56px;height:56px;border-radius:50%;background:${tc}15;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;border:3px solid ${tc}33">
+        ${posEmoji[profile.position] || '👤'}
+      </div>
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--text)">${esc(profile.name)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:${tc}15;color:${tc};font-weight:600">${posLabels[profile.position]||profile.position||'미지정'}</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:600">${roleLabels[profile.role]||profile.role}</span>
+          ${profile.is_doctor ? '<span style="font-size:10px;padding:2px 8px;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-weight:600">Dr.</span>' : ''}
+          <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:#f3f4f6;color:#6b7280;font-weight:600">${teamLabels[profile.team]||profile.team||'미지정'}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>이름</label>
+        <input class="form-input" type="text" id="myName" value="${esc(profile.name || '')}">
+      </div>
+      <div class="form-group">
+        <label>이메일</label>
+        <input class="form-input" type="email" value="${esc(profile.email || '')}" disabled>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">* 이메일은 변경할 수 없습니다</div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>연락처</label>
+        <input class="form-input" type="tel" id="myPhone" value="${esc(profile.phone || '')}" placeholder="010-0000-0000">
+      </div>
+      <div class="form-group">
+        <label>입사일</label>
+        <input class="form-input" type="date" value="${profile.hire_date || ''}" disabled>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">* 입사일은 관리자만 변경 가능</div>
+      </div>
+    </div>
+
+    <div style="margin-top:8px">
+      <label style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;display:block">근무 스케줄</label>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px" id="mySchedGrid">
+        ${dayKeys.map((d, i) => {
+          const on = !!schedule[d];
+          const s = schedule[d] || {start:'09:00',end:'18:00'};
+          return `<div style="text-align:center;background:${on?tc+'08':'var(--bg)'};border:1px solid ${on?tc+'33':'var(--border-light)'};border-radius:var(--radius-sm);padding:10px 4px">
+            <label style="display:flex;align-items:center;gap:3px;margin-bottom:6px;justify-content:center;cursor:pointer">
+              <input type="checkbox" class="my-sched-day" data-day="${d}" ${on?'checked':''}>
+              <span style="font-weight:700;font-size:13px;color:${on?tc:'var(--text-muted)'}">${dayLabels[i]}</span>
+            </label>
+            <div class="my-sched-times" data-day-times="${d}" style="${on?'':'display:none'}">
+              <input type="time" class="my-sched-start" value="${s.start||'09:00'}" style="width:100%;font-size:11px;padding:3px;border:1px solid var(--border);border-radius:4px;margin-bottom:3px;text-align:center">
+              <div style="font-size:9px;color:var(--text-muted)">~</div>
+              <input type="time" class="my-sched-end" value="${s.end||'18:00'}" style="width:100%;font-size:11px;padding:3px;border:1px solid var(--border);border-radius:4px;text-align:center">
+            </div>
+            ${!on ? '<div style="font-size:10px;color:var(--text-muted);margin-top:6px">휴무</div>' : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">주 ${workDays}일 근무</div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light)">
+      <button class="btn btn-primary" id="myProfileSaveBtn">💾 내 정보 저장</button>
+      <span id="myProfileSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+    </div>`;
+
+  // 스케줄 체크박스 토글
+  const grid = document.getElementById('mySchedGrid');
+  grid.querySelectorAll('.my-sched-day').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const times = grid.querySelector(`[data-day-times="${cb.dataset.day}"]`);
+      if (times) times.style.display = cb.checked ? '' : 'none';
+      // 비활성 텍스트도 토글
+      const parent = cb.closest('div[style]');
+      const offLabel = parent?.querySelector('div:last-child');
+    });
+  });
+
+  // 저장
+  document.getElementById('myProfileSaveBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('myProfileSaveBtn'); btn.disabled = true;
+    const ws = {};
+    grid.querySelectorAll('.my-sched-day').forEach(cb => {
+      const d = cb.dataset.day;
+      if (cb.checked) {
+        const times = grid.querySelector(`[data-day-times="${d}"]`);
+        ws[d] = { start: times.querySelector('.my-sched-start').value, end: times.querySelector('.my-sched-end').value };
+      } else { ws[d] = null; }
+    });
+    try {
+      await api('/api/protected/me', { method: 'PUT', json: {
+        name: document.getElementById('myName').value.trim(),
+        phone: document.getElementById('myPhone').value.trim(),
+        work_schedule: ws,
+      }});
+      toast('내 정보가 저장되었습니다!', 'success');
+      // 로컬 상태도 업데이트
+      state.user.name = document.getElementById('myName').value.trim();
+      localStorage.setItem('pfm_user', JSON.stringify(state.user));
+      document.getElementById('myProfileSaveStatus').textContent = '✅ 저장됨';
+      setTimeout(() => { const s = document.getElementById('myProfileSaveStatus'); if(s) s.textContent=''; }, 3000);
+    } catch(e) { toast(e.message, 'error'); }
+    btn.disabled = false;
+  });
 }
 
 function renderHospitalInfo(info) {
