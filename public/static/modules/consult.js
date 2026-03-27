@@ -72,114 +72,355 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
   const nextMonth = (() => { const d = new Date(month + '-01'); d.setMonth(d.getMonth()+1); return d.toISOString().slice(0,7); })();
   const displayMonth = month.replace('-', '년 ') + '월';
   
-  // 요약 통계
-  const total = records.length;
-  const confirmed = records.filter(r => r.treatment_confirmed === 'O').length;
-  const rejected = records.filter(r => r.treatment_confirmed === 'X').length;
-  const pending = total - confirmed - rejected;
-  const rate = (confirmed + rejected) > 0 ? Math.round(confirmed / (confirmed + rejected) * 1000) / 10 : 0;
-  const totalPlanned = records.reduce((s,r) => s + (r.planned_amount||0), 0);
-  const totalAgreed = records.reduce((s,r) => s + (r.agreed_amount||0), 0);
-  const newP = records.filter(r => r.patient_type === 'new').length;
+  // 필터/정렬 상태
+  let sortKey = 'record_date', sortDir = -1;
+  let filters = { search: '', doctor: '', counselor: '', category: '', confirmed: '', patient_type: '', visit_source: '' };
+  let filterPanelOpen = false;
   
-  body.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
-      <button class="btn btn-sm" id="crPrev">◀</button>
-      <h2 style="margin:0;font-size:20px;font-weight:800">📋 ${displayMonth} 상담 기록</h2>
-      <button class="btn btn-sm" id="crNext">▶</button>
-    </div>
+  // 유니크 값 추출
+  const uniqueDoctors = [...new Set(records.map(r => r.doctor_name).filter(Boolean))].sort();
+  const uniqueCounselors = [...new Set(records.map(r => r.counselor_name).filter(Boolean))].sort();
+  const uniqueSources = [...new Set(records.map(r => r.visit_source).filter(Boolean))];
+  
+  // 필터 라벨 매핑
+  const filterLabels = {
+    doctor: '상담의', counselor: '상담사', category: '카테고리',
+    confirmed: '확정여부', patient_type: '구/신환', visit_source: '내원경로'
+  };
+  function getFilterDisplayValue(key, val) {
+    if (key === 'category') return CATEGORIES[val] || val;
+    if (key === 'confirmed') return val === 'O' ? '확정' : val === 'X' ? '미확정' : '미정';
+    if (key === 'patient_type') return val === 'new' ? '신환' : '구환';
+    if (key === 'visit_source') return (VISIT_SOURCES[val] || val).replace(/^.\s/, '');
+    return val;
+  }
+  
+  function getFiltered() {
+    let list = records;
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      list = list.filter(r => (r.patient_name||'').toLowerCase().includes(q) || (r.chart_number||'').toLowerCase().includes(q) || (r.doctor_name||'').toLowerCase().includes(q) || (r.counselor_name||'').toLowerCase().includes(q) || (r.discount_note||'').toLowerCase().includes(q) || (r.notes||'').toLowerCase().includes(q));
+    }
+    if (filters.doctor) list = list.filter(r => r.doctor_name === filters.doctor);
+    if (filters.counselor) list = list.filter(r => r.counselor_name === filters.counselor);
+    if (filters.category) list = list.filter(r => r.treatment_category === filters.category);
+    if (filters.confirmed) list = list.filter(r => r.treatment_confirmed === filters.confirmed);
+    if (filters.patient_type) list = list.filter(r => r.patient_type === filters.patient_type);
+    if (filters.visit_source) list = list.filter(r => r.visit_source === filters.visit_source);
     
-    <!-- 요약 카드 -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px">
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">총 상담</div>
-        <div style="font-size:24px;font-weight:900;color:#3b82f6">${total}건</div>
-        <div style="font-size:10px;color:var(--text-muted)">신환 ${newP} / 구환 ${total - newP}</div>
-      </div>
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">확정률</div>
-        <div style="font-size:24px;font-weight:900;color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</div>
-        <div style="font-size:10px;color:var(--text-muted)">✅${confirmed} ❌${rejected} ⏳${pending}</div>
-      </div>
-      ${isManager ? `
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">비용계획</div>
-        <div style="font-size:20px;font-weight:900;color:#8b5cf6">${fmtMan(totalPlanned)}</div>
-      </div>
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">동의금액</div>
-        <div style="font-size:20px;font-weight:900;color:#3b82f6">${fmtMan(totalAgreed)}</div>
-      </div>` : ''}
-    </div>
+    // 정렬
+    list = [...list].sort((a, b) => {
+      let va = a[sortKey], vb = b[sortKey];
+      if (sortKey === 'planned_amount' || sortKey === 'agreed_amount') { va = va || 0; vb = vb || 0; }
+      else { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); }
+      if (va < vb) return -1 * sortDir;
+      if (va > vb) return 1 * sortDir;
+      return 0;
+    });
+    return list;
+  }
+  
+  function render() {
+    const filtered = getFiltered();
+    const activeFilters = Object.entries(filters).filter(([k,v]) => v && k !== 'search');
+    const activeFilterCount = activeFilters.length;
+    const hasSearch = !!filters.search;
+    const hasAnyFilter = activeFilterCount > 0 || hasSearch;
     
-    <!-- 테이블 -->
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
-        <thead>
-          <tr style="background:var(--bg-hover)">
-            <th style="padding:10px 8px;text-align:left;font-weight:700;border-bottom:2px solid var(--border);white-space:nowrap">날짜</th>
-            <th style="padding:10px 8px;text-align:left;border-bottom:2px solid var(--border)">성함</th>
-            <th style="padding:10px 8px;text-align:left;border-bottom:2px solid var(--border)">상담의</th>
-            <th style="padding:10px 8px;text-align:left;border-bottom:2px solid var(--border)">상담사</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">비용계획</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">동의금액</th>
-            <th style="padding:10px 8px;text-align:center;border-bottom:2px solid var(--border)">구분</th>
-            <th style="padding:10px 8px;text-align:center;border-bottom:2px solid var(--border)">카테고리</th>
-            <th style="padding:10px 8px;text-align:center;border-bottom:2px solid var(--border)">확정</th>
-            <th style="padding:10px 8px;text-align:center;border-bottom:2px solid var(--border)">예약</th>
-            <th style="padding:10px 6px;border-bottom:2px solid var(--border)">할인/메모</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${records.length === 0 ? `<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--text-muted)">이달 기록이 없습니다</td></tr>` : ''}
-          ${records.map(r => {
-            const dateStr = r.record_date?.slice(5) || '';
-            const catLabel = CATEGORIES[r.treatment_category] || r.treatment_category;
-            const catColor = CAT_COLORS[r.treatment_category] || '#6b7280';
-            const ptBadge = r.patient_type === 'new'
-              ? '<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">신</span>'
-              : '<span style="background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">구</span>';
-            const confBadge = r.treatment_confirmed === 'O'
-              ? '<span style="color:#22c55e;font-weight:800">✅</span>'
-              : r.treatment_confirmed === 'X'
-              ? '<span style="color:#ef4444;font-weight:800">❌</span>'
-              : '<span style="color:#94a3b8">-</span>';
-            const apptBadge = r.appointment_made === 'O' ? '✅' : r.appointment_made === 'X' ? '❌' : '-';
-            const memo = r.discount_note || r.notes || '';
-            return `<tr style="border-bottom:1px solid var(--border-light);cursor:pointer" data-id="${r.id}" class="cr-row">
-              <td style="padding:7px 8px;font-weight:600;white-space:nowrap">${dateStr}</td>
-              <td style="padding:7px 8px;font-weight:700">${esc(r.patient_name)}</td>
-              <td style="padding:7px 8px">${esc(r.doctor_name)}</td>
-              <td style="padding:7px 8px">${esc(r.counselor_name)}</td>
-              <td style="padding:7px 8px;text-align:right;color:var(--text-muted)">${r.planned_amount ? fmtWon(r.planned_amount) : '-'}</td>
-              <td style="padding:7px 8px;text-align:right;font-weight:700;color:#3b82f6">${r.agreed_amount ? fmtWon(r.agreed_amount) : '-'}</td>
-              <td style="padding:7px 8px;text-align:center">${ptBadge}</td>
-              <td style="padding:7px 8px;text-align:center"><span style="background:${catColor}18;color:${catColor};padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">${catLabel}</span></td>
-              <td style="padding:7px 8px;text-align:center">${confBadge}</td>
-              <td style="padding:7px 8px;text-align:center">${apptBadge}</td>
-              <td style="padding:7px 6px;font-size:11px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(memo)}">${esc(memo.slice(0,30))}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--text-muted)">총 ${records.length}건</div>
-  `;
-  
-  // 이벤트
-  document.getElementById('crPrev')?.addEventListener('click', () => reload(prevMonth));
-  document.getElementById('crNext')?.addEventListener('click', () => reload(nextMonth));
-  
-  // 행 클릭 → 수정 모달 (매니저만)
-  if (isManager) {
-    body.querySelectorAll('.cr-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const id = row.getAttribute('data-id');
-        const rec = records.find(r => r.id === id);
-        if (rec) openRecordForm(rec, staffData, async () => { await reload(currentMonth); });
+    const total = filtered.length;
+    const confirmed = filtered.filter(r => r.treatment_confirmed === 'O').length;
+    const rejected = filtered.filter(r => r.treatment_confirmed === 'X').length;
+    const pending = total - confirmed - rejected;
+    const rate = (confirmed + rejected) > 0 ? Math.round(confirmed / (confirmed + rejected) * 1000) / 10 : 0;
+    const totalPlanned = filtered.reduce((s,r) => s + (r.planned_amount||0), 0);
+    const totalAgreed = filtered.reduce((s,r) => s + (r.agreed_amount||0), 0);
+    const newP = filtered.filter(r => r.patient_type === 'new').length;
+    
+    const sStyle = `padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);outline:none;min-width:0;transition:border-color 0.2s`;
+    
+    function thCls(key, align) {
+      const isActive = sortKey === key;
+      const bg = isActive ? 'background:rgba(59,130,246,0.08);' : '';
+      const border = isActive ? 'border-bottom:3px solid #3b82f6;' : 'border-bottom:2px solid var(--border);';
+      return `padding:10px 8px;${border}${bg}cursor:pointer;user-select:none;white-space:nowrap;font-weight:700;font-size:11px;text-align:${align};transition:all 0.15s`;
+    }
+    
+    function sortIcon(key) {
+      if (sortKey !== key) return '<span style="color:#cbd5e1;font-size:10px;margin-left:3px;opacity:0.5">⇅</span>';
+      return sortDir === 1
+        ? '<span style="color:#3b82f6;font-size:10px;margin-left:3px;font-weight:900">▲</span>'
+        : '<span style="color:#3b82f6;font-size:10px;margin-left:3px;font-weight:900">▼</span>';
+    }
+    
+    // 활성 필터 칩 생성
+    let chipHtml = '';
+    if (hasAnyFilter) {
+      const chips = [];
+      if (hasSearch) chips.push('<span class="cr-chip" data-chip="search" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:pointer;transition:all 0.15s" title="검색 필터 제거">🔍 "' + esc(filters.search) + '" <span style="font-size:13px;color:#93c5fd;margin-left:2px">&times;</span></span>');
+      activeFilters.forEach(function(pair) {
+        var k = pair[0], v = pair[1];
+        var label = filterLabels[k] || k;
+        var dispVal = getFilterDisplayValue(k, v);
+        chips.push('<span class="cr-chip" data-chip="' + k + '" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;cursor:pointer;transition:all 0.15s" title="' + label + ' 필터 제거">' + label + ': ' + dispVal + ' <span style="font-size:13px;color:#86efac;margin-left:2px">&times;</span></span>');
+      });
+      chips.push('<span class="cr-chip" data-chip="__all" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;cursor:pointer;transition:all 0.15s" title="모든 필터 초기화">✕ 전체 초기화</span>');
+      chipHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-light)">' + chips.join('') + '</div>';
+    }
+    
+    // 정렬 상태 표시
+    const sortNames = { record_date:'날짜', patient_name:'성함', doctor_name:'상담의', counselor_name:'상담사', planned_amount:'비용계획', agreed_amount:'동의금액', patient_type:'구분', treatment_category:'카테고리', treatment_confirmed:'확정', visit_source:'경로', appointment_made:'예약' };
+    const sortLabel = sortNames[sortKey] || sortKey;
+    
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px">
+        <button class="btn btn-sm" id="crPrev">◀</button>
+        <h2 style="margin:0;font-size:20px;font-weight:800">📋 ${displayMonth} 상담 기록</h2>
+        <button class="btn btn-sm" id="crNext">▶</button>
+      </div>
+      
+      <!-- 검색 + 필터 바 -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px;position:relative">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none">🔍</span>
+            <input type="text" id="crSearch" placeholder="환자명, 챠트번호, 상담의, 상담사, 메모 검색..." value="${esc(filters.search)}" style="width:100%;padding:9px 12px 9px 34px;border:1.5px solid ${hasSearch ? '#3b82f6' : 'var(--border)'};border-radius:10px;font-size:13px;background:var(--bg);outline:none;transition:border-color 0.2s,box-shadow 0.2s">
+            ${hasSearch ? '<button id="crClearSearch" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#94a3b8;padding:2px 4px" title="검색 초기화">&times;</button>' : ''}
+          </div>
+          <button class="btn btn-sm" id="crToggleFilters" style="white-space:nowrap;font-size:12px;padding:8px 14px;border-radius:10px;font-weight:700;transition:all 0.15s;${activeFilterCount > 0 ? 'background:#3b82f6;color:#fff;box-shadow:0 2px 8px rgba(59,130,246,0.3)' : ''}">
+            🎛️ 필터${activeFilterCount > 0 ? ' <span style="background:rgba(255,255,255,0.25);padding:1px 7px;border-radius:10px;font-size:11px;margin-left:4px">' + activeFilterCount + '</span>' : ''}
+          </button>
+          <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--border-light)" title="현재 정렬 기준 (헤더 클릭으로 변경)">
+            <span style="color:#3b82f6;font-weight:800">정렬:</span> ${sortLabel} <span style="color:#3b82f6;font-weight:700">${sortDir === 1 ? '▲' : '▼'}</span>
+          </div>
+        </div>
+        
+        <div id="crFilterPanel" style="display:${filterPanelOpen ? 'block' : 'none'};padding-top:12px;margin-top:12px;border-top:1px solid var(--border-light)">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">🩺 상담의</label>
+              <select id="crF_doctor" style="${sStyle};width:100%;${filters.doctor ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                ${uniqueDoctors.map(d => `<option value="${esc(d)}" ${filters.doctor===d?'selected':''}>${esc(d)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">👩‍⚕️ 상담사</label>
+              <select id="crF_counselor" style="${sStyle};width:100%;${filters.counselor ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                ${uniqueCounselors.map(c => `<option value="${esc(c)}" ${filters.counselor===c?'selected':''}>${esc(c)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">🦷 카테고리</label>
+              <select id="crF_category" style="${sStyle};width:100%;${filters.category ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                ${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}" ${filters.category===k?'selected':''}>${v}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">✅ 치료확정</label>
+              <select id="crF_confirmed" style="${sStyle};width:100%;${filters.confirmed ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                <option value="O" ${filters.confirmed==='O'?'selected':''}>✅ 확정</option>
+                <option value="X" ${filters.confirmed==='X'?'selected':''}>❌ 미확정</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">👥 구/신환</label>
+              <select id="crF_patient_type" style="${sStyle};width:100%;${filters.patient_type ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                <option value="new" ${filters.patient_type==='new'?'selected':''}>신환</option>
+                <option value="existing" ${filters.patient_type==='existing'?'selected':''}>구환</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">🛤️ 내원경로</label>
+              <select id="crF_visit_source" style="${sStyle};width:100%;${filters.visit_source ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                ${Object.entries(VISIT_SOURCES).map(([k,v]) => `<option value="${k}" ${filters.visit_source===k?'selected':''}>${v}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        ${chipHtml}
+      </div>
+      
+      <!-- 요약 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center${hasAnyFilter ? ';border-left:3px solid #f59e0b' : ''}">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">총 상담${hasAnyFilter ? ' (필터)' : ''}</div>
+          <div style="font-size:24px;font-weight:900;color:#3b82f6">${total}건</div>
+          <div style="font-size:10px;color:var(--text-muted)">신환 ${newP} / 구환 ${total - newP}${hasAnyFilter ? ' <span style="color:#f59e0b">/ 전체 ' + records.length + '</span>' : ''}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">확정률</div>
+          <div style="font-size:24px;font-weight:900;color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</div>
+          <div style="font-size:10px;color:var(--text-muted)">✅${confirmed} ❌${rejected} ⏳${pending}</div>
+        </div>
+        ${isManager ? `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">비용계획</div>
+          <div style="font-size:20px;font-weight:900;color:#8b5cf6">${fmtMan(totalPlanned)}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">동의금액</div>
+          <div style="font-size:20px;font-weight:900;color:#3b82f6">${fmtMan(totalAgreed)}</div>
+        </div>` : ''}
+      </div>
+      
+      <!-- 테이블 -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1060px">
+          <thead>
+            <tr style="background:var(--bg-hover)">
+              <th style="${thCls("record_date","left")}" data-sort="record_date">날짜 ${sortIcon('record_date')}</th>
+              <th style="${thCls("patient_name","left")}" data-sort="patient_name">성함 ${sortIcon('patient_name')}</th>
+              <th style="${thCls("doctor_name","left")}" data-sort="doctor_name">상담의 ${sortIcon('doctor_name')}</th>
+              <th style="${thCls("counselor_name","left")}" data-sort="counselor_name">상담사 ${sortIcon('counselor_name')}</th>
+              <th style="${thCls("planned_amount","right")}" data-sort="planned_amount">비용계획 ${sortIcon('planned_amount')}</th>
+              <th style="${thCls("agreed_amount","right")}" data-sort="agreed_amount">동의금액 ${sortIcon('agreed_amount')}</th>
+              <th style="${thCls("patient_type","center")}" data-sort="patient_type">구분 ${sortIcon('patient_type')}</th>
+              <th style="${thCls("treatment_category","center")}" data-sort="treatment_category">카테고리 ${sortIcon('treatment_category')}</th>
+              <th style="${thCls("treatment_confirmed","center")}" data-sort="treatment_confirmed">확정 ${sortIcon('treatment_confirmed')}</th>
+              <th style="${thCls("visit_source","center")}" data-sort="visit_source">경로 ${sortIcon('visit_source')}</th>
+              <th style="${thCls("appointment_made","center")}" data-sort="appointment_made">예약 ${sortIcon('appointment_made')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:50px;text-align:center;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:10px">${hasAnyFilter ? '🔍' : '📋'}</div><div style="font-size:14px;font-weight:600">${hasAnyFilter ? '필터 조건에 맞는 기록이 없습니다' : '이달 기록이 없습니다'}</div>${hasAnyFilter ? '<div style="font-size:12px;margin-top:6px">필터 조건을 변경해 보세요</div>' : ''}</td></tr>` : ''}
+            ${filtered.map((r, idx) => {
+              const dateStr = r.record_date?.slice(5) || '';
+              const catLabel = CATEGORIES[r.treatment_category] || r.treatment_category;
+              const catColor = CAT_COLORS[r.treatment_category] || '#6b7280';
+              const srcLabel = VISIT_SOURCES[r.visit_source] || (r.visit_source ? r.visit_source : '');
+              const srcColor = SOURCE_COLORS[r.visit_source] || '#94a3b8';
+              const ptBadge = r.patient_type === 'new'
+                ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">신</span>'
+                : '<span style="background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">구</span>';
+              const confBadge = r.treatment_confirmed === 'O'
+                ? '<span style="color:#22c55e;font-weight:800">✅</span>'
+                : r.treatment_confirmed === 'X'
+                ? '<span style="color:#ef4444;font-weight:800">❌</span>'
+                : '<span style="color:#94a3b8">⏳</span>';
+              const apptBadge = r.appointment_made === 'O' ? '✅' : r.appointment_made === 'X' ? '❌' : '-';
+              const zebra = idx % 2 === 1 ? 'background:rgba(0,0,0,0.015);' : '';
+              return `<tr style="border-bottom:1px solid var(--border-light);cursor:pointer;transition:background 0.12s;${zebra}" data-id="${r.id}" class="cr-row" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='${idx%2===1?'rgba(0,0,0,0.015)':''}'" >
+                <td style="padding:8px;font-weight:600;white-space:nowrap">${dateStr}</td>
+                <td style="padding:8px;font-weight:700">${esc(r.patient_name)}${r.chart_number ? '<span style="color:var(--text-muted);font-size:10px;margin-left:4px">#'+esc(String(r.chart_number))+'</span>' : ''}</td>
+                <td style="padding:7px 8px">${esc(r.doctor_name)}</td>
+                <td style="padding:8px">${esc(r.counselor_name)}</td>
+                <td style="padding:8px;text-align:right;color:var(--text-muted)">${r.planned_amount ? fmtWon(r.planned_amount) : '-'}</td>
+                <td style="padding:8px;text-align:right;font-weight:700;color:#3b82f6">${r.agreed_amount ? fmtWon(r.agreed_amount) : '-'}</td>
+                <td style="padding:8px;text-align:center">${ptBadge}</td>
+                <td style="padding:8px;text-align:center"><span style="background:${catColor}18;color:${catColor};padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">${catLabel}</span></td>
+                <td style="padding:8px;text-align:center">${confBadge}</td>
+                <td style="padding:8px;text-align:center">${srcLabel ? `<span style="color:${srcColor};font-size:10px;font-weight:600">${srcLabel.replace(/^.\\s/,'')}</span>` : '<span style="color:#cbd5e1">-</span>'}</td>
+                <td style="padding:8px;text-align:center">${apptBadge}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          ${filtered.length > 0 && isManager ? `<tfoot>
+            <tr style="background:var(--bg-hover);border-top:2px solid var(--border)">
+              <td colspan="4" style="padding:10px 8px;font-weight:800;font-size:12px;color:var(--text-muted)">합계 (${total}건)</td>
+              <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:12px;color:#8b5cf6">${fmtMan(totalPlanned)}</td>
+              <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:12px;color:#3b82f6">${fmtMan(totalAgreed)}</td>
+              <td style="padding:10px 8px;text-align:center;font-size:11px;font-weight:700;color:#1d4ed8">${newP}신</td>
+              <td colspan="4" style="padding:10px 8px;text-align:right;font-size:11px;color:var(--text-muted)">확정률 <strong style="color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</strong></td>
+            </tr>
+          </tfoot>` : ''}
+        </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 4px">
+        <div style="font-size:11px;color:var(--text-muted)">${hasAnyFilter ? `🔍 필터 결과 <strong>${filtered.length}</strong>건 / 전체 ${records.length}건` : `📋 총 <strong>${records.length}</strong>건`}</div>
+        <div style="font-size:10px;color:var(--text-muted)">💡 헤더를 클릭하면 정렬됩니다</div>
+      </div>
+    `;
+    
+    // ── 이벤트 바인딩 ──
+    document.getElementById('crPrev')?.addEventListener('click', () => reload(prevMonth));
+    document.getElementById('crNext')?.addEventListener('click', () => reload(nextMonth));
+    
+    // 검색
+    const searchEl = document.getElementById('crSearch');
+    let searchTimer = null;
+    searchEl?.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { filters.search = searchEl.value.trim(); render(); }, 250);
+    });
+    searchEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { filters.search = ''; render(); }
+    });
+    
+    // 검색 X 버튼
+    document.getElementById('crClearSearch')?.addEventListener('click', () => {
+      filters.search = ''; render();
+    });
+    
+    // 필터 토글
+    document.getElementById('crToggleFilters')?.addEventListener('click', () => {
+      filterPanelOpen = !filterPanelOpen;
+      const panel = document.getElementById('crFilterPanel');
+      if (panel) panel.style.display = filterPanelOpen ? 'block' : 'none';
+    });
+    
+    // 필터 칩 클릭 → 개별 필터 해제
+    body.querySelectorAll('.cr-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const key = chip.getAttribute('data-chip');
+        if (key === '__all') {
+          filters = { search: '', doctor: '', counselor: '', category: '', confirmed: '', patient_type: '', visit_source: '' };
+          filterPanelOpen = false;
+        } else if (key === 'search') {
+          filters.search = '';
+        } else {
+          filters[key] = '';
+        }
+        render();
+      });
+      chip.addEventListener('mouseover', () => { chip.style.opacity = '0.7'; chip.style.transform = 'scale(0.97)'; });
+      chip.addEventListener('mouseout', () => { chip.style.opacity = '1'; chip.style.transform = 'scale(1)'; });
+    });
+    
+    // 필터 드롭다운
+    ['doctor','counselor','category','confirmed','patient_type','visit_source'].forEach(key => {
+      document.getElementById('crF_' + key)?.addEventListener('change', (e) => {
+        filters[key] = e.target.value;
+        render();
       });
     });
+    
+    // 헤더 클릭 정렬
+    body.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.getAttribute('data-sort');
+        if (sortKey === key) { sortDir *= -1; }
+        else { sortKey = key; sortDir = (key === 'planned_amount' || key === 'agreed_amount') ? -1 : 1; }
+        render();
+      });
+      th.addEventListener('mouseover', () => { if (sortKey !== th.getAttribute('data-sort')) th.style.background = 'rgba(59,130,246,0.04)'; });
+      th.addEventListener('mouseout', () => { if (sortKey !== th.getAttribute('data-sort')) th.style.background = ''; });
+    });
+    
+    // 행 클릭 → 수정 모달
+    if (isManager) {
+      body.querySelectorAll('.cr-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const id = row.getAttribute('data-id');
+          const rec = records.find(r => r.id === id);
+          if (rec) openRecordForm(rec, staffData, async () => { await reload(month); });
+        });
+      });
+    }
+    
+    // 검색창에 포커스 유지
+    if (filters.search) {
+      const el = document.getElementById('crSearch');
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }
   }
+  
+  render();
 }
 
 // ═══ 상담 기록 입력/수정 모달 ═══
