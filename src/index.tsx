@@ -76,6 +76,40 @@ app.use('/api/protected/*', async (c, next) => {
   await next()
 })
 
+/* ─── Permission Helpers ─── */
+// 권한 레벨: admin(원장) > manager(실장) > staff(스태프)
+function requireRole(...roles: string[]) {
+  return async (c: any, next: any) => {
+    const user = c.get('user')
+    if (!user || !roles.includes(user.role)) {
+      return c.json({ error: '접근 권한이 없습니다 (필요 권한: ' + roles.join('/') + ')' }, 403)
+    }
+    await next()
+  }
+}
+// 민감 데이터 필터 (수납금액 등)
+function filterSensitiveData(data: any, userRole: string): any {
+  if (userRole === 'admin') return data // 원장은 모든 데이터 접근
+  if (userRole === 'manager') return data // 실장도 수납금액 열람 가능 (수정 불가)
+  // staff: 수납금액 관련 필드 마스킹
+  if (Array.isArray(data)) return data.map(item => filterSensitiveFields(item))
+  return filterSensitiveFields(data)
+}
+function filterSensitiveFields(item: any): any {
+  if (!item) return item
+  const masked = { ...item }
+  // 수납금액 관련 필드 마스킹
+  if ('estimated_amount' in masked) masked.estimated_amount = null
+  if ('agreed_amount' in masked) masked.agreed_amount = null
+  if ('paid_amount' in masked) masked.paid_amount = null
+  if ('remaining_amount' in masked) masked.remaining_amount = null
+  // 직원 평가 관련 마스킹
+  if ('evaluation_score' in masked) masked.evaluation_score = null
+  if ('evaluation_notes' in masked) masked.evaluation_notes = null
+  if ('salary' in masked) masked.salary = null
+  return masked
+}
+
 /* ─── Auth API ─── */
 app.post('/api/auth/register', async (c) => {
   const { hospitalName, email, password, name } = await c.req.json()
@@ -387,8 +421,10 @@ app.get('/api/protected/marketing/channels', async (c) => {
   return c.json(rows.results)
 })
 
+// 마케팅 채널 추가 - admin/manager만
 app.post('/api/protected/marketing/channels', async (c) => {
   const user = c.get('user')!
+  if (user.role === 'staff') return c.json({ error: '마케팅 채널 관리 권한이 없습니다' }, 403)
   const { name, monthly_cost } = await c.req.json()
   const id = crypto.randomUUID()
   await c.env.DB.prepare('INSERT INTO marketing_channels (id, hospital_id, name, monthly_cost) VALUES (?,?,?,?)').bind(id, user.hospitalId, name, monthly_cost||0).run()
@@ -406,8 +442,10 @@ app.get('/api/protected/marketing/records', async (c) => {
   return c.json(rows.results)
 })
 
+// 마케팅 기록 추가 - admin/manager만
 app.post('/api/protected/marketing/records', async (c) => {
   const user = c.get('user')!
+  if (user.role === 'staff') return c.json({ error: '마케팅 기록 관리 권한이 없습니다' }, 403)
   const { channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue } = await c.req.json()
   const id = crypto.randomUUID()
   await c.env.DB.prepare('INSERT INTO marketing_records (id, hospital_id, channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, channel_id, record_month, new_patients||0, revisit_patients||0, ad_spend||0, revenue||0).run()
@@ -659,13 +697,18 @@ app.put('/api/protected/hire/interviews/:id', async (c) => {
 })
 
 /* ─── PF Hire: Evaluations API ─── */
+// 채용 평가 - admin/manager만 조회 가능
 app.get('/api/protected/hire/applicants/:id/evaluations', async (c) => {
+  const user = c.get('user')!
+  if (user.role === 'staff') return c.json({ error: '평가 열람 권한이 없습니다' }, 403)
   const rows = await c.env.DB.prepare('SELECT e.*, u.name as evaluator_name FROM evaluations e JOIN users u ON e.evaluator_id=u.id WHERE e.applicant_id=? ORDER BY e.created_at DESC').bind(c.req.param('id')).all()
   return c.json(rows.results)
 })
 
+// 채용 평가 작성 - admin/manager만
 app.post('/api/protected/hire/evaluations', async (c) => {
   const user = c.get('user')!
+  if (user.role === 'staff') return c.json({ error: '평가 작성 권한이 없습니다' }, 403)
   const { applicant_id, criteria, total_score, max_score, comments, recommendation } = await c.req.json()
   if (!applicant_id || !criteria) return c.json({ error: '평가 항목을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
@@ -833,7 +876,7 @@ app.get('/api/protected/consultations', async (c) => {
   if (period) { sql += ' AND c.consultation_date LIKE ?'; params.push(period + '%') }
   sql += ' ORDER BY c.created_at DESC'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
+  return c.json(filterSensitiveData(rows.results, user.role))
 })
 
 app.post('/api/protected/consultations', async (c) => {
@@ -926,12 +969,16 @@ app.get('/api/protected/consultations/stats/conversion', async (c) => {
     byTreatment[r.treatment_type].total++
     if (['agreed','payment','treatment','completed'].includes(r.status)) { byTreatment[r.treatment_type].agreed++; byTreatment[r.treatment_type].amount += (r.agreed_amount||0) }
   })
+  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
   return c.json({
     total, visited, agreed, paid, completed, lost,
     conversionRate: total ? Math.round(agreed/total*100) : 0,
     paymentRate: agreed ? Math.round(paid/agreed*100) : 0,
-    totalEstimated, totalAgreed, totalPaid,
-    bySource, byTreatment
+    totalEstimated: canSeeFinancials ? totalEstimated : null,
+    totalAgreed: canSeeFinancials ? totalAgreed : null,
+    totalPaid: canSeeFinancials ? totalPaid : null,
+    bySource, byTreatment,
+    canSeeFinancials
   })
 })
 
@@ -1129,6 +1176,184 @@ app.get('/api/protected/leave/stats', async (c) => {
   })
 })
 
+/* ─── 회의/회의록 관리 ─── */
+
+// 회의 목록 (공개범위 필터링 적용)
+app.get('/api/protected/meetings', async (c) => {
+  const user = c.get('user')!
+  const month = c.req.query('month')
+  const status = c.req.query('status')
+  
+  let query = `SELECT m.*, u.name as creator_name,
+    (SELECT COUNT(*) FROM meeting_participants WHERE meeting_id = m.id) as participant_count,
+    (SELECT COUNT(*) FROM meeting_minutes WHERE meeting_id = m.id) as has_minutes
+    FROM meetings m
+    JOIN users u ON m.created_by = u.id
+    WHERE m.hospital_id = ?`
+  const params: any[] = [user.hospitalId]
+  
+  // 공개범위 필터링
+  if (user.role !== 'admin') {
+    query += ` AND (m.visibility = 'all' OR (m.visibility = 'participants' AND EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.meeting_id = m.id AND mp.user_id = ?)) OR m.created_by = ?)`
+    params.push(user.id, user.id)
+  }
+  if (month) { query += ' AND m.meeting_date LIKE ?'; params.push(month + '%') }
+  if (status) { query += ' AND m.status = ?'; params.push(status) }
+  query += ' ORDER BY m.meeting_date DESC, m.start_time DESC'
+  
+  const rows = await c.env.DB.prepare(query).bind(...params).all()
+  return c.json(rows.results)
+})
+
+// 회의 상세 (참가자 + 회의록)
+app.get('/api/protected/meetings/:id', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  
+  const meeting = await c.env.DB.prepare('SELECT m.*, u.name as creator_name FROM meetings m JOIN users u ON m.created_by = u.id WHERE m.id = ? AND m.hospital_id = ?').bind(id, user.hospitalId).first() as any
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  
+  // 공개범위 체크
+  if (meeting.visibility === 'admin' && user.role !== 'admin') return c.json({ error: '접근 권한이 없습니다' }, 403)
+  if (meeting.visibility === 'participants' && user.role !== 'admin') {
+    const isParticipant = await c.env.DB.prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(id, user.id).first()
+    if (!isParticipant && meeting.created_by !== user.id) return c.json({ error: '접근 권한이 없습니다' }, 403)
+  }
+  
+  const participants = await c.env.DB.prepare('SELECT mp.*, u.name as user_name, u.role as user_role FROM meeting_participants mp JOIN users u ON mp.user_id = u.id WHERE mp.meeting_id = ? ORDER BY mp.role, u.name').bind(id).all()
+  const minutes = await c.env.DB.prepare('SELECT mm.*, u.name as writer_name FROM meeting_minutes mm JOIN users u ON mm.written_by = u.id WHERE mm.meeting_id = ? ORDER BY mm.created_at DESC').bind(id).all()
+  
+  return c.json({ ...meeting, participants: participants.results, minutes: minutes.results })
+})
+
+// 회의 생성
+app.post('/api/protected/meetings', async (c) => {
+  const user = c.get('user')!
+  const { title, description, meeting_date, start_time, end_time, location, visibility, participants } = await c.req.json()
+  if (!title || !meeting_date || !start_time) return c.json({ error: '필수 항목 누락' }, 400)
+  
+  const id = 'mt-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare(`INSERT INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, visibility, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .bind(id, user.hospitalId, title, description || '', meeting_date, start_time, end_time || '', location || '', visibility || 'all', user.id).run()
+  
+  // 주최자 자동 추가
+  const orgId = 'mp-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare('INSERT INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(orgId, id, user.id, 'organizer').run()
+  
+  // 추가 참가자
+  if (participants && Array.isArray(participants)) {
+    for (const p of participants) {
+      if (p.user_id === user.id) continue
+      const pId = 'mp-' + crypto.randomUUID().slice(0,8)
+      await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(pId, id, p.user_id, p.role || 'attendee').run()
+    }
+  }
+  return c.json({ id })
+})
+
+// 회의 수정
+app.put('/api/protected/meetings/:id', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  
+  const meeting = await c.env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND hospital_id = ?').bind(id, user.hospitalId).first() as any
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  if (meeting.created_by !== user.id && user.role !== 'admin') return c.json({ error: '권한이 없습니다' }, 403)
+  
+  const fields: string[] = []
+  const vals: any[] = []
+  for (const k of ['title','description','meeting_date','start_time','end_time','location','status','visibility']) {
+    if (body[k] !== undefined) { fields.push(`${k} = ?`); vals.push(body[k]) }
+  }
+  if (fields.length > 0) {
+    fields.push('updated_at = CURRENT_TIMESTAMP')
+    vals.push(id, user.hospitalId)
+    await c.env.DB.prepare(`UPDATE meetings SET ${fields.join(',')} WHERE id = ? AND hospital_id = ?`).bind(...vals).run()
+  }
+  return c.json({ success: true })
+})
+
+// 회의 삭제
+app.delete('/api/protected/meetings/:id', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const meeting = await c.env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND hospital_id = ?').bind(id, user.hospitalId).first() as any
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  if (meeting.created_by !== user.id && user.role !== 'admin') return c.json({ error: '권한이 없습니다' }, 403)
+  await c.env.DB.prepare('DELETE FROM meetings WHERE id = ?').bind(id).run()
+  return c.json({ success: true })
+})
+
+// 참가자 추가/출석 변경
+app.put('/api/protected/meetings/:id/participants', async (c) => {
+  const user = c.get('user')!
+  const meetingId = c.req.param('id')
+  const { user_id, role, attendance } = await c.req.json()
+  
+  if (attendance) {
+    await c.env.DB.prepare('UPDATE meeting_participants SET attendance = ? WHERE meeting_id = ? AND user_id = ?').bind(attendance, meetingId, user_id || user.id).run()
+  } else if (user_id) {
+    const pId = 'mp-' + crypto.randomUUID().slice(0,8)
+    await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(pId, meetingId, user_id, role || 'attendee').run()
+  }
+  return c.json({ success: true })
+})
+
+// 참가자 삭제
+app.delete('/api/protected/meetings/:id/participants/:userId', async (c) => {
+  const meetingId = c.req.param('id')
+  const userId = c.req.param('userId')
+  await c.env.DB.prepare('DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(meetingId, userId).run()
+  return c.json({ success: true })
+})
+
+// 회의록 작성/수정
+app.post('/api/protected/meetings/:id/minutes', async (c) => {
+  const user = c.get('user')!
+  const meetingId = c.req.param('id')
+  const { content, decisions, action_items } = await c.req.json()
+  
+  // 기존 회의록이 있으면 업데이트
+  const existing = await c.env.DB.prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
+  if (existing) {
+    await c.env.DB.prepare('UPDATE meeting_minutes SET content = ?, decisions = ?, action_items = ?, written_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .bind(content || '', decisions || '', action_items || '', user.id, existing.id).run()
+    return c.json({ id: existing.id, updated: true })
+  }
+  
+  const id = 'mm-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, content, decisions, action_items, written_by) VALUES (?,?,?,?,?,?)')
+    .bind(id, meetingId, content || '', decisions || '', action_items || '', user.id).run()
+  
+  // 회의 상태를 completed로 변경
+  await c.env.DB.prepare("UPDATE meetings SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(meetingId).run()
+  
+  return c.json({ id })
+})
+
+// 회의록 파일 업로드
+app.post('/api/protected/meetings/:id/minutes/upload', async (c) => {
+  const user = c.get('user')!
+  const meetingId = c.req.param('id')
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File
+  if (!file) return c.json({ error: '파일이 없습니다' }, 400)
+  
+  const ext = file.name.split('.').pop() || 'pdf'
+  const key = `minutes/${user.hospitalId}/${crypto.randomUUID()}.${ext}`
+  await c.env.R2.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } })
+  
+  const existing = await c.env.DB.prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
+  if (existing) {
+    await c.env.DB.prepare('UPDATE meeting_minutes SET file_url = ?, file_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(key, file.name, existing.id).run()
+  } else {
+    const id = 'mm-' + crypto.randomUUID().slice(0,8)
+    await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, file_url, file_name, written_by) VALUES (?,?,?,?,?)').bind(id, meetingId, key, file.name, user.id).run()
+  }
+  return c.json({ success: true, file_url: key, file_name: file.name })
+})
+
 /* ─── Main Page (SPA) ─── */
 app.get('*', async (c) => {
   // Serve static files from R2 first, then SPA
@@ -1152,6 +1377,16 @@ function getHTML(): string {
 <body>
 <div id="app"></div>
 <script src="/static/app.js"><` + `/script>
+<script src="/static/modules/dashboard.js"><` + `/script>
+<script src="/static/modules/management.js"><` + `/script>
+<script src="/static/modules/scripts.js"><` + `/script>
+<script src="/static/modules/community.js"><` + `/script>
+<script src="/static/modules/operations.js"><` + `/script>
+<script src="/static/modules/hire.js"><` + `/script>
+<script src="/static/modules/clinical.js"><` + `/script>
+<script src="/static/modules/leave.js"><` + `/script>
+<script src="/static/modules/meetings.js"><` + `/script>
+<script src="/static/modules/settings.js"><` + `/script>
 </body>
 </html>`
 }

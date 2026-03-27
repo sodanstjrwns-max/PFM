@@ -481,3 +481,49 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX idx_leave_requests_user ON leave_requests(user_id, status);
 CREATE INDEX idx_leave_requests_hospital ON leave_requests(hospital_id, start_date);
 CREATE INDEX idx_leave_requests_date ON leave_requests(hospital_id, start_date, end_date);
+
+-- ═══ 12. 회의/회의록 관리 ═══
+
+CREATE TABLE IF NOT EXISTS meetings (
+  id            TEXT PRIMARY KEY,
+  hospital_id   TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  title         TEXT NOT NULL,
+  description   TEXT DEFAULT '',
+  meeting_date  TEXT NOT NULL,
+  start_time    TEXT NOT NULL,
+  end_time      TEXT DEFAULT '',
+  location      TEXT DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','in_progress','completed','cancelled')),
+  visibility    TEXT NOT NULL DEFAULT 'all' CHECK(visibility IN ('all','participants','admin')),
+  created_by    TEXT NOT NULL REFERENCES users(id),
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_meetings_hospital ON meetings(hospital_id, meeting_date);
+CREATE INDEX idx_meetings_status ON meetings(hospital_id, status);
+
+CREATE TABLE IF NOT EXISTS meeting_participants (
+  id            TEXT PRIMARY KEY,
+  meeting_id    TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role          TEXT DEFAULT 'attendee' CHECK(role IN ('organizer','presenter','attendee')),
+  attendance    TEXT DEFAULT 'pending' CHECK(attendance IN ('pending','attended','absent','late')),
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(meeting_id, user_id)
+);
+CREATE INDEX idx_meeting_participants_meeting ON meeting_participants(meeting_id);
+CREATE INDEX idx_meeting_participants_user ON meeting_participants(user_id);
+
+CREATE TABLE IF NOT EXISTS meeting_minutes (
+  id            TEXT PRIMARY KEY,
+  meeting_id    TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL DEFAULT '',
+  decisions     TEXT DEFAULT '',
+  action_items  TEXT DEFAULT '',
+  file_url      TEXT DEFAULT '',
+  file_name     TEXT DEFAULT '',
+  written_by    TEXT NOT NULL REFERENCES users(id),
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_meeting_minutes_meeting ON meeting_minutes(meeting_id);

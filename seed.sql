@@ -210,3 +210,41 @@ INSERT OR IGNORE INTO leave_requests (id, hospital_id, user_id, leave_type, star
   ('lr-7', 'h-demo', 'u-staff2', 'half_pm','2026-03-28', '2026-03-28', 0.5, '은행 업무 (오후)', 'pending', NULL, NULL),
   ('lr-8', 'h-demo', 'u-mgr',    'annual', '2026-04-14', '2026-04-14', 1, '개인 사유', 'pending', NULL, NULL),
   ('lr-9', 'h-demo', 'u-staff1', 'annual', '2026-04-21', '2026-04-22', 2, '친구 결혼식 + 이동', 'rejected', 'u-admin', '2026-04-15 09:00:00');
+
+-- ═══ 회의 데이터 ═══
+INSERT OR IGNORE INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, status, visibility, created_by) VALUES
+  ('mt-1', 'h-demo', '3월 월간 경영회의', '3월 매출 리뷰, 4월 마케팅 계획, 신규 장비 도입 논의', '2026-03-10', '09:00', '10:30', '4층 회의실', 'completed', 'all', 'u-admin'),
+  ('mt-2', 'h-demo', '감염관리 교육 회의', '분기별 감염관리 교육 및 체크리스트 점검', '2026-03-17', '18:00', '19:00', '3층 세미나실', 'completed', 'all', 'u-mgr'),
+  ('mt-3', 'h-demo', '신환 상담 프로세스 개선 회의', '상담 전환율 개선을 위한 프로세스 점검', '2026-03-24', '12:30', '13:30', '원장실', 'completed', 'participants', 'u-admin'),
+  ('mt-4', 'h-demo', '4월 월간 경영회의', '4월 목표 설정, 직원 평가, 장비 발주 확인', '2026-04-07', '09:00', '10:30', '4층 회의실', 'scheduled', 'all', 'u-admin'),
+  ('mt-5', 'h-demo', '인터뷰 결과 논의', '치과위생사 채용 후보 3명 평가', '2026-04-02', '18:00', '18:30', '원장실', 'scheduled', 'admin', 'u-admin'),
+  ('mt-6', 'h-demo', '직원 워크숍 기획', '상반기 워크숍 일정 및 프로그램 논의', '2026-04-14', '12:30', '13:00', '4층 회의실', 'scheduled', 'participants', 'u-mgr');
+
+-- 회의 참가자
+INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role, attendance) VALUES
+  ('mp-1',  'mt-1', 'u-admin',  'organizer',  'attended'),
+  ('mp-2',  'mt-1', 'u-mgr',    'presenter',  'attended'),
+  ('mp-3',  'mt-1', 'u-staff1', 'attendee',   'attended'),
+  ('mp-4',  'mt-1', 'u-staff2', 'attendee',   'late'),
+  ('mp-5',  'mt-2', 'u-mgr',    'organizer',  'attended'),
+  ('mp-6',  'mt-2', 'u-staff1', 'attendee',   'attended'),
+  ('mp-7',  'mt-2', 'u-staff2', 'attendee',   'attended'),
+  ('mp-8',  'mt-3', 'u-admin',  'organizer',  'attended'),
+  ('mp-9',  'mt-3', 'u-mgr',    'presenter',  'attended'),
+  ('mp-10', 'mt-3', 'u-staff1', 'attendee',   'absent'),
+  ('mp-11', 'mt-4', 'u-admin',  'organizer',  'pending'),
+  ('mp-12', 'mt-4', 'u-mgr',    'attendee',   'pending'),
+  ('mp-13', 'mt-4', 'u-staff1', 'attendee',   'pending'),
+  ('mp-14', 'mt-4', 'u-staff2', 'attendee',   'pending'),
+  ('mp-15', 'mt-5', 'u-admin',  'organizer',  'pending'),
+  ('mp-16', 'mt-5', 'u-mgr',    'attendee',   'pending'),
+  ('mp-17', 'mt-6', 'u-mgr',    'organizer',  'pending'),
+  ('mp-18', 'mt-6', 'u-admin',  'attendee',   'pending'),
+  ('mp-19', 'mt-6', 'u-staff1', 'attendee',   'pending'),
+  ('mp-20', 'mt-6', 'u-staff2', 'attendee',   'pending');
+
+-- 회의록 (완료된 회의만)
+INSERT OR IGNORE INTO meeting_minutes (id, meeting_id, content, decisions, action_items, written_by) VALUES
+  ('mm-1', 'mt-1', '1. 3월 매출 11.2억 달성 (목표 대비 102%)\n2. 임플란트 매출 전월 대비 15% 증가\n3. 네이버 광고 ROI 3.2배로 효율적\n4. 인스타그램 팔로워 2,000명 돌파\n5. 4월 벚꽃 이벤트 마케팅 계획 발표\n6. CT 장비 교체 견적 3곳 비교 완료', '1. 4월 마케팅 예산 500만원 → 600만원 증액 승인\n2. CT 장비 A사 제품으로 5월 도입 결정\n3. 신환 목표 월 80명 → 90명 상향', '1. 김수현: 4월 마케팅 상세 계획서 4/3까지 제출\n2. 박지은: CT 장비 A사 계약서 검토\n3. 이하늘: 벚꽃 이벤트 SNS 콘텐츠 제작\n4. 문석준: 직원 인센티브 기준 재정립', 'u-mgr'),
+  ('mm-2', 'mt-2', '1. 핸드피스 멸균 프로토콜 재점검\n2. 에어샤워 시스템 점검 결과 보고\n3. 1회용품 재고 관리 시스템 개선\n4. 직원별 감염관리 체크리스트 이행률 확인', '1. 핸드피스 멸균 주기 4시간 → 3시간으로 단축\n2. 1회용 장갑 브랜드 변경 (A사 → B사)', '1. 박지은: 새 멸균 매뉴얼 작성 3/24까지\n2. 이하늘: 1회용품 발주 리스트 업데이트', 'u-mgr'),
+  ('mm-3', 'mt-3', '1. 현재 상담 전환율 50% → 목표 65%\n2. 초진 상담 시 환자 불안감 해소 스크립트 부족\n3. 비용 상담 시 할부 안내가 늦어지는 경우 발견\n4. 상담 후 팔로업 콜 누락 건 3건', '1. 초진 상담 스크립트 3종 신규 제작\n2. 비용 안내 시 무이자 할부 먼저 안내하도록 변경\n3. 팔로업 콜 체크리스트 도입', '1. 김수현: 초진 상담 스크립트 초안 3/28까지\n2. 문석준: 상담 스크립트 최종 검토', 'u-admin');
