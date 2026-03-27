@@ -183,3 +183,30 @@ INSERT OR IGNORE INTO consultation_notes (id, consultation_id, author_id, note_t
   ('cn-4', 'cs-2', 'u-admin', 'payment', '1차 수납 550만원 완료. 잔금 550만원 보철 세팅 시 수납 예정'),
   ('cn-5', 'cs-3', 'u-staff1', 'general', '투명교정 관심. 비용 상담 진행 중. 치아 사진 촬영 완료'),
   ('cn-6', 'cs-6', 'u-mgr', 'follow_up', '3회 전화 연결 안 됨. 비용 부담으로 보류 상태로 판단');
+
+-- ═══ 연차/휴가 잔여일수 (2026년) ═══
+INSERT OR IGNORE INTO leave_balances (id, hospital_id, user_id, year, leave_type, total_days, used_days) VALUES
+  ('lb-1',  'h-demo', 'u-admin',  2026, 'annual', 15, 3),
+  ('lb-2',  'h-demo', 'u-admin',  2026, 'sick', 3, 0),
+  ('lb-3',  'h-demo', 'u-mgr',    2026, 'annual', 15, 2),
+  ('lb-4',  'h-demo', 'u-mgr',    2026, 'sick', 3, 1),
+  ('lb-5',  'h-demo', 'u-staff1', 2026, 'annual', 11, 1.5),
+  ('lb-6',  'h-demo', 'u-staff1', 2026, 'sick', 3, 0),
+  ('lb-7',  'h-demo', 'u-staff2', 2026, 'annual', 11, 2),
+  ('lb-8',  'h-demo', 'u-staff2', 2026, 'sick', 3, 0),
+  ('lb-9',  'h-demo', 'u-staff1', 2026, 'half_am', 0, 0),
+  ('lb-10', 'h-demo', 'u-staff1', 2026, 'half_pm', 0, 0),
+  ('lb-11', 'h-demo', 'u-staff2', 2026, 'half_am', 0, 0),
+  ('lb-12', 'h-demo', 'u-staff2', 2026, 'half_pm', 0, 0);
+
+-- ═══ 연차 신청 데이터 ═══
+INSERT OR IGNORE INTO leave_requests (id, hospital_id, user_id, leave_type, start_date, end_date, days, reason, status, approved_by, approved_at) VALUES
+  ('lr-1', 'h-demo', 'u-admin',  'annual', '2026-01-20', '2026-01-22', 3, '개인 사유 (가족 여행)', 'approved', 'u-admin', '2026-01-15 10:00:00'),
+  ('lr-2', 'h-demo', 'u-mgr',    'annual', '2026-02-14', '2026-02-14', 1, '결혼기념일', 'approved', 'u-admin', '2026-02-10 09:00:00'),
+  ('lr-3', 'h-demo', 'u-mgr',    'sick',   '2026-03-05', '2026-03-05', 1, '감기 몸살', 'approved', 'u-admin', '2026-03-05 08:30:00'),
+  ('lr-4', 'h-demo', 'u-staff1', 'half_am','2026-03-12', '2026-03-12', 0.5, '병원 방문 (오전)', 'approved', 'u-admin', '2026-03-10 14:00:00'),
+  ('lr-5', 'h-demo', 'u-staff1', 'annual', '2026-03-20', '2026-03-20', 1, '개인 사유', 'approved', 'u-mgr', '2026-03-18 11:00:00'),
+  ('lr-6', 'h-demo', 'u-staff2', 'annual', '2026-04-07', '2026-04-08', 2, '제주도 여행', 'pending', NULL, NULL),
+  ('lr-7', 'h-demo', 'u-staff2', 'half_pm','2026-03-28', '2026-03-28', 0.5, '은행 업무 (오후)', 'pending', NULL, NULL),
+  ('lr-8', 'h-demo', 'u-mgr',    'annual', '2026-04-14', '2026-04-14', 1, '개인 사유', 'pending', NULL, NULL),
+  ('lr-9', 'h-demo', 'u-staff1', 'annual', '2026-04-21', '2026-04-22', 2, '친구 결혼식 + 이동', 'rejected', 'u-admin', '2026-04-15 09:00:00');

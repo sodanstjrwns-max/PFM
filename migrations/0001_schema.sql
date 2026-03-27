@@ -444,3 +444,40 @@ CREATE TABLE IF NOT EXISTS course_progress (
   UNIQUE(course_id, user_id)
 );
 CREATE INDEX idx_course_progress_user ON course_progress(user_id);
+
+-- ═══ 11. 연차/휴가 관리 ═══
+
+CREATE TABLE IF NOT EXISTS leave_balances (
+  id            TEXT PRIMARY KEY,
+  hospital_id   TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  year          INTEGER NOT NULL,
+  leave_type    TEXT NOT NULL CHECK(leave_type IN ('annual','sick','half_am','half_pm','special','compensation')),
+  total_days    REAL NOT NULL DEFAULT 0,
+  used_days     REAL NOT NULL DEFAULT 0,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, year, leave_type)
+);
+CREATE INDEX idx_leave_balances_user ON leave_balances(user_id, year);
+CREATE INDEX idx_leave_balances_hospital ON leave_balances(hospital_id, year);
+
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id            TEXT PRIMARY KEY,
+  hospital_id   TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  leave_type    TEXT NOT NULL CHECK(leave_type IN ('annual','sick','half_am','half_pm','special','compensation')),
+  start_date    TEXT NOT NULL,
+  end_date      TEXT NOT NULL,
+  days          REAL NOT NULL DEFAULT 1,
+  reason        TEXT DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','cancelled')),
+  approved_by   TEXT REFERENCES users(id),
+  approved_at   DATETIME,
+  reject_reason TEXT DEFAULT '',
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_leave_requests_user ON leave_requests(user_id, status);
+CREATE INDEX idx_leave_requests_hospital ON leave_requests(hospital_id, start_date);
+CREATE INDEX idx_leave_requests_date ON leave_requests(hospital_id, start_date, end_date);
