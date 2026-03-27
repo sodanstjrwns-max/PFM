@@ -291,7 +291,7 @@ async function renderReviews(body, actions) {
 }
 
 
-/* ─── Staff Supplies (직원용품 주문) ─── */
+/* ─── Staff Supplies Kanban Board (직원용품 칸반보드) ─── */
 async function renderStaffSupplies(body, actions) {
   const isAdmin = PFM.canManage();
   const itemTypes = {
@@ -302,6 +302,12 @@ async function renderStaffSupplies(body, actions) {
     shoes:    { label: '신발',   emoji: '👞', color: '#6366f1' },
     other:    { label: '기타',   emoji: '📦', color: '#64748b' },
   };
+  const statusCols = [
+    { id: 'requested', label: '요청됨', color: '#6366f1', emoji: '📋' },
+    { id: 'approved',  label: '승인됨', color: '#3b82f6', emoji: '✅' },
+    { id: 'ordered',   label: '주문완료', color: '#f59e0b', emoji: '📦' },
+    { id: 'delivered', label: '수령완료', color: '#22c55e', emoji: '🎉' },
+  ];
   const statusMap = {
     requested: { label: '요청됨', color: '#6366f1', bg: '#eef2ff', emoji: '📋' },
     approved:  { label: '승인됨', color: '#3b82f6', bg: '#dbeafe', emoji: '✅' },
@@ -313,192 +319,145 @@ async function renderStaffSupplies(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addSupplyBtn">${ICONS.plus} 주문 요청</button>`;
 
   let filterType = '';
-  let filterStatus = '';
 
   body.innerHTML = `
-    <div style="max-width:900px">
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="typeFilter">
-        <button class="btn btn-sm supply-type-tab active" data-type="" style="border-radius:20px">전체</button>
-        ${Object.entries(itemTypes).map(([k,v]) => `<button class="btn btn-sm supply-type-tab" data-type="${k}" style="border-radius:20px">${v.emoji} ${v.label}</button>`).join('')}
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap" id="statusFilter">
-        <button class="btn btn-sm supply-status-tab active" data-status="" style="border-radius:16px;font-size:11px">전체</button>
-        ${Object.entries(statusMap).filter(([k]) => k !== 'cancelled').map(([k,v]) => `<button class="btn btn-sm supply-status-tab" data-status="${k}" style="border-radius:16px;font-size:11px;color:${v.color}">${v.emoji} ${v.label}</button>`).join('')}
-      </div>
-      <div id="supplyList"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="typeFilter">
+      <button class="btn btn-sm supply-type-tab active" data-type="" style="border-radius:20px">전체</button>
+      ${Object.entries(itemTypes).map(([k,v]) => `<button class="btn btn-sm supply-type-tab" data-type="${k}" style="border-radius:20px">${v.emoji} ${v.label}</button>`).join('')}
     </div>
+    <div class="kb-hint">💡 카드를 드래그하여 상태를 변경할 수 있습니다 (요청 → 승인 → 주문 → 수령)</div>
+    <div class="kb-board" id="supplyKanban"></div>
   `;
 
-  async function loadSupplies() {
-    const container = document.getElementById('supplyList');
+  let allItems = [];
+
+  async function loadBoard() {
+    const container = document.getElementById('supplyKanban');
     try {
       let url = '/api/protected/staff-supplies?';
-      if (filterType) url += 'item_type=' + filterType + '&';
-      if (filterStatus) url += 'status=' + filterStatus;
-      const items = await api(url);
+      if (filterType) url += 'item_type=' + filterType;
+      allItems = await api(url);
 
-      if (!items.length) {
-        container.innerHTML = `<div class="empty-state">👔<h3>주문 내역이 없습니다</h3><p>직원용품 주문을 요청해보세요!</p></div>`;
-        return;
-      }
-
-      // 상태별 요약 카드
-      const summary = {};
-      items.forEach(i => { summary[i.status] = (summary[i.status]||0) + 1; });
-
-      container.innerHTML = `
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
-          ${Object.entries(statusMap).filter(([k]) => summary[k]).map(([k,v]) => `
-            <div style="background:${v.bg};border-radius:12px;padding:14px;text-align:center">
-              <div style="font-size:20px;margin-bottom:4px">${v.emoji}</div>
-              <div style="font-size:20px;font-weight:800;color:${v.color}">${summary[k]||0}</div>
-              <div style="font-size:11px;color:${v.color};font-weight:600">${v.label}</div>
-            </div>
-          `).join('')}
-        </div>
-        <div id="supplyCards">
-          ${items.map(item => {
-            const tp = itemTypes[item.item_type] || itemTypes.other;
-            const st = statusMap[item.status] || statusMap.requested;
-            return `<div class="supply-card" data-id="${item.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;cursor:pointer;transition:all 0.15s;border-left:4px solid ${tp.color}" onmouseenter="this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.boxShadow='none'">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <span style="font-size:18px">${tp.emoji}</span>
-                    <span style="font-weight:700;font-size:15px">${esc(item.item_name)}</span>
-                    <span style="font-size:10px;padding:3px 8px;border-radius:10px;background:${st.bg};color:${st.color};font-weight:600">${st.emoji} ${st.label}</span>
-                  </div>
-                  <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary)">
-                    <span>👤 ${esc(item.user_name)}</span>
+      container.innerHTML = statusCols.map(col => {
+        const colItems = allItems.filter(i => i.status === col.id);
+        return `<div class="kb-col" data-status="${col.id}">
+          <div class="kb-col-header" style="--col-color:${col.color}">
+            <span>${col.emoji} ${col.label}</span>
+            <span class="kb-col-count" style="background:${col.color}">${colItems.length}</span>
+          </div>
+          <div class="kb-col-body">
+            ${colItems.length ? colItems.map(item => {
+              const tp = itemTypes[item.item_type] || itemTypes.other;
+              return `<div class="kb-card" draggable="true" data-id="${item.id}" style="--accent:${tp.color}">
+                <div class="kb-card-title">${tp.emoji} ${esc(item.item_name)}</div>
+                <div class="kb-card-desc" style="display:flex;flex-direction:column;gap:3px">
+                  <span>👤 ${esc(item.user_name)}</span>
+                  <span style="display:flex;gap:8px;flex-wrap:wrap">
                     ${item.size ? `<span>📏 ${esc(item.size)}</span>` : ''}
                     ${item.color ? `<span>🎨 ${esc(item.color)}</span>` : ''}
-                    <span>📦 ${item.quantity}개</span>
-                    <span>📝 요청: ${esc(item.requested_by_name)}</span>
-                  </div>
-                  ${item.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">💬 ${esc(item.notes)}</div>` : ''}
+                    <span>×${item.quantity}</span>
+                  </span>
                 </div>
-                <div style="text-align:right;font-size:11px;color:var(--text-muted);min-width:80px">
-                  ${item.order_date ? `<div>주문: ${item.order_date}</div>` : ''}
-                  ${item.delivery_date ? `<div style="color:var(--success)">수령: ${item.delivery_date}</div>` : ''}
-                  ${!item.order_date && !item.delivery_date ? `<div>${timeAgo(item.created_at)}</div>` : ''}
+                ${item.notes ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💬 ${esc(item.notes)}</div>` : ''}
+                <div class="kb-card-meta">
+                  <span class="kb-card-badge" style="--badge-color:${tp.color}">${tp.label}</span>
+                  ${item.order_date ? `<span class="kb-card-info">📦 ${item.order_date}</span>` : ''}
+                  ${item.delivery_date ? `<span class="kb-card-info" style="color:var(--success)">✅ ${item.delivery_date}</span>` : ''}
+                  <span class="kb-card-info" style="margin-left:auto">${esc(item.requested_by_name)}</span>
                 </div>
-              </div>
-            </div>`;
-          }).join('')}
+              </div>`;
+            }).join('') : '<div class="kb-col-empty">카드 없음</div>'}
+          </div>
         </div>`;
+      }).join('');
 
-      // Click to open detail
-      container.querySelectorAll('.supply-card').forEach(card => {
-        card.addEventListener('click', () => openSupplyDetail(card.dataset.id, items));
+      // Drag & Drop → status change
+      initKanbanDnD(container, async (itemId, newStatus) => {
+        try {
+          await api('/api/protected/staff-supplies/' + itemId, { method:'PUT', json:{ status: newStatus }});
+          toast('상태 변경됨!', 'success');
+          loadBoard();
+        } catch(e) { toast(e.message, 'error'); }
+      });
+
+      // Click → detail modal
+      container.querySelectorAll('.kb-card').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (el.classList.contains('kb-dragging')) return;
+          openSupplyDetail(el.dataset.id);
+        });
       });
     } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
   }
-  loadSupplies();
+  loadBoard();
 
-  // Filter events
+  // Type filter events
   document.querySelectorAll('.supply-type-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.supply-type-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       filterType = tab.dataset.type;
-      loadSupplies();
-    });
-  });
-  document.querySelectorAll('.supply-status-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.supply-status-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      filterStatus = tab.dataset.status;
-      loadSupplies();
+      loadBoard();
     });
   });
 
   // Detail modal
-  function openSupplyDetail(id, items) {
-    const item = items.find(i => i.id === id);
+  function openSupplyDetail(id) {
+    const item = allItems.find(i => i.id === id);
     if (!item) return;
     const tp = itemTypes[item.item_type] || itemTypes.other;
     const st = statusMap[item.status] || statusMap.requested;
     const statuses = ['requested','approved','ordered','delivered','cancelled'];
 
     const modal = document.getElementById('modalContent');
-    modal.style.maxWidth = '480px';
-    modal.style.padding = '28px 32px';
     modal.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:28px">${tp.emoji}</span>
-          <div>
-            <h3 style="margin:0;font-size:16px;font-weight:800">${esc(item.item_name)}</h3>
-            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${st.bg};color:${st.color};font-weight:600">${st.emoji} ${st.label}</span>
-          </div>
-        </div>
-        <button class="btn-icon" onclick="closeModal()">${ICONS.close}</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-        <div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">대상 직원</div>
-          <div style="font-weight:700;font-size:14px">${esc(item.user_name)}</div>
-        </div>
-        <div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">종류</div>
-          <div style="font-weight:700;font-size:14px">${tp.emoji} ${tp.label}</div>
-        </div>
-        ${item.size ? `<div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">사이즈</div>
-          <div style="font-weight:700;font-size:14px">${esc(item.size)}</div>
-        </div>` : ''}
-        ${item.color ? `<div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">색상</div>
-          <div style="font-weight:700;font-size:14px">${esc(item.color)}</div>
-        </div>` : ''}
-        <div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">수량</div>
-          <div style="font-weight:700;font-size:14px">${item.quantity}개</div>
-        </div>
-        <div style="background:var(--bg-main);border-radius:10px;padding:12px">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">요청자</div>
-          <div style="font-weight:700;font-size:14px">${esc(item.requested_by_name)}</div>
+      <div class="modal-header">
+        <h3>${tp.emoji} ${esc(item.item_name)}</h3>
+        <div style="display:flex;gap:8px">
+          ${isAdmin ? `<button class="btn-icon" id="delSupplyBtn" title="삭제">${ICONS.trash}</button>` : ''}
+          <button class="btn-icon" id="modalClose">${ICONS.close}</button>
         </div>
       </div>
-      ${item.notes ? `<div style="background:var(--bg-main);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--text-secondary)">💬 ${esc(item.notes)}</div>` : ''}
-      ${item.order_date ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">📦 주문일: ${item.order_date}</div>` : ''}
-      ${item.delivery_date ? `<div style="font-size:12px;color:var(--success);margin-bottom:4px">✅ 수령일: ${item.delivery_date}</div>` : ''}
-      ${item.approved_by_name ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">승인: ${esc(item.approved_by_name)}</div>` : ''}
-      ${isAdmin ? `
-        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">상태 변경</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap" id="supplyStatusBtns">
-            ${statuses.map(s => {
-              const ss = statusMap[s];
-              return `<button class="btn ${item.status===s?'btn-primary':'btn-secondary'} btn-sm supply-status-change" data-status="${s}" style="font-size:11px">${ss.emoji} ${ss.label}</button>`;
-            }).join('')}
-          </div>
-          <button class="btn btn-sm" style="color:#ef4444;margin-top:12px;width:100%" id="deleteSupplyBtn">🗑️ 삭제</button>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          <span class="meta-pill" style="background:${st.bg};color:${st.color}">${st.emoji} ${st.label}</span>
+          <span class="meta-pill">👤 ${esc(item.user_name)}</span>
+          <span class="meta-pill">${tp.emoji} ${tp.label}</span>
+          ${item.size ? `<span class="meta-pill">📏 ${esc(item.size)}</span>` : ''}
+          ${item.color ? `<span class="meta-pill">🎨 ${esc(item.color)}</span>` : ''}
+          <span class="meta-pill">×${item.quantity}개</span>
+          <span class="meta-pill">📝 요청: ${esc(item.requested_by_name)}</span>
         </div>
-      ` : ''}
-    `;
+        ${item.notes ? `<p style="color:var(--text-secondary);margin-bottom:16px;white-space:pre-line">💬 ${esc(item.notes)}</p>` : ''}
+        ${item.order_date ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">📦 주문일: ${item.order_date}</div>` : ''}
+        ${item.delivery_date ? `<div style="font-size:12px;color:var(--success);margin-bottom:4px">✅ 수령일: ${item.delivery_date}</div>` : ''}
+        ${item.approved_by_name ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">승인: ${esc(item.approved_by_name)}</div>` : ''}
+        ${isAdmin ? `
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">상태 변경</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="supplyStatusBtns">
+              ${statuses.map(s => {
+                const ss = statusMap[s];
+                return `<button class="btn ${item.status===s?'btn-primary':'btn-secondary'} btn-sm status-btn" data-status="${s}" style="font-size:11px">${ss.emoji} ${ss.label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>`;
     showModal();
+    document.getElementById('modalClose').addEventListener('click', closeModal);
 
     if (isAdmin) {
-      modal.querySelectorAll('.supply-status-change').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          try {
-            await api('/api/protected/staff-supplies/' + id, { method: 'PUT', json: { status: btn.dataset.status } });
-            toast('상태 변경 완료!', 'success');
-            closeModal();
-            loadSupplies();
-          } catch(e) { toast(e.message, 'error'); }
-        });
-      });
-      document.getElementById('deleteSupplyBtn').addEventListener('click', async () => {
+      document.getElementById('delSupplyBtn')?.addEventListener('click', async () => {
         if (!confirm('이 주문을 삭제하시겠습니까?')) return;
-        try {
-          await api('/api/protected/staff-supplies/' + id, { method: 'DELETE' });
-          toast('삭제 완료', 'info');
-          closeModal();
-          loadSupplies();
-        } catch(e) { toast(e.message, 'error'); }
+        await api('/api/protected/staff-supplies/' + id, { method:'DELETE' });
+        toast('삭제됨', 'success'); closeModal(); loadBoard();
+      });
+      modal.querySelectorAll('.status-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await api('/api/protected/staff-supplies/' + id, { method:'PUT', json:{ status: btn.dataset.status }});
+          toast('상태가 변경되었습니다', 'success'); closeModal(); loadBoard();
+        });
       });
     }
   }
@@ -509,59 +468,52 @@ async function renderStaffSupplies(body, actions) {
     try { users = await api('/api/protected/leave/users'); } catch(e) {}
 
     const modal = document.getElementById('modalContent');
-    modal.style.maxWidth = '480px';
-    modal.style.padding = '28px 32px';
     modal.innerHTML = `
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);margin-bottom:8px">
-          <span style="font-size:24px;filter:brightness(0) invert(1)">👔</span>
-        </div>
-        <h2 style="margin:0;font-size:18px;font-weight:800">직원용품 주문 요청</h2>
-      </div>
-      <form id="supplyForm">
-        <div style="margin-bottom:14px">
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">대상 직원 *</label>
-          <select name="user_id" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            ${users.map(u => `<option value="${u.id}" ${u.id===state.user.id?'selected':''}>${u.name} (${u.role==='admin'?'원장':u.role==='manager'?'실장':'스태프'})</option>`).join('')}
-          </select>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-          <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">품목 *</label>
-            <select name="item_type" id="supplyItemType" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-              ${Object.entries(itemTypes).map(([k,v]) => `<option value="${k}">${v.emoji} ${v.label}</option>`).join('')}
+      <div class="modal-header"><h3>👔 직원용품 주문 요청</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+      <div class="modal-body">
+        <form id="supplyForm" class="auth-form">
+          <div class="form-group">
+            <label>대상 직원 *</label>
+            <select name="user_id" class="form-input">
+              ${users.map(u => `<option value="${u.id}" ${u.id===state.user.id?'selected':''}>${u.name} (${u.role==='admin'?'원장':u.role==='manager'?'실장':'스태프'})</option>`).join('')}
             </select>
           </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">품명 *</label>
-            <input type="text" name="item_name" id="supplyItemName" required placeholder="예: 수술복 상의" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>품목 *</label>
+              <select name="item_type" id="supplyItemType" class="form-input">
+                ${Object.entries(itemTypes).map(([k,v]) => `<option value="${k}">${v.emoji} ${v.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>품명 *</label>
+              <input type="text" name="item_name" id="supplyItemName" class="form-input" required placeholder="예: 수술복 상의">
+            </div>
           </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-          <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">사이즈</label>
-            <input type="text" name="size" placeholder="예: 55, M, 230" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="form-group">
+              <label>사이즈</label>
+              <input type="text" name="size" class="form-input" placeholder="예: M, 230">
+            </div>
+            <div class="form-group">
+              <label>색상</label>
+              <input type="text" name="color" class="form-input" placeholder="예: 네이비">
+            </div>
+            <div class="form-group">
+              <label>수량</label>
+              <input type="number" name="quantity" class="form-input" value="1" min="1">
+            </div>
           </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">색상</label>
-            <input type="text" name="color" placeholder="예: 네이비" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <div class="form-group">
+            <label>메모</label>
+            <textarea name="notes" class="form-input" rows="2" placeholder="추가 요청사항 (사이즈 교환, 신규입사 등)"></textarea>
           </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">수량</label>
-            <input type="number" name="quantity" value="1" min="1" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-          </div>
-        </div>
-        <div style="margin-bottom:20px">
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">메모</label>
-          <textarea name="notes" rows="2" placeholder="추가 요청사항 (사이즈 교환, 신규입사 등)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
-        </div>
-        <div style="display:flex;gap:10px">
-          <button type="button" class="btn" onclick="closeModal()" style="flex:1;padding:10px;border-radius:10px">취소</button>
-          <button type="submit" class="btn btn-primary" style="flex:2;padding:10px;border-radius:10px">📝 주문 요청</button>
-        </div>
-      </form>
-    `;
+        </form>
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="supplySubmitBtn">📝 주문 요청</button></div>`;
     showModal();
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 
     // Auto-fill item_name based on item_type
     const typeNameMap = { uniform:'수술복', cardigan:'가디건', nametag:'명찰', crocs:'크록스 슬리퍼', shoes:'실내화', other:'' };
@@ -572,24 +524,24 @@ async function renderStaffSupplies(body, actions) {
       }
     });
 
-    document.getElementById('supplyForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const form = e.target;
+    document.getElementById('supplySubmitBtn').addEventListener('click', async () => {
+      const form = document.getElementById('supplyForm');
+      const itemName = form.item_name.value.trim();
+      if (!itemName) { toast('품명을 입력해주세요', 'error'); return; }
       try {
-        await api('/api/protected/staff-supplies', { method: 'POST', json: {
+        await api('/api/protected/staff-supplies', { method:'POST', json:{
           user_id: form.user_id.value,
           item_type: form.item_type.value,
-          item_name: form.item_name.value,
+          item_name: itemName,
           size: form.size.value,
           color: form.color.value,
           quantity: parseInt(form.quantity.value) || 1,
           notes: form.notes.value,
         }});
         toast('주문 요청 완료!', 'success');
-        closeModal();
-        loadSupplies();
+        closeModal(); loadBoard();
       } catch(e) { toast(e.message, 'error'); }
-    };
+    });
   });
 }
 
