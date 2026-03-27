@@ -1376,8 +1376,8 @@ app.post('/api/protected/consult-records', async (c) => {
     INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name,
       doctor_name, counselor_name, planned_amount, agreed_amount, discount_note,
       patient_type, treatment_category, treatment_confirmed, appointment_made,
-      recall_done, kakao_registered, pdf_provided, notes, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, user.hospitalId,
     body.record_date,
@@ -1395,6 +1395,7 @@ app.post('/api/protected/consult-records', async (c) => {
     body.recall_done || '',
     body.kakao_registered || '',
     body.pdf_provided || '',
+    body.visit_source || '',
     body.notes || '',
     user.id
   ).run()
@@ -1408,7 +1409,7 @@ app.put('/api/protected/consult-records/:id', async (c) => {
   const id = c.req.param('id')
   const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name',
     'planned_amount','agreed_amount','discount_note','patient_type','treatment_category',
-    'treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','notes']
+    'treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','visit_source','notes']
   const updates: string[] = []
   const vals: any[] = []
   for (const f of fields) {
@@ -1516,6 +1517,18 @@ app.get('/api/protected/consult-records/dashboard', async (c) => {
     byDate[d].agreed += (r.agreed_amount||0)
   })
   
+  // 내원 경로별 통계
+  const byVisitSource: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
+  rows.forEach((r:any) => {
+    const src = r.visit_source || '미기록'
+    if (!byVisitSource[src]) byVisitSource[src] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
+    byVisitSource[src].total++
+    if (r.treatment_confirmed === 'O') byVisitSource[src].confirmed++
+    if (r.treatment_confirmed === 'X') byVisitSource[src].rejected++
+    byVisitSource[src].planned += (r.planned_amount||0)
+    byVisitSource[src].agreed += (r.agreed_amount||0)
+  })
+  
   const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
   
   return c.json({
@@ -1531,7 +1544,74 @@ app.get('/api/protected/consult-records/dashboard', async (c) => {
     byDoctor: canSeeFinancials ? byDoctor : Object.fromEntries(Object.entries(byDoctor).map(([k,v]) => [k, {total:v.total,confirmed:v.confirmed,rejected:v.rejected,planned:null,agreed:null}])),
     byCategory,
     byDate,
+    byVisitSource: canSeeFinancials ? byVisitSource : Object.fromEntries(Object.entries(byVisitSource).map(([k,v]) => [k, {total:v.total,confirmed:v.confirmed,rejected:v.rejected,planned:null,agreed:null}])),
   })
+})
+
+// ═══ 공용 환자 상담 기록 API (다른 모듈에서 활용) ═══
+
+// 환자명으로 상담 이력 조회 (자동완성/검색용)
+app.get('/api/protected/consult-records/patient-search', async (c) => {
+  const user = c.get('user')!
+  const q = c.req.query('q')
+  if (!q || q.length < 1) return c.json([])
+  const rows = await c.env.DB.prepare(
+    `SELECT patient_name, chart_number, MAX(record_date) as last_visit, COUNT(*) as visit_count,
+      GROUP_CONCAT(DISTINCT treatment_category) as categories,
+      GROUP_CONCAT(DISTINCT visit_source) as sources
+    FROM consult_records WHERE hospital_id=? AND patient_name LIKE ?
+    GROUP BY patient_name, chart_number ORDER BY last_visit DESC LIMIT 20`
+  ).bind(user.hospitalId, `%${q}%`).all()
+  return c.json(rows.results)
+})
+
+// 특정 환자의 전체 상담 이력
+app.get('/api/protected/consult-records/patient-history', async (c) => {
+  const user = c.get('user')!
+  const name = c.req.query('name')
+  const chart = c.req.query('chart')
+  if (!name) return c.json({ error: '환자명을 입력하세요' }, 400)
+  let sql = 'SELECT * FROM consult_records WHERE hospital_id=? AND patient_name=?'
+  const params: any[] = [user.hospitalId, name]
+  if (chart) { sql += ' AND chart_number=?'; params.push(chart) }
+  sql += ' ORDER BY record_date DESC'
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
+})
+
+// 상담 기록 요약 통계 (대시보드 위젯용)
+app.get('/api/protected/consult-records/summary', async (c) => {
+  const user = c.get('user')!
+  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const row = await c.env.DB.prepare(`
+    SELECT COUNT(*) as total,
+      SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed,
+      SUM(CASE WHEN treatment_confirmed='X' THEN 1 ELSE 0 END) as rejected,
+      SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients,
+      SUM(planned_amount) as total_planned,
+      SUM(agreed_amount) as total_agreed
+    FROM consult_records WHERE hospital_id=? AND record_date LIKE ?
+  `).bind(user.hospitalId, month + '%').first()
+  return c.json(row)
+})
+
+// 내원 경로별 통계 (마케팅 분석용)
+app.get('/api/protected/consult-records/visit-sources', async (c) => {
+  const user = c.get('user')!
+  const month = c.req.query('month')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  let sql = `SELECT visit_source, COUNT(*) as total,
+    SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed,
+    SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients,
+    SUM(agreed_amount) as total_agreed
+    FROM consult_records WHERE hospital_id=?`
+  const params: any[] = [user.hospitalId]
+  if (month) { sql += ' AND record_date LIKE ?'; params.push(month + '%') }
+  else if (from && to) { sql += ' AND record_date>=? AND record_date<=?'; params.push(from, to) }
+  sql += ' GROUP BY visit_source ORDER BY total DESC'
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
 })
 
 // 상담 기록 벌크 임포트 (엑셀 데이터 이관용)
@@ -1549,8 +1629,8 @@ app.post('/api/protected/consult-records/bulk', async (c) => {
         INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name,
           doctor_name, counselor_name, planned_amount, agreed_amount, discount_note,
           patient_type, treatment_category, treatment_confirmed, appointment_made,
-          recall_done, kakao_registered, pdf_provided, notes, created_by)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).bind(
         id, user.hospitalId,
         r.record_date || '', r.chart_number || '', r.patient_name || '',
@@ -1559,7 +1639,7 @@ app.post('/api/protected/consult-records/bulk', async (c) => {
         r.patient_type || 'new', r.treatment_category || 'general',
         r.treatment_confirmed || '', r.appointment_made || '',
         r.recall_done || '', r.kakao_registered || '', r.pdf_provided || '',
-        r.notes || '', user.id
+        r.visit_source || '', r.notes || '', user.id
       ).run()
       inserted++
     } catch(e) {}

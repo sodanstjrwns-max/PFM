@@ -9,6 +9,23 @@ const CATEGORIES = {
 const CAT_COLORS = {
   implant: '#3b82f6', orthodontics: '#8b5cf6', complex: '#f59e0b', general: '#6b7280'
 };
+const VISIT_SOURCES = {
+  referral: '👥 소개',
+  online_naver: '🟢 네이버',
+  online_google: '🔵 구글',
+  online_youtube: '🔴 유튜브',
+  online_insta: '📸 인스타그램',
+  online_etc: '🌐 기타 온라인',
+  walk_in: '🚶 통행',
+  hospital_referral: '🏥 타병원 의뢰',
+  recall: '📞 리콜',
+  etc: '📋 기타'
+};
+const SOURCE_COLORS = {
+  referral: '#22c55e', online_naver: '#2db400', online_google: '#4285f4',
+  online_youtube: '#ff0000', online_insta: '#e1306c', online_etc: '#0ea5e9',
+  walk_in: '#f59e0b', hospital_referral: '#8b5cf6', recall: '#06b6d4', etc: '#94a3b8'
+};
 
 function fmtWon(n) {
   if (!n && n !== 0) return '-';
@@ -176,121 +193,170 @@ function openRecordForm(record, staffData, onSave) {
     return list.map(name => `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(name)}</option>`).join('');
   }
   
+  const cardStyle = `background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px 16px;margin-bottom:12px`;
+  const labelStyle = `font-size:11px;font-weight:700;display:block;margin-bottom:5px;color:var(--text-muted);letter-spacing:0.3px`;
+  const inputStyle = `width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--bg);transition:border-color 0.2s;outline:none`;
+  const selectStyle = inputStyle + `;appearance:auto`;
+  
   showModal();
   const mc = document.getElementById('modalContent');
-  mc.style.maxWidth = '520px';
+  mc.style.maxWidth = '560px';
   mc.innerHTML = `
-    <h3 style="margin:0 0 16px;font-size:18px;font-weight:800">${isEdit ? '✏️ 상담 기록 수정' : '➕ 새 상담 기록'}</h3>
-    <form id="crForm" style="display:flex;flex-direction:column;gap:12px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">📅 날짜</label>
-          <input type="date" name="record_date" value="${r.record_date || new Date().toISOString().slice(0,10)}" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+    <div style="padding:4px 2px">
+      <h3 style="margin:0 0 20px;font-size:20px;font-weight:900;display:flex;align-items:center;gap:8px">
+        ${isEdit ? '<span style="font-size:24px">✏️</span> 상담 기록 수정' : '<span style="font-size:24px">➕</span> 새 상담 기록'}
+      </h3>
+      <form id="crForm" style="display:flex;flex-direction:column;gap:0">
+        
+        <!-- 기본 정보 카드 -->
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="background:#3b82f6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">기본</span> 환자 정보
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label style="${labelStyle}">📅 날짜</label>
+              <input type="date" name="record_date" value="${r.record_date || new Date().toISOString().slice(0,10)}" required style="${inputStyle}">
+            </div>
+            <div>
+              <label style="${labelStyle}">📋 챠트번호</label>
+              <input type="text" name="chart_number" value="${esc(r.chart_number||'')}" placeholder="예: 741003" style="${inputStyle}">
+            </div>
+          </div>
+          <div>
+            <label style="${labelStyle}">👤 환자 성함 <span style="color:#ef4444">*</span></label>
+            <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" required placeholder="환자명 입력" style="${inputStyle};font-weight:700">
+          </div>
         </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">📋 챠트번호</label>
-          <input type="text" name="chart_number" value="${esc(r.chart_number||'')}" placeholder="예: 741003" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        
+        <!-- 상담 담당 카드 -->
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="background:#8b5cf6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">담당</span> 상담 배정
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="${labelStyle}">🩺 상담의</label>
+              <select name="doctor_name" style="${selectStyle}">
+                <option value="">선택</option>${opt(doctors, r.doctor_name)}
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">👩‍⚕️ 상담사</label>
+              <select name="counselor_name" style="${selectStyle}">
+                <option value="">선택</option>${opt(counselors, r.counselor_name)}
+              </select>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <div>
-        <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">👤 환자 성함 *</label>
-        <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" required placeholder="환자명" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">🩺 상담의</label>
-          <select name="doctor_name" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="">선택</option>${opt(doctors, r.doctor_name)}
-          </select>
+        
+        <!-- 금액 카드 -->
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="background:#f59e0b;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">금액</span> 비용 정보
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label style="${labelStyle}">💰 비용계획 (원)</label>
+              <input type="number" name="planned_amount" value="${r.planned_amount||''}" placeholder="0" style="${inputStyle}">
+            </div>
+            <div>
+              <label style="${labelStyle}">✅ 동의금액 (원)</label>
+              <input type="number" name="agreed_amount" value="${r.agreed_amount||''}" placeholder="0" style="${inputStyle}">
+            </div>
+          </div>
+          <div>
+            <label style="${labelStyle}">🏷️ 할인 내역</label>
+            <input type="text" name="discount_note" value="${esc(r.discount_note||'')}" placeholder="예: 소개10%+당일완납5%" style="${inputStyle}">
+          </div>
         </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">👩‍⚕️ 상담사</label>
-          <select name="counselor_name" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="">선택</option>${opt(counselors, r.counselor_name)}
-          </select>
+        
+        <!-- 진료 분류 카드 -->
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="background:#22c55e;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">분류</span> 진료 정보
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+            <div>
+              <label style="${labelStyle}">구/신환</label>
+              <select name="patient_type" style="${selectStyle}">
+                <option value="new" ${r.patient_type==='new'?'selected':''}>신환</option>
+                <option value="existing" ${r.patient_type==='existing'?'selected':''}>구환</option>
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">진료 카테고리</label>
+              <select name="treatment_category" style="${selectStyle}">
+                ${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}" ${r.treatment_category===k?'selected':''}>${v}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">치료확정</label>
+              <select name="treatment_confirmed" style="${selectStyle}">
+                <option value="" ${!r.treatment_confirmed?'selected':''}>미정</option>
+                <option value="O" ${r.treatment_confirmed==='O'?'selected':''}>O 확정</option>
+                <option value="X" ${r.treatment_confirmed==='X'?'selected':''}>X 미확정</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- 내원 경로 (필수!) -->
+          <div>
+            <label style="${labelStyle}">🛤️ 내원 경로 <span style="color:#ef4444">*</span></label>
+            <select name="visit_source" required style="${selectStyle};border-color:${r.visit_source ? 'var(--border)' : '#f59e0b'};font-weight:600">
+              <option value="" ${!r.visit_source?'selected':''} disabled>-- 내원 경로를 선택하세요 --</option>
+              ${Object.entries(VISIT_SOURCES).map(([k,v]) => `<option value="${k}" ${r.visit_source===k?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
         </div>
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">💰 비용계획 (원)</label>
-          <input type="number" name="planned_amount" value="${r.planned_amount||''}" placeholder="0" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        
+        <!-- 후속 관리 카드 -->
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="background:#06b6d4;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">관리</span> 후속 조치
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div>
+              <label style="${labelStyle}">📅 예약</label>
+              <select name="appointment_made" style="${selectStyle}">
+                <option value="" ${!r.appointment_made?'selected':''}>-</option>
+                <option value="O" ${r.appointment_made==='O'?'selected':''}>O</option>
+                <option value="X" ${r.appointment_made==='X'?'selected':''}>X</option>
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">📞 리콜</label>
+              <select name="recall_done" style="${selectStyle}">
+                <option value="" ${!r.recall_done?'selected':''}>-</option>
+                <option value="O" ${r.recall_done==='O'?'selected':''}>O</option>
+                <option value="X" ${r.recall_done==='X'?'selected':''}>X</option>
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">💛 카카오 등록</label>
+              <select name="kakao_registered" style="${selectStyle}">
+                <option value="" ${!r.kakao_registered?'selected':''}>-</option>
+                <option value="O" ${r.kakao_registered==='O'?'selected':''}>O</option>
+                <option value="X" ${r.kakao_registered==='X'?'selected':''}>X</option>
+              </select>
+            </div>
+          </div>
         </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">✅ 동의금액 (원)</label>
-          <input type="number" name="agreed_amount" value="${r.agreed_amount||''}" placeholder="0" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        
+        <!-- 메모 카드 -->
+        <div style="${cardStyle}">
+          <label style="${labelStyle}">📝 메모</label>
+          <textarea name="notes" rows="2" placeholder="비고 사항" style="${inputStyle};resize:vertical">${esc(r.notes||'')}</textarea>
         </div>
-      </div>
-      
-      <div>
-        <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">🏷️ 할인 내역</label>
-        <input type="text" name="discount_note" value="${esc(r.discount_note||'')}" placeholder="예: 소개10%+당일완납5%" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">구/신환</label>
-          <select name="patient_type" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="new" ${r.patient_type==='new'?'selected':''}>신환</option>
-            <option value="existing" ${r.patient_type==='existing'?'selected':''}>구환</option>
-          </select>
+        
+        <!-- 버튼 -->
+        <div style="display:flex;gap:8px;margin-top:4px;padding:0 2px">
+          <button type="submit" class="btn btn-primary" style="flex:1;padding:14px;font-weight:800;font-size:15px;border-radius:12px">${isEdit ? '수정 저장' : '기록 저장'}</button>
+          ${isEdit ? '<button type="button" id="crDelete" class="btn" style="padding:14px;color:#ef4444;font-weight:700;border-radius:12px;border:1px solid #fecaca">삭제</button>' : ''}
+          <button type="button" onclick="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
         </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">진료 카테고리</label>
-          <select name="treatment_category" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            ${Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}" ${r.treatment_category===k?'selected':''}>${v}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">치료확정</label>
-          <select name="treatment_confirmed" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="" ${!r.treatment_confirmed?'selected':''}>미정</option>
-            <option value="O" ${r.treatment_confirmed==='O'?'selected':''}>O 확정</option>
-            <option value="X" ${r.treatment_confirmed==='X'?'selected':''}>X 미확정</option>
-          </select>
-        </div>
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">예약</label>
-          <select name="appointment_made" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="" ${!r.appointment_made?'selected':''}>-</option>
-            <option value="O" ${r.appointment_made==='O'?'selected':''}>O</option>
-            <option value="X" ${r.appointment_made==='X'?'selected':''}>X</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">리콜</label>
-          <select name="recall_done" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="" ${!r.recall_done?'selected':''}>-</option>
-            <option value="O" ${r.recall_done==='O'?'selected':''}>O</option>
-            <option value="X" ${r.recall_done==='X'?'selected':''}>X</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">카카오 등록</label>
-          <select name="kakao_registered" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-            <option value="" ${!r.kakao_registered?'selected':''}>-</option>
-            <option value="O" ${r.kakao_registered==='O'?'selected':''}>O</option>
-            <option value="X" ${r.kakao_registered==='X'?'selected':''}>X</option>
-          </select>
-        </div>
-      </div>
-      
-      <div>
-        <label style="font-size:12px;font-weight:700;display:block;margin-bottom:3px">📝 메모</label>
-        <textarea name="notes" rows="2" placeholder="비고 사항" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical">${esc(r.notes||'')}</textarea>
-      </div>
-      
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button type="submit" class="btn btn-primary" style="flex:1;padding:12px;font-weight:800">${isEdit ? '수정 저장' : '기록 저장'}</button>
-        ${isEdit ? '<button type="button" id="crDelete" class="btn" style="padding:12px;color:#ef4444;font-weight:700">삭제</button>' : ''}
-        <button type="button" onclick="PFM.closeModal()" class="btn" style="padding:12px">취소</button>
-      </div>
-    </form>
+      </form>
+    </div>
   `;
   
   const form = document.getElementById('crForm');
@@ -349,7 +415,7 @@ async function renderConsultDashboard(body, actions) {
 }
 
 function renderDashboardContent(body, data, month, isManager, reload) {
-  const { summary: s, byCounselor, byDoctor, byCategory, byDate } = data;
+  const { summary: s, byCounselor, byDoctor, byCategory, byDate, byVisitSource } = data;
   const prevMonth = (() => { const d = new Date(month + '-01'); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
   const nextMonth = (() => { const d = new Date(month + '-01'); d.setMonth(d.getMonth()+1); return d.toISOString().slice(0,7); })();
   const displayMonth = month.replace('-', '년 ') + '월';
@@ -476,6 +542,23 @@ function renderDashboardContent(body, data, month, isManager, reload) {
       }).join('')}
     </div>
     
+    <!-- 내원 경로별 분석 -->
+    ${byVisitSource && Object.keys(byVisitSource).filter(k => k !== '미기록').length > 0 ? `
+    <div class="section-title">🛤️ <span>내원 경로별 분석</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px">
+      ${Object.entries(byVisitSource).sort((a,b) => b[1].total - a[1].total).map(([src, v]) => {
+        const label = VISIT_SOURCES[src] || src;
+        const color = SOURCE_COLORS[src] || '#94a3b8';
+        const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 1000) / 10 : 0;
+        const pct = s.total > 0 ? Math.round(v.total / s.total * 100) : 0;
+        return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;border-top:3px solid ' + color + '">' +
+          '<div style="font-size:12px;font-weight:800;color:' + color + ';margin-bottom:6px">' + label + '</div>' +
+          '<div style="font-size:20px;font-weight:900">' + v.total + '건 <span style="font-size:11px;color:var(--text-muted)">(' + pct + '%)</span></div>' +
+          '<div style="font-size:11px;margin-top:4px;color:var(--text-muted)">확정률 <strong style="color:' + (r >= 80 ? '#22c55e' : '#f59e0b') + '">' + r + '%</strong></div>' +
+        '</div>';
+      }).join('')}
+    </div>` : ''}
+    
     <!-- 일별 상담 건수 차트 -->
     <div class="section-title">📈 <span>일별 상담 건수</span></div>
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;overflow-x:auto">
@@ -559,4 +642,5 @@ function renderDailyChart(byDate, month) {
 }
 
 PFM.modules.consult = { renderConsultRecords, renderConsultDashboard };
+PFM.consultData = { CATEGORIES, CAT_COLORS, VISIT_SOURCES, SOURCE_COLORS };
 })(window.PFM);
