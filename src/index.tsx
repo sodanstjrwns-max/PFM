@@ -1058,17 +1058,29 @@ app.get('/api/protected/hospital/settings', async (c) => {
   let settings: any = {}
   try { settings = JSON.parse(row?.settings || '{}') } catch(e) {}
   // 기본값 병합
-  const defaults = {
+  const defaults: any = {
     location_terms: {
       chair: '체어', room: '진료실', floor: '층',
       surgery_room: '수술실', waiting_room: '대기실', consult_room: '상담실',
       xray_room: '촬영실', sterilization: '소독실'
     },
-    location_presets: []
+    location_presets: [],
+    operating_hours: {
+      weekday: { start: '09:00', end: '18:00', enabled: true },
+      saturday: { start: '09:00', end: '14:00', enabled: true },
+      sunday: { start: '', end: '', enabled: false },
+      lunch: { start: '13:00', end: '14:00', enabled: true },
+      evening: { start: '', end: '', enabled: false, label: '야간진료' },
+      regular_holidays: [],
+      holiday_notice: '',
+    },
+    floor_map: [],
   }
-  const merged = {
+  const merged: any = {
     location_terms: { ...defaults.location_terms, ...(settings.location_terms || {}) },
     location_presets: settings.location_presets || defaults.location_presets,
+    operating_hours: { ...defaults.operating_hours, ...(settings.operating_hours || {}) },
+    floor_map: settings.floor_map || defaults.floor_map,
   }
   return c.json(merged)
 })

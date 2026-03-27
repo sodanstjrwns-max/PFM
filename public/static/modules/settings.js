@@ -31,12 +31,22 @@ async function renderSettings(body) {
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
 
-      <div class="section-title">${ICONS.settings}<span>병원 정보</span></div>
+      <div class="section-title">🏥 <span>병원 기본정보</span></div>
       <div id="hospitalInfoSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
 
       ${isManager ? `
+      <div class="section-title">⏰ <span>진료시간 / 휴무 설정</span></div>
+      <div id="operatingHoursSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
+      <div class="section-title">🏢 <span>층별 / 공간 구성</span></div>
+      <div id="floorMapSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
       <div class="section-title">📍 <span>위치 용어 설정</span></div>
       <div id="locationTermsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
@@ -67,6 +77,8 @@ async function renderSettings(body) {
     renderMyProfile(myProfile);
     renderHospitalInfo(hospitalInfo);
     if (isManager && hospitalSettings) {
+      renderOperatingHours(hospitalSettings);
+      renderFloorMap(hospitalSettings);
       renderLocationTerms(hospitalSettings);
       renderLocationPresets(hospitalSettings);
     }
@@ -231,6 +243,331 @@ function renderHospitalInfo(info) {
   }
 }
 
+/* ═══ 진료시간 / 휴무 설정 ═══ */
+function renderOperatingHours(settings) {
+  const oh = settings.operating_hours || {};
+  const section = document.getElementById('operatingHoursSection');
+  if (!section) return;
+
+  const dayLabels = ['월','화','수','목','금'];
+  const weekday = oh.weekday || { start:'09:00', end:'18:00', enabled:true };
+  const saturday = oh.saturday || { start:'09:00', end:'14:00', enabled:true };
+  const sunday = oh.sunday || { start:'', end:'', enabled:false };
+  const lunch = oh.lunch || { start:'13:00', end:'14:00', enabled:true };
+  const evening = oh.evening || { start:'', end:'', enabled:false, label:'야간진료' };
+  const holidays = oh.regular_holidays || [];
+  const notice = oh.holiday_notice || '';
+
+  const holidayOptions = [
+    { value: 'sun', label: '매주 일요일' },
+    { value: 'sat', label: '매주 토요일' },
+    { value: 'sat_alt', label: '격주 토요일' },
+    { value: 'national', label: '공휴일' },
+    { value: 'wed_pm', label: '매주 수요일 오후' },
+    { value: 'thu_pm', label: '매주 목요일 오후' },
+    { value: 'first_mon', label: '매월 첫째 월요일' },
+    { value: 'last_fri', label: '매월 마지막 금요일' },
+  ];
+
+  section.innerHTML = `
+    <div style="margin-bottom:16px">
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
+        병원의 진료시간과 정기 휴무일을 설정합니다.<br>
+        이 정보는 <strong>HR 대시보드, 직원 출퇴근, 대기 안내</strong> 등에 활용됩니다.
+      </p>
+    </div>
+
+    <!-- 진료 시간 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px">
+      ${[{key:'weekday',label:'평일 (월~금)',data:weekday,icon:'📅'},
+        {key:'saturday',label:'토요일',data:saturday,icon:'📆'},
+        {key:'sunday',label:'일요일',data:sunday,icon:'🔴'}
+      ].map(t => `
+        <div style="background:var(--bg);border:1px solid ${t.data.enabled?'var(--primary)33':'var(--border-light)'};border-radius:var(--radius);padding:14px;position:relative">
+          <label style="display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" class="oh-day-toggle" data-key="${t.key}" ${t.data.enabled?'checked':''}>
+            <span style="font-weight:700;font-size:13px">${t.icon} ${t.label}</span>
+          </label>
+          <div class="oh-time-group" data-for="${t.key}" style="${t.data.enabled?'':'opacity:0.4;pointer-events:none'}">
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="time" class="form-input oh-start" data-key="${t.key}" value="${t.data.start||'09:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+              <span style="font-size:12px;color:var(--text-muted)">~</span>
+              <input type="time" class="form-input oh-end" data-key="${t.key}" value="${t.data.end||'18:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+            </div>
+            ${!t.data.enabled ? '<div style="text-align:center;font-size:11px;color:#ef4444;margin-top:6px;font-weight:600">휴진</div>' : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- 점심시간 / 야간진료 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div style="background:var(--bg);border:1px solid ${lunch.enabled?'#f59e0b33':'var(--border-light)'};border-radius:var(--radius);padding:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" class="oh-day-toggle" data-key="lunch" ${lunch.enabled?'checked':''}>
+          <span style="font-weight:700;font-size:13px">🍽️ 점심시간</span>
+        </label>
+        <div class="oh-time-group" data-for="lunch" style="${lunch.enabled?'':'opacity:0.4;pointer-events:none'}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="time" class="form-input oh-start" data-key="lunch" value="${lunch.start||'13:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+            <span style="font-size:12px;color:var(--text-muted)">~</span>
+            <input type="time" class="form-input oh-end" data-key="lunch" value="${lunch.end||'14:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--bg);border:1px solid ${evening.enabled?'#6366f133':'var(--border-light)'};border-radius:var(--radius);padding:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" class="oh-day-toggle" data-key="evening" ${evening.enabled?'checked':''}>
+          <span style="font-weight:700;font-size:13px">🌙 야간진료</span>
+        </label>
+        <div class="oh-time-group" data-for="evening" style="${evening.enabled?'':'opacity:0.4;pointer-events:none'}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="time" class="form-input oh-start" data-key="evening" value="${evening.start||'18:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+            <span style="font-size:12px;color:var(--text-muted)">~</span>
+            <input type="time" class="form-input oh-end" data-key="evening" value="${evening.end||'21:00'}" style="flex:1;font-size:13px;padding:6px 8px">
+          </div>
+          <div style="margin-top:6px">
+            <input class="form-input" id="ohEveningLabel" value="${esc(evening.label||'야간진료')}" placeholder="표시 이름 (예: 야간진료, 심야진료)" style="font-size:11px;padding:4px 8px">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 정기 휴무 -->
+    <div style="background:var(--bg);border:1px solid var(--border-light);border-radius:var(--radius);padding:14px;margin-bottom:20px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">🚫 정기 휴무일</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        ${holidayOptions.map(opt => {
+          const checked = holidays.includes(opt.value);
+          return `<label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:${checked?'#fef2f233':'var(--bg-card)'};border:1px solid ${checked?'#ef4444':'var(--border-light)'};border-radius:20px;cursor:pointer;font-size:12px;transition:all .2s">
+            <input type="checkbox" class="oh-holiday" value="${opt.value}" ${checked?'checked':''}>
+            <span>${opt.label}</span>
+          </label>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">휴무 안내 문구 (선택)</label>
+        <input class="form-input" id="ohHolidayNotice" value="${esc(notice)}" placeholder="예: 공휴일, 일요일 휴진 / 토요일 오후 휴진" style="font-size:12px;padding:6px 10px">
+      </div>
+    </div>
+
+    <!-- 저장 -->
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-primary btn-sm" id="ohSaveBtn">💾 진료시간 저장</button>
+      <span id="ohSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+    </div>
+  `;
+
+  // 토글 이벤트
+  section.querySelectorAll('.oh-day-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const group = section.querySelector(`[data-for="${cb.dataset.key}"]`);
+      if (group) {
+        group.style.opacity = cb.checked ? '1' : '0.4';
+        group.style.pointerEvents = cb.checked ? '' : 'none';
+      }
+    });
+  });
+
+  // 저장
+  document.getElementById('ohSaveBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('ohSaveBtn'); btn.disabled = true;
+    const data = {};
+    ['weekday','saturday','sunday','lunch','evening'].forEach(key => {
+      const enabled = section.querySelector(`.oh-day-toggle[data-key="${key}"]`)?.checked || false;
+      const startEl = section.querySelector(`.oh-start[data-key="${key}"]`);
+      const endEl = section.querySelector(`.oh-end[data-key="${key}"]`);
+      data[key] = { start: startEl?.value||'', end: endEl?.value||'', enabled };
+    });
+    data.evening.label = document.getElementById('ohEveningLabel')?.value?.trim() || '야간진료';
+    data.regular_holidays = Array.from(section.querySelectorAll('.oh-holiday:checked')).map(c => c.value);
+    data.holiday_notice = document.getElementById('ohHolidayNotice')?.value?.trim() || '';
+    try {
+      await api('/api/protected/hospital/settings', { method: 'PUT', json: { operating_hours: data }});
+      toast('진료시간이 저장되었습니다!', 'success');
+      document.getElementById('ohSaveStatus').textContent = '✅ 저장됨';
+      setTimeout(() => { const s = document.getElementById('ohSaveStatus'); if(s) s.textContent=''; }, 3000);
+    } catch(e) { toast(e.message, 'error'); }
+    btn.disabled = false;
+  });
+}
+
+/* ═══ 층별 / 공간 구성 ═══ */
+function renderFloorMap(settings) {
+  const floors = settings.floor_map || [];
+  const terms = settings.location_terms || defaultTerms;
+  const section = document.getElementById('floorMapSection');
+  if (!section) return;
+
+  const spaceTypes = [
+    { value: 'treatment', label: '진료실', icon: '🦷', color: '#3b82f6' },
+    { value: 'surgery', label: '수술실', icon: '🔬', color: '#ef4444' },
+    { value: 'orthodontics', label: '교정실', icon: '🔧', color: '#8b5cf6' },
+    { value: 'xray', label: '촬영실', icon: '📷', color: '#f59e0b' },
+    { value: 'consult', label: '상담실', icon: '💬', color: '#22c55e' },
+    { value: 'waiting', label: '대기실', icon: '🪑', color: '#6b7280' },
+    { value: 'sterilization', label: '소독실', icon: '🧹', color: '#ec4899' },
+    { value: 'office', label: '사무실', icon: '💼', color: '#0ea5e9' },
+    { value: 'storage', label: '창고', icon: '📦', color: '#78716c' },
+    { value: 'other', label: '기타', icon: '🏷️', color: '#a1a1aa' },
+  ];
+
+  function renderFloorList() {
+    section.innerHTML = `
+      <div style="margin-bottom:16px">
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
+          병원의 층별/공간 구성을 설정합니다. 각 층에 어떤 공간이 있는지 등록하면<br>
+          <strong>진료보드, 체어 배정, 환자 동선</strong> 관리에 활용됩니다.
+        </p>
+      </div>
+
+      ${floors.length ? floors.map((f, fi) => {
+        const spaces = f.spaces || [];
+        return `
+          <div style="background:var(--bg);border:1px solid var(--border-light);border-radius:var(--radius);padding:16px;margin-bottom:12px;position:relative" data-floor-idx="${fi}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:22px;font-weight:800;color:var(--primary)">${esc(f.name)}</span>
+                <span style="font-size:11px;color:var(--text-muted)">${spaces.length}개 공간</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn-icon fm-add-space-btn" data-fi="${fi}" title="공간 추가">➕</button>
+                <button class="btn-icon fm-del-floor-btn" data-fi="${fi}" title="층 삭제">${ICONS.trash}</button>
+              </div>
+            </div>
+            ${spaces.length ? `
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                ${spaces.map((sp, si) => {
+                  const st = spaceTypes.find(t => t.value === sp.type) || spaceTypes[spaceTypes.length-1];
+                  return `
+                    <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${st.color}0a;border:1px solid ${st.color}33;border-radius:20px;font-size:12px">
+                      <span>${st.icon}</span>
+                      <span style="font-weight:600">${esc(sp.name)}</span>
+                      ${sp.chairs ? `<span style="font-size:10px;color:var(--text-muted)">(${terms.chair||'체어'} ${sp.chairs}개)</span>` : ''}
+                      <button class="btn-icon fm-del-space-btn" data-fi="${fi}" data-si="${si}" title="삭제" style="width:18px;height:18px;font-size:10px">&times;</button>
+                    </div>`;
+                }).join('')}
+              </div>
+            ` : '<div style="text-align:center;padding:10px;color:var(--text-muted);font-size:11px">등록된 공간이 없습니다. ➕ 버튼을 눌러 추가하세요.</div>'}
+          </div>`;
+      }).join('') : '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">등록된 층이 없습니다. 아래에서 층을 추가해주세요.</div>'}
+
+      <!-- 층 추가 -->
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius);padding:14px;margin-top:8px">
+        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:10px">🏢 새 층 추가</div>
+        <div style="display:flex;gap:8px;align-items:end">
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <label style="font-size:11px">층 이름</label>
+            <input class="form-input" id="fmNewFloor" placeholder="예: 1F, 2F, B1, 본관 3층" style="font-size:13px">
+          </div>
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <label style="font-size:11px">설명 (선택)</label>
+            <input class="form-input" id="fmNewFloorDesc" placeholder="예: 접수·대기·상담" style="font-size:13px">
+          </div>
+          <button class="btn btn-primary btn-sm" id="fmAddFloorBtn">추가</button>
+        </div>
+      </div>
+
+      <!-- 저장 -->
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+        <button class="btn btn-primary btn-sm" id="fmSaveBtn">💾 층별 구성 저장</button>
+        <span id="fmSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+    `;
+
+    // 층 추가
+    document.getElementById('fmAddFloorBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('fmNewFloor')?.value?.trim();
+      if (!name) { toast('층 이름을 입력해주세요', 'error'); return; }
+      const desc = document.getElementById('fmNewFloorDesc')?.value?.trim() || '';
+      floors.push({ name, description: desc, spaces: [] });
+      renderFloorList();
+      toast(`${name} 추가됨 (저장 버튼을 눌러주세요)`, 'info');
+    });
+
+    // 층 삭제
+    section.querySelectorAll('.fm-del-floor-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fi = parseInt(btn.dataset.fi);
+        if (!confirm(`"${floors[fi]?.name}" 층과 모든 공간을 삭제하시겠습니까?`)) return;
+        floors.splice(fi, 1);
+        renderFloorList();
+        toast('삭제됨 (저장 버튼을 눌러주세요)', 'info');
+      });
+    });
+
+    // 공간 추가 (모달)
+    section.querySelectorAll('.fm-add-space-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fi = parseInt(btn.dataset.fi);
+        showModal(`➕ ${esc(floors[fi]?.name)} - 공간 추가`, `
+          <div class="form-group">
+            <label>공간 이름</label>
+            <input class="form-input" id="fmSpaceName" placeholder="예: 진료실 A, 수술실 1, VIP 상담실">
+          </div>
+          <div class="form-group">
+            <label>공간 유형</label>
+            <select class="form-input" id="fmSpaceType">
+              ${spaceTypes.map(st => `<option value="${st.value}">${st.icon} ${st.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>${esc(terms.chair||'체어')} 수 (선택, 진료 공간인 경우)</label>
+            <input class="form-input" type="number" id="fmSpaceChairs" min="0" max="50" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>메모 (선택)</label>
+            <input class="form-input" id="fmSpaceNote" placeholder="예: 임플란트 전용, VIP">
+          </div>
+          <button class="btn btn-primary" id="fmSpaceAddConfirm" style="width:100%;margin-top:8px">추가</button>
+        `);
+        document.getElementById('fmSpaceAddConfirm')?.addEventListener('click', () => {
+          const name = document.getElementById('fmSpaceName')?.value?.trim();
+          if (!name) { toast('공간 이름을 입력해주세요', 'error'); return; }
+          const sp = {
+            name,
+            type: document.getElementById('fmSpaceType')?.value || 'other',
+            chairs: parseInt(document.getElementById('fmSpaceChairs')?.value) || 0,
+            note: document.getElementById('fmSpaceNote')?.value?.trim() || '',
+          };
+          floors[fi].spaces.push(sp);
+          closeModal();
+          renderFloorList();
+          toast(`${name} 추가됨 (저장 버튼을 눌러주세요)`, 'info');
+        });
+      });
+    });
+
+    // 공간 삭제
+    section.querySelectorAll('.fm-del-space-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fi = parseInt(btn.dataset.fi);
+        const si = parseInt(btn.dataset.si);
+        const sp = floors[fi]?.spaces?.[si];
+        if (!sp) return;
+        floors[fi].spaces.splice(si, 1);
+        renderFloorList();
+        toast(`${sp.name} 삭제됨 (저장 버튼을 눌러주세요)`, 'info');
+      });
+    });
+
+    // 전체 저장
+    document.getElementById('fmSaveBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('fmSaveBtn'); btn.disabled = true;
+      try {
+        await api('/api/protected/hospital/settings', { method: 'PUT', json: { floor_map: floors }});
+        toast('층별 구성이 저장되었습니다!', 'success');
+        document.getElementById('fmSaveStatus').textContent = '✅ 저장됨';
+        setTimeout(() => { const s = document.getElementById('fmSaveStatus'); if(s) s.textContent=''; }, 3000);
+      } catch(e) { toast(e.message, 'error'); }
+      btn.disabled = false;
+    });
+  }
+
+  renderFloorList();
+}
+
+/* ═══ 위치 용어 설정 ═══ */
 function renderLocationTerms(settings) {
   const terms = settings.location_terms || defaultTerms;
   const isEditable = ['admin','manager'].includes(state.user.role);
