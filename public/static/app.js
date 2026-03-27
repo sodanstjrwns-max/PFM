@@ -132,6 +132,7 @@ function renderAuth() {
       </div>
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">로그인</button>
+        <button class="auth-tab" data-tab="join">직원 가입</button>
         <button class="auth-tab" data-tab="register">병원 등록</button>
       </div>
       <div class="auth-error" id="authError"></div>
@@ -140,9 +141,14 @@ function renderAuth() {
           <label>병원명</label>
           <input class="form-input" type="text" id="regHospital" placeholder="예: 서울비디치과">
         </div>
+        <div class="form-group" id="inviteCodeField" style="display:none">
+          <label>초대 코드</label>
+          <input class="form-input" type="text" id="inviteCode" placeholder="관리자에게 받은 코드" style="text-transform:uppercase">
+          <div id="inviteInfo" style="font-size:12px;color:var(--primary);margin-top:4px"></div>
+        </div>
         <div class="form-group" id="regNameField" style="display:none">
           <label>이름</label>
-          <input class="form-input" type="text" id="regName" placeholder="관리자 이름">
+          <input class="form-input" type="text" id="regName" placeholder="이름">
         </div>
         <div class="form-group">
           <label>이메일</label>
@@ -152,6 +158,39 @@ function renderAuth() {
           <label>비밀번호</label>
           <input class="form-input" type="password" id="authPassword" placeholder="••••••••" required>
         </div>
+        <div class="form-group" id="joinPhoneField" style="display:none">
+          <label>연락처</label>
+          <input class="form-input" type="tel" id="joinPhone" placeholder="010-0000-0000">
+        </div>
+        <div id="joinPositionTeam" style="display:none" class="form-grid">
+          <div class="form-group">
+            <label>직급</label>
+            <select class="form-input" id="joinPosition">
+              <option value="">선택</option>
+              <option value="doctor">원장/의사</option>
+              <option value="director">실장단</option>
+              <option value="hygienist">치과위생사</option>
+              <option value="desk">데스크</option>
+              <option value="sterilization">소독팀</option>
+              <option value="management">경영지원실</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>소속팀</label>
+            <select class="form-input" id="joinTeam">
+              <option value="">선택</option>
+              <option value="clinical">진료팀</option>
+              <option value="front">프론트</option>
+              <option value="support">지원팀</option>
+              <option value="management">경영지원</option>
+            </select>
+          </div>
+        </div>
+        <div id="joinScheduleField" style="display:none">
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:8px">근무 스케줄</label>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px" id="scheduleGrid">
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="authSubmitBtn">로그인</button>
       </form>
     </div>
@@ -159,15 +198,64 @@ function renderAuth() {
 
   let mode = 'login';
   const tabs = app.querySelectorAll('.auth-tab');
+  const dayLabels = ['월','화','수','목','금','토','일'];
+  const dayKeys = ['mon','tue','wed','thu','fri','sat','sun'];
+
+  function buildScheduleGrid() {
+    const grid = document.getElementById('scheduleGrid');
+    if (!grid) return;
+    grid.innerHTML = dayLabels.map((d, i) => `
+      <div style="text-align:center">
+        <label style="display:flex;align-items:center;gap:2px;margin-bottom:4px;justify-content:center;cursor:pointer">
+          <input type="checkbox" class="sched-day" data-day="${dayKeys[i]}" ${i < 5 ? 'checked' : ''}>
+          <span style="font-weight:600">${d}</span>
+        </label>
+        <div class="sched-times" data-day-times="${dayKeys[i]}" style="${i >= 5 ? 'display:none' : ''}">
+          <input type="time" class="sched-start" value="${i < 5 ? '09:00' : '09:00'}" style="width:100%;font-size:10px;padding:2px;border:1px solid var(--border);border-radius:4px;margin-bottom:2px">
+          <input type="time" class="sched-end" value="${i < 5 ? '18:00' : '14:00'}" style="width:100%;font-size:10px;padding:2px;border:1px solid var(--border);border-radius:4px">
+        </div>
+      </div>
+    `).join('');
+    grid.querySelectorAll('.sched-day').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const times = grid.querySelector(`[data-day-times="${cb.dataset.day}"]`);
+        if (times) times.style.display = cb.checked ? '' : 'none';
+      });
+    });
+  }
+
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       mode = tab.dataset.tab;
       tabs.forEach(t => t.classList.toggle('active', t === tab));
       document.getElementById('regHospitalField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regNameField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : '병원 등록하기';
+      document.getElementById('inviteCodeField').style.display = mode === 'join' ? '' : 'none';
+      document.getElementById('regNameField').style.display = mode !== 'login' ? '' : 'none';
+      document.getElementById('joinPhoneField').style.display = mode === 'join' ? '' : 'none';
+      document.getElementById('joinPositionTeam').style.display = mode === 'join' ? '' : 'none';
+      document.getElementById('joinScheduleField').style.display = mode === 'join' ? '' : 'none';
+      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : mode === 'join' ? '직원 가입' : '병원 등록하기';
       document.getElementById('authError').classList.remove('show');
+      if (mode === 'join') buildScheduleGrid();
     });
+  });
+
+  // Invite code validation
+  let inviteDebounce;
+  document.getElementById('inviteCode')?.addEventListener('input', (e) => {
+    clearTimeout(inviteDebounce);
+    const code = e.target.value.trim();
+    if (code.length < 4) { document.getElementById('inviteInfo').textContent = ''; return; }
+    inviteDebounce = setTimeout(async () => {
+      try {
+        const info = await api('/api/auth/invite/' + code);
+        document.getElementById('inviteInfo').textContent = '✅ ' + info.hospital_name + ' 초대 확인';
+        if (info.position) document.getElementById('joinPosition').value = info.position;
+        if (info.team) document.getElementById('joinTeam').value = info.team;
+      } catch(err) {
+        document.getElementById('inviteInfo').innerHTML = '<span style="color:var(--danger)">❌ ' + err.message + '</span>';
+      }
+    }, 500);
   });
 
   document.getElementById('authForm').addEventListener('submit', async (e) => {
@@ -181,6 +269,34 @@ function renderAuth() {
         const data = await api('/api/auth/login', { method: 'POST', json: {
           email: document.getElementById('authEmail').value,
           password: document.getElementById('authPassword').value,
+        }});
+        saveAuth(data.token, data.user);
+      } else if (mode === 'join') {
+        // Build work_schedule from grid
+        const schedule = {};
+        const grid = document.getElementById('scheduleGrid');
+        if (grid) {
+          grid.querySelectorAll('.sched-day').forEach(cb => {
+            const day = cb.dataset.day;
+            if (cb.checked) {
+              const times = grid.querySelector(`[data-day-times="${day}"]`);
+              const start = times?.querySelector('.sched-start')?.value || '09:00';
+              const end = times?.querySelector('.sched-end')?.value || '18:00';
+              schedule[day] = { start, end };
+            } else {
+              schedule[day] = null;
+            }
+          });
+        }
+        const data = await api('/api/auth/join', { method: 'POST', json: {
+          invite_code: document.getElementById('inviteCode').value.trim().toUpperCase(),
+          email: document.getElementById('authEmail').value,
+          password: document.getElementById('authPassword').value,
+          name: document.getElementById('regName').value,
+          phone: document.getElementById('joinPhone').value,
+          position: document.getElementById('joinPosition').value,
+          team: document.getElementById('joinTeam').value,
+          work_schedule: schedule,
         }});
         saveAuth(data.token, data.user);
       } else {
@@ -235,6 +351,8 @@ function getNavConfig() {
     {
       id: 'hr', label: 'HR', icon: ICONS_HIRE.briefcase,
       children: [
+        { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
+        { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
         { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
         { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
@@ -503,6 +621,8 @@ function renderPage() {
     kanban_purchase: ['물품 구매 요청', ICONS.cart],
     kanban_repair: ['수리/정비 요청', ICONS.wrench],
     staff_supplies: ['👔 직원용품 주문', ICONS.users],
+    hr_dashboard: ['📊 HR 대시보드', ICONS.dashboard],
+    hr_staff: ['👥 직원 관리', ICONS.users],
     checklists: ['체크리스트', ICONS.checklist],
     calendar: ['일정 관리', ICONS.calendar],
     marketing: ['마케팅 유입 분석', ICONS.chart],
@@ -536,6 +656,8 @@ function renderPage() {
     case 'kanban_purchase': M.community.renderKanban(body, actions, 'purchase'); break;
     case 'kanban_repair': M.community.renderKanban(body, actions, 'repair'); break;
     case 'staff_supplies': M.operations.renderStaffSupplies(body, actions); break;
+    case 'hr_dashboard': M.hr.renderHRDashboard(body, actions); break;
+    case 'hr_staff': M.hr.renderStaffManagement(body, actions); break;
     case 'checklists': M.operations.renderChecklists(body, actions); break;
     case 'calendar': M.operations.renderCalendar(body, actions); break;
     case 'marketing': M.operations.renderMarketing(body, actions); break;

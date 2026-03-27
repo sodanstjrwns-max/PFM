@@ -7,10 +7,47 @@ INSERT OR IGNORE INTO hospitals (id, name, phone, address) VALUES
   ('h-demo', '서울비디치과', '02-1234-5678', '서울특별시 강남구 테헤란로 123');
 
 INSERT OR IGNORE INTO users (id, hospital_id, email, password_hash, name, role, is_doctor) VALUES
-  ('u-admin', 'h-demo', 'admin@seoulbd.com', '$pbkdf2$admin123', '문석준', 'admin', 1),
-  ('u-mgr', 'h-demo', 'manager@seoulbd.com', '$pbkdf2$manager1', '김수현', 'manager', 1),
-  ('u-staff1', 'h-demo', 'hygienist1@seoulbd.com', '$pbkdf2$staff123', '박지은', 'staff', 0),
-  ('u-staff2', 'h-demo', 'assistant1@seoulbd.com', '$pbkdf2$staff123', '이하늘', 'staff', 0);
+  ('u-admin',  'h-demo', 'admin@seoulbd.com',      '$pbkdf2$admin123', '문석준', 'admin',   1),
+  ('u-mgr',    'h-demo', 'manager@seoulbd.com',     '$pbkdf2$manager1', '김수현', 'manager', 1),
+  ('u-staff1', 'h-demo', 'hygienist1@seoulbd.com',  '$pbkdf2$staff123', '박지은', 'staff',   0),
+  ('u-staff2', 'h-demo', 'assistant1@seoulbd.com',  '$pbkdf2$staff123', '이하늘', 'staff',   0),
+  ('u-staff3', 'h-demo', 'hygienist2@seoulbd.com',  '$pbkdf2$staff123', '최윤서', 'staff',   0),
+  ('u-staff4', 'h-demo', 'hygienist3@seoulbd.com',  '$pbkdf2$staff123', '정다인', 'staff',   0),
+  ('u-staff5', 'h-demo', 'desk1@seoulbd.com',       '$pbkdf2$staff123', '한소희', 'staff',   0),
+  ('u-staff6', 'h-demo', 'desk2@seoulbd.com',       '$pbkdf2$staff123', '오예린', 'staff',   0),
+  ('u-staff7', 'h-demo', 'steril1@seoulbd.com',     '$pbkdf2$staff123', '송미래', 'staff',   0),
+  ('u-staff8', 'h-demo', 'steril2@seoulbd.com',     '$pbkdf2$staff123', '임서연', 'staff',   0),
+  ('u-staff9', 'h-demo', 'mgmt1@seoulbd.com',       '$pbkdf2$staff123', '윤지호', 'staff',   0),
+  ('u-dr2',    'h-demo', 'doctor2@seoulbd.com',     '$pbkdf2$staff123', '강민재', 'staff',   1);
+
+-- ═══ 직원 프로필 확장 (직급, 팀, 연락처, 입사일, 근무조건) ═══
+UPDATE users SET position='doctor',       team='clinical',   phone='010-1111-0001', hire_date='2021-03-01', work_schedule='{"mon":{"start":"09:00","end":"19:00"},"tue":{"start":"09:00","end":"19:00"},"wed":{"start":"09:00","end":"19:00"},"thu":{"start":"09:00","end":"19:00"},"fri":{"start":"09:00","end":"19:00"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-admin';
+UPDATE users SET position='director',     team='management', phone='010-1111-0002', hire_date='2022-01-15', work_schedule='{"mon":{"start":"08:30","end":"18:30"},"tue":{"start":"08:30","end":"18:30"},"wed":{"start":"08:30","end":"18:30"},"thu":{"start":"08:30","end":"18:30"},"fri":{"start":"08:30","end":"18:30"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-mgr';
+UPDATE users SET position='hygienist',    team='clinical',   phone='010-2222-0001', hire_date='2022-06-01', work_schedule='{"mon":{"start":"09:00","end":"18:00"},"tue":{"start":"09:00","end":"18:00"},"wed":null,"thu":{"start":"09:00","end":"18:00"},"fri":{"start":"09:00","end":"18:00"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff1';
+UPDATE users SET position='hygienist',    team='clinical',   phone='010-2222-0002', hire_date='2023-03-02', work_schedule='{"mon":{"start":"09:00","end":"18:00"},"tue":null,"wed":{"start":"09:00","end":"18:00"},"thu":{"start":"09:00","end":"18:00"},"fri":{"start":"09:00","end":"18:00"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff2';
+UPDATE users SET position='hygienist',    team='clinical',   phone='010-2222-0003', hire_date='2023-09-01', work_schedule='{"mon":{"start":"09:00","end":"18:00"},"tue":{"start":"09:00","end":"18:00"},"wed":{"start":"09:00","end":"18:00"},"thu":null,"fri":{"start":"09:00","end":"18:00"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff3';
+UPDATE users SET position='hygienist',    team='clinical',   phone='010-2222-0004', hire_date='2024-01-08', work_schedule='{"mon":{"start":"09:00","end":"18:00"},"tue":{"start":"09:00","end":"18:00"},"wed":{"start":"09:00","end":"18:00"},"thu":{"start":"09:00","end":"18:00"},"fri":null,"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff4';
+UPDATE users SET position='desk',         team='front',      phone='010-3333-0001', hire_date='2022-09-01', work_schedule='{"mon":{"start":"08:30","end":"18:30"},"tue":{"start":"08:30","end":"18:30"},"wed":{"start":"08:30","end":"18:30"},"thu":{"start":"08:30","end":"18:30"},"fri":{"start":"08:30","end":"18:30"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff5';
+UPDATE users SET position='desk',         team='front',      phone='010-3333-0002', hire_date='2024-06-03', work_schedule='{"mon":{"start":"08:30","end":"18:30"},"tue":{"start":"08:30","end":"18:30"},"wed":null,"thu":{"start":"08:30","end":"18:30"},"fri":{"start":"08:30","end":"18:30"},"sat":{"start":"09:00","end":"14:00"},"sun":null}' WHERE id='u-staff6';
+UPDATE users SET position='sterilization',team='support',    phone='010-4444-0001', hire_date='2023-04-10', work_schedule='{"mon":{"start":"08:00","end":"17:00"},"tue":{"start":"08:00","end":"17:00"},"wed":{"start":"08:00","end":"17:00"},"thu":{"start":"08:00","end":"17:00"},"fri":{"start":"08:00","end":"17:00"},"sat":null,"sun":null}' WHERE id='u-staff7';
+UPDATE users SET position='sterilization',team='support',    phone='010-4444-0002', hire_date='2024-03-04', work_schedule='{"mon":{"start":"08:00","end":"17:00"},"tue":{"start":"08:00","end":"17:00"},"wed":{"start":"08:00","end":"17:00"},"thu":{"start":"08:00","end":"17:00"},"fri":{"start":"08:00","end":"17:00"},"sat":null,"sun":null}' WHERE id='u-staff8';
+UPDATE users SET position='management',   team='management', phone='010-5555-0001', hire_date='2023-11-01', work_schedule='{"mon":{"start":"09:00","end":"18:00"},"tue":{"start":"09:00","end":"18:00"},"wed":{"start":"09:00","end":"18:00"},"thu":{"start":"09:00","end":"18:00"},"fri":{"start":"09:00","end":"18:00"},"sat":null,"sun":null}' WHERE id='u-staff9';
+UPDATE users SET position='doctor',       team='clinical',   phone='010-1111-0003', hire_date='2024-09-01', work_schedule='{"mon":{"start":"10:00","end":"19:00"},"tue":{"start":"10:00","end":"19:00"},"wed":{"start":"10:00","end":"19:00"},"thu":null,"fri":{"start":"10:00","end":"19:00"},"sat":{"start":"10:00","end":"15:00"},"sun":null}' WHERE id='u-dr2';
+
+-- ═══ 오늘 출근 기록 (데모용) ═══
+INSERT OR IGNORE INTO attendance (id, hospital_id, user_id, date, check_in, check_out, status) VALUES
+  ('att-1',  'h-demo', 'u-admin',  '2026-03-27', '08:50', NULL, 'present'),
+  ('att-2',  'h-demo', 'u-mgr',    '2026-03-27', '08:25', NULL, 'present'),
+  ('att-3',  'h-demo', 'u-staff1', '2026-03-27', '08:55', NULL, 'present'),
+  ('att-4',  'h-demo', 'u-staff3', '2026-03-27', '08:58', NULL, 'present'),
+  ('att-5',  'h-demo', 'u-staff4', '2026-03-27', '09:05', NULL, 'late'),
+  ('att-6',  'h-demo', 'u-staff5', '2026-03-27', '08:20', NULL, 'present'),
+  ('att-7',  'h-demo', 'u-staff6', '2026-03-27', '08:28', NULL, 'present'),
+  ('att-8',  'h-demo', 'u-staff7', '2026-03-27', '07:55', NULL, 'present'),
+  ('att-9',  'h-demo', 'u-staff8', '2026-03-27', '07:58', NULL, 'present'),
+  ('att-10', 'h-demo', 'u-staff9', '2026-03-27', '08:50', NULL, 'present'),
+  ('att-11', 'h-demo', 'u-dr2',    '2026-03-27', '09:55', NULL, 'present'),
+  ('att-v1', 'h-demo', 'u-staff2', '2026-03-27', NULL,    NULL, 'vacation');
 
 -- ═══ 카테고리: 설명자료 ═══
 INSERT OR IGNORE INTO categories (id, hospital_id, module, name, icon, sort_order) VALUES

@@ -125,15 +125,214 @@ app.post('/api/auth/register', async (c) => {
   return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', hospitalName } })
 })
 
+/* ─── Staff Join (초대코드로 직원 가입) ─── */
+app.post('/api/auth/join', async (c) => {
+  const { invite_code, email, password, name, phone, position, team, work_schedule } = await c.req.json()
+  if (!invite_code || !email || !password || !name) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first()
+  if (existing) return c.json({ error: '이미 등록된 이메일입니다' }, 400)
+  const invite: any = await c.env.DB.prepare('SELECT * FROM staff_invites WHERE invite_code=? AND used_by IS NULL').bind(invite_code).first()
+  if (!invite) return c.json({ error: '유효하지 않거나 사용된 초대코드입니다' }, 400)
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
+  const uid = crypto.randomUUID()
+  const hash = await hashPassword(password)
+  const pos = position || invite.position || ''
+  const tm = team || invite.team || ''
+  const ws = work_schedule ? JSON.stringify(work_schedule) : '{}'
+  const hireDate = new Date().toISOString().slice(0,10)
+  await c.env.DB.prepare(
+    `INSERT INTO users (id, hospital_id, email, password_hash, name, role, position, team, phone, hire_date, work_schedule) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+  ).bind(uid, invite.hospital_id, email, hash, name, invite.role||'staff', pos, tm, phone||'', hireDate, ws).run()
+  await c.env.DB.prepare('UPDATE staff_invites SET used_by=? WHERE id=?').bind(uid, invite.id).run()
+  const hospital: any = await c.env.DB.prepare('SELECT name FROM hospitals WHERE id=?').bind(invite.hospital_id).first()
+  const role = invite.role || 'staff'
+  const token = await signJWT({ id: uid, hospitalId: invite.hospital_id, email, name, role })
+  return c.json({ token, user: { id: uid, hospitalId: invite.hospital_id, email, name, role, hospitalName: hospital?.name } })
+})
+
+/* ─── Validate invite code ─── */
+app.get('/api/auth/invite/:code', async (c) => {
+  const code = c.req.param('code')
+  const invite: any = await c.env.DB.prepare('SELECT si.*, h.name as hospital_name FROM staff_invites si JOIN hospitals h ON si.hospital_id=h.id WHERE si.invite_code=? AND si.used_by IS NULL').bind(code).first()
+  if (!invite) return c.json({ error: '유효하지 않은 초대코드입니다' }, 404)
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
+  return c.json({ hospital_name: invite.hospital_name, role: invite.role, position: invite.position, team: invite.team })
+})
+
 app.post('/api/auth/login', async (c) => {
   const { email, password } = await c.req.json()
   if (!email || !password) return c.json({ error: '이메일과 비밀번호를 입력해주세요' }, 400)
   const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(email).first()
   if (!row) return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+  if (row.work_status === 'resigned') return c.json({ error: '퇴사 처리된 계정입니다' }, 401)
   const valid = await verifyPassword(password, row.password_hash)
   if (!valid) return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role })
-  return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, hospitalName: row.hospital_name } })
+  return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name } })
+})
+
+/* ─── HR Dashboard & Staff Management API ─── */
+
+// HR 대시보드 - 전체/팀별 인원현황
+app.get('/api/protected/hr/dashboard', async (c) => {
+  const user = c.get('user')!
+  const today = c.req.query('date') || new Date().toISOString().slice(0,10)
+  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
+  const dayOfWeek = dayNames[new Date(today + 'T00:00:00').getDay()]
+
+  // 전체 활성 직원 목록 (with schedule)
+  const staffRows = await c.env.DB.prepare(
+    `SELECT id, name, role, position, team, work_schedule, is_doctor, hire_date FROM users WHERE hospital_id=? AND is_active=1 AND work_status='active' ORDER BY role DESC, team, name`
+  ).bind(user.hospitalId).all()
+  const staff = staffRows.results as any[]
+
+  // 오늘 출근 기록
+  const attRows = await c.env.DB.prepare(
+    `SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`
+  ).bind(user.hospitalId, today).all()
+  const attMap: Record<string, any> = {}
+  for (const a of attRows.results as any[]) attMap[a.user_id] = a
+
+  // 오늘 휴가 기록
+  const leaveRows = await c.env.DB.prepare(
+    `SELECT user_id FROM leave_requests WHERE hospital_id=? AND status='approved' AND start_date<=? AND end_date>=?`
+  ).bind(user.hospitalId, today, today).all()
+  const onLeaveSet = new Set((leaveRows.results as any[]).map((r: any) => r.user_id))
+
+  // 각 직원의 오늘 상태 계산
+  const members = staff.map((s: any) => {
+    let schedule: any = {}
+    try { schedule = JSON.parse(s.work_schedule || '{}') } catch(e) {}
+    const todaySchedule = schedule[dayOfWeek] || null
+    const isScheduledOff = todaySchedule === null
+    const isOnLeave = onLeaveSet.has(s.id) || (attMap[s.id]?.status === 'vacation')
+    const att = attMap[s.id]
+    const isPresent = att && ['present','late','half_day'].includes(att.status)
+
+    let todayStatus = 'not_yet' // 미출근
+    if (isScheduledOff) todayStatus = 'day_off'   // 정기 휴무
+    else if (isOnLeave) todayStatus = 'vacation'    // 휴가
+    else if (isPresent) todayStatus = att.status     // 출근/지각
+    
+    return {
+      id: s.id, name: s.name, role: s.role, position: s.position, team: s.team,
+      is_doctor: s.is_doctor, hire_date: s.hire_date,
+      today_status: todayStatus,
+      check_in: att?.check_in || null,
+      today_schedule: todaySchedule,
+    }
+  })
+
+  // 팀별 집계
+  const teams: Record<string, {total:number, present:number, vacation:number, day_off:number, late:number}> = {}
+  let totalAll = 0, presentAll = 0, vacationAll = 0, dayOffAll = 0, lateAll = 0
+
+  for (const m of members) {
+    const t = m.team || 'etc'
+    if (!teams[t]) teams[t] = {total:0, present:0, vacation:0, day_off:0, late:0}
+    teams[t].total++
+    totalAll++
+    if (m.today_status === 'present' || m.today_status === 'late' || m.today_status === 'half_day') { teams[t].present++; presentAll++ }
+    if (m.today_status === 'late') { teams[t].late++; lateAll++ }
+    if (m.today_status === 'vacation') { teams[t].vacation++; vacationAll++ }
+    if (m.today_status === 'day_off') { teams[t].day_off++; dayOffAll++ }
+  }
+
+  return c.json({
+    date: today,
+    summary: { total: totalAll, present: presentAll, vacation: vacationAll, day_off: dayOffAll, late: lateAll, working: presentAll },
+    teams, members
+  })
+})
+
+// 직원 목록 (상세 정보 포함)
+app.get('/api/protected/hr/staff', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(
+    `SELECT id, name, email, role, position, team, phone, hire_date, work_schedule, work_status, is_doctor, is_active, created_at FROM users WHERE hospital_id=? ORDER BY role DESC, team, name`
+  ).bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
+
+// 직원 프로필 업데이트 (관리자 or 본인)
+app.put('/api/protected/hr/staff/:id', async (c) => {
+  const user = c.get('user')!
+  const targetId = c.req.param('id')
+  if (user.role !== 'admin' && user.role !== 'manager' && user.id !== targetId) {
+    return c.json({ error: '권한이 없습니다' }, 403)
+  }
+  const body = await c.req.json()
+  const fields: string[] = []
+  const vals: any[] = []
+  for (const k of ['position','team','phone','hire_date','work_schedule','work_status','is_active','role','name']) {
+    if (body[k] !== undefined) {
+      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]
+      fields.push(`${k} = ?`); vals.push(v)
+    }
+  }
+  if (fields.length === 0) return c.json({ error: '변경 사항이 없습니다' }, 400)
+  fields.push('updated_at = CURRENT_TIMESTAMP')
+  vals.push(targetId, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 초대 코드 생성
+app.post('/api/protected/hr/invite', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
+  const { role, position, team } = await c.req.json()
+  const id = 'inv-' + crypto.randomUUID().slice(0,8)
+  const code = Math.random().toString(36).slice(2,8).toUpperCase()
+  const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString()
+  await c.env.DB.prepare(
+    'INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at) VALUES (?,?,?,?,?,?,?,?)'
+  ).bind(id, user.hospitalId, code, role||'staff', position||'', team||'', user.id, expiresAt).run()
+  return c.json({ invite_code: code, expires_at: expiresAt })
+})
+
+// 초대 코드 목록
+app.get('/api/protected/hr/invites', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(
+    `SELECT si.*, u1.name as created_by_name, u2.name as used_by_name 
+     FROM staff_invites si 
+     JOIN users u1 ON si.created_by=u1.id 
+     LEFT JOIN users u2 ON si.used_by=u2.id 
+     WHERE si.hospital_id=? ORDER BY si.created_at DESC`
+  ).bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
+
+// 출퇴근 체크인/체크아웃
+app.post('/api/protected/hr/attendance/check', async (c) => {
+  const user = c.get('user')!
+  const today = new Date().toISOString().slice(0,10)
+  const now = new Date().toTimeString().slice(0,5)
+  const existing: any = await c.env.DB.prepare(
+    'SELECT * FROM attendance WHERE user_id=? AND date=?'
+  ).bind(user.id, today).first()
+  if (!existing) {
+    const id = 'att-' + crypto.randomUUID().slice(0,8)
+    await c.env.DB.prepare(
+      'INSERT INTO attendance (id, hospital_id, user_id, date, check_in, status) VALUES (?,?,?,?,?,?)'
+    ).bind(id, user.hospitalId, user.id, today, now, 'present').run()
+    return c.json({ action: 'check_in', time: now })
+  } else if (!existing.check_out) {
+    await c.env.DB.prepare('UPDATE attendance SET check_out=? WHERE id=?').bind(now, existing.id).run()
+    return c.json({ action: 'check_out', time: now })
+  }
+  return c.json({ action: 'already_done', check_in: existing.check_in, check_out: existing.check_out })
+})
+
+// 출근 현황 조회
+app.get('/api/protected/hr/attendance', async (c) => {
+  const user = c.get('user')!
+  const date = c.req.query('date') || new Date().toISOString().slice(0,10)
+  const rows = await c.env.DB.prepare(
+    `SELECT a.*, u.name as user_name, u.position, u.team FROM attendance a JOIN users u ON a.user_id=u.id WHERE a.hospital_id=? AND a.date=? ORDER BY a.check_in`
+  ).bind(user.hospitalId, date).all()
+  return c.json(rows.results)
 })
 
 /* ─── Categories API ─── */
@@ -1054,7 +1253,7 @@ app.get('/api/protected/consultations/stats/conversion', async (c) => {
 // 직원 목록 (연차 관리용 - admin/manager만)
 app.get('/api/protected/leave/users', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT id, name, role, is_doctor FROM users WHERE hospital_id = ? AND is_active = 1 ORDER BY role, name').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, name, role, position, team, is_doctor, phone, hire_date FROM users WHERE hospital_id = ? AND is_active = 1 ORDER BY role, name').bind(user.hospitalId).all()
   return c.json(rows.results)
 })
 
@@ -1458,6 +1657,7 @@ function getHTML(): string {
 <script src="/static/modules/community.js"><` + `/script>
 <script src="/static/modules/operations.js"><` + `/script>
 <script src="/static/modules/hire.js"><` + `/script>
+<script src="/static/modules/hr.js"><` + `/script>
 <script src="/static/modules/clinical.js"><` + `/script>
 <script src="/static/modules/leave.js"><` + `/script>
 <script src="/static/modules/meetings.js"><` + `/script>
