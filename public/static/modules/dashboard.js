@@ -87,6 +87,60 @@ async function renderDashboard(body) {
         <div class="stat-card-icon" style="background:linear-gradient(135deg,#ede9fe,#c4b5fd);color:#7c3aed">${ICONS_HIRE.userPlus}</div>
         <div class="stat-card-body"><div class="stat-card-label">지원자</div><div class="stat-card-value">${stats.activeApplicants}</div><div class="stat-card-sub">검토 대기</div></div>
       </div>`;
+
+    // 온보딩 가이드: 데이터가 거의 없는 신규 병원일 때 표시
+    if (stats.materials === 0 && stats.pricing === 0 && stats.cases === 0 && PFM.canManage()) {
+      const guideEl = document.createElement('div');
+      guideEl.style.cssText = 'margin-top:24px';
+      guideEl.innerHTML = `
+        <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:2px solid #99f6e4;border-radius:16px;padding:28px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <span style="font-size:32px">🎉</span>
+            <div>
+              <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f766e">환영합니다! 병원 초기 설정을 시작하세요</h3>
+              <p style="margin:4px 0 0;font-size:13px;color:#115e59">아래 단계를 따라 병원 시스템을 세팅하세요</p>
+            </div>
+          </div>
+          <div style="display:grid;gap:10px">
+            <div class="onboard-step" data-goto="hr_staff" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
+              <div style="width:44px;height:44px;border-radius:12px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👥</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px;color:#1e40af">1단계: 직원 초대하기</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px">초대 코드를 생성해서 직원들을 가입시키세요</div>
+              </div>
+              <span style="font-size:20px">→</span>
+            </div>
+            <div class="onboard-step" data-goto="pricing" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
+              <div style="width:44px;height:44px;border-radius:12px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">💰</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px;color:#92400e">2단계: 비용 안내 등록</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px">시술별 비용을 등록하면 상담 시 바로 활용할 수 있어요</div>
+              </div>
+              <span style="font-size:20px">→</span>
+            </div>
+            <div class="onboard-step" data-goto="materials" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
+              <div style="width:44px;height:44px;border-radius:12px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📖</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px;color:#166534">3단계: 설명자료 업로드</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px">환자 교육 자료를 등록해서 상담 품질을 높이세요</div>
+              </div>
+              <span style="font-size:20px">→</span>
+            </div>
+            <div class="onboard-step" data-goto="scripts" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
+              <div style="width:44px;height:44px;border-radius:12px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎯</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px;color:#9d174d">4단계: 상담 스크립트 작성</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px">시술별 상담 대본을 만들어 전환율을 높이세요</div>
+              </div>
+              <span style="font-size:20px">→</span>
+            </div>
+          </div>
+        </div>`;
+      body.appendChild(guideEl);
+      guideEl.querySelectorAll('.onboard-step').forEach(el => {
+        el.addEventListener('click', () => navigate(el.dataset.goto));
+      });
+    }
   } catch(e) { console.error('Dashboard load error:', e); }
 }
 

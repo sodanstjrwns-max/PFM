@@ -112,17 +112,22 @@ function filterSensitiveFields(item: any): any {
 
 /* ─── Auth API ─── */
 app.post('/api/auth/register', async (c) => {
-  const { hospitalName, email, password, name } = await c.req.json()
+  const { hospitalName, email, password, name, phone, hospitalPhone, hospitalAddress } = await c.req.json()
   if (!hospitalName || !email || !password || !name) return c.json({ error: '모든 필드를 입력해주세요' }, 400)
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first()
   if (existing) return c.json({ error: '이미 등록된 이메일입니다' }, 400)
   const hid = crypto.randomUUID()
   const uid = crypto.randomUUID()
   const hash = await hashPassword(password)
-  await c.env.DB.prepare('INSERT INTO hospitals (id, name) VALUES (?, ?)').bind(hid, hospitalName).run()
-  await c.env.DB.prepare('INSERT INTO users (id, hospital_id, email, password_hash, name, role) VALUES (?,?,?,?,?,?)').bind(uid, hid, email, hash, name, 'admin').run()
+  await c.env.DB.prepare('INSERT INTO hospitals (id, name, phone, address) VALUES (?,?,?,?)').bind(hid, hospitalName, hospitalPhone||'', hospitalAddress||'').run()
+  // 원장은 자동으로 doctor/clinical + 기본 근무스케줄 설정
+  const defaultSchedule = JSON.stringify({mon:{start:'09:00',end:'19:00'},tue:{start:'09:00',end:'19:00'},wed:{start:'09:00',end:'19:00'},thu:{start:'09:00',end:'19:00'},fri:{start:'09:00',end:'19:00'},sat:{start:'09:00',end:'14:00'},sun:null})
+  const hireDate = new Date().toISOString().slice(0,10)
+  await c.env.DB.prepare(
+    `INSERT INTO users (id, hospital_id, email, password_hash, name, role, is_doctor, position, team, phone, hire_date, work_schedule) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).bind(uid, hid, email, hash, name, 'admin', 1, 'doctor', 'clinical', phone||'', hireDate, defaultSchedule).run()
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' })
-  return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', hospitalName } })
+  return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName } })
 })
 
 /* ─── Staff Join (초대코드로 직원 가입) ─── */

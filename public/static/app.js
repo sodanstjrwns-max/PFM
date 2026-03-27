@@ -138,8 +138,22 @@ function renderAuth() {
       <div class="auth-error" id="authError"></div>
       <form id="authForm" class="auth-form">
         <div class="form-group" id="regHospitalField" style="display:none">
-          <label>병원명</label>
+          <label>병원명 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regHospital" placeholder="예: 서울비디치과">
+        </div>
+        <div id="regHospitalInfoField" style="display:none" class="form-grid">
+          <div class="form-group">
+            <label>병원 전화번호</label>
+            <input class="form-input" type="tel" id="regHospitalPhone" placeholder="02-000-0000">
+          </div>
+          <div class="form-group">
+            <label>원장 연락처</label>
+            <input class="form-input" type="tel" id="regPhone" placeholder="010-0000-0000">
+          </div>
+        </div>
+        <div class="form-group" id="regAddressField" style="display:none">
+          <label>병원 주소</label>
+          <input class="form-input" type="text" id="regAddress" placeholder="예: 서울시 강남구 테헤란로 123">
         </div>
         <div class="form-group" id="inviteCodeField" style="display:none">
           <label>초대 코드</label>
@@ -229,12 +243,14 @@ function renderAuth() {
       mode = tab.dataset.tab;
       tabs.forEach(t => t.classList.toggle('active', t === tab));
       document.getElementById('regHospitalField').style.display = mode === 'register' ? '' : 'none';
+      document.getElementById('regHospitalInfoField').style.display = mode === 'register' ? '' : 'none';
+      document.getElementById('regAddressField').style.display = mode === 'register' ? '' : 'none';
       document.getElementById('inviteCodeField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('regNameField').style.display = mode !== 'login' ? '' : 'none';
       document.getElementById('joinPhoneField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinPositionTeam').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinScheduleField').style.display = mode === 'join' ? '' : 'none';
-      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : mode === 'join' ? '직원 가입' : '병원 등록하기';
+      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : mode === 'join' ? '직원 가입' : '🏥 병원 등록하기';
       document.getElementById('authError').classList.remove('show');
       if (mode === 'join') buildScheduleGrid();
     });
@@ -305,6 +321,9 @@ function renderAuth() {
           email: document.getElementById('authEmail').value,
           password: document.getElementById('authPassword').value,
           name: document.getElementById('regName').value,
+          phone: document.getElementById('regPhone').value,
+          hospitalPhone: document.getElementById('regHospitalPhone').value,
+          hospitalAddress: document.getElementById('regAddress').value,
         }});
         saveAuth(data.token, data.user);
       }
