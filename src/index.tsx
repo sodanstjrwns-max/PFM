@@ -1340,126 +1340,231 @@ app.get('/api/protected/treatment-board/stats', async (c) => {
   return c.json({ stats: stats.results, total: (total as any)?.cnt || 0 })
 })
 
-/* ═══ 상담관리 (Consultation) ═══ */
+/* ═══ 상담 기록 (실장노트 기반) ═══ */
 
-app.get('/api/protected/consultations', async (c) => {
+// 상담 기록 목록 조회 (월별, 필터링)
+app.get('/api/protected/consult-records', async (c) => {
   const user = c.get('user')!
-  const status = c.req.query('status')
-  const source = c.req.query('source')
-  const treatment = c.req.query('treatment')
-  const period = c.req.query('period') // YYYY-MM
-  let sql = 'SELECT c.*, u.name as counselor_name FROM consultations c LEFT JOIN users u ON c.assigned_counselor = u.id WHERE c.hospital_id = ?'
-  const params: any[] = [user.hospitalId]
-  if (status) { sql += ' AND c.status = ?'; params.push(status) }
-  if (source) { sql += ' AND c.source_channel = ?'; params.push(source) }
-  if (treatment) { sql += ' AND c.treatment_type = ?'; params.push(treatment) }
-  if (period) { sql += ' AND c.consultation_date LIKE ?'; params.push(period + '%') }
-  sql += ' ORDER BY c.created_at DESC'
+  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const counselor = c.req.query('counselor')
+  const doctor = c.req.query('doctor')
+  const category = c.req.query('category')
+  const confirmed = c.req.query('confirmed')
+  const patientType = c.req.query('patient_type')
+  
+  let sql = 'SELECT * FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
+  const params: any[] = [user.hospitalId, month + '%']
+  if (counselor) { sql += ' AND counselor_name = ?'; params.push(counselor) }
+  if (doctor) { sql += ' AND doctor_name = ?'; params.push(doctor) }
+  if (category) { sql += ' AND treatment_category = ?'; params.push(category) }
+  if (confirmed) { sql += ' AND treatment_confirmed = ?'; params.push(confirmed) }
+  if (patientType) { sql += ' AND patient_type = ?'; params.push(patientType) }
+  sql += ' ORDER BY record_date DESC, created_at DESC'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(filterSensitiveData(rows.results, user.role))
-})
-
-app.post('/api/protected/consultations', async (c) => {
-  const user = c.get('user')!
-  const { patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, assigned_counselor, estimated_amount, consultation_date, notes, priority } = await c.req.json()
-  if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
-  const id = crypto.randomUUID()
-  await c.env.DB.prepare(`INSERT INTO consultations (id, hospital_id, patient_name, patient_phone, patient_age, patient_gender, source_channel, treatment_type, assigned_counselor, estimated_amount, consultation_date, priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, patient_name, patient_phone||'', patient_age||'', patient_gender||'', source_channel||'walk_in', treatment_type||'general', assigned_counselor||null, estimated_amount||null, consultation_date || new Date().toISOString().split('T')[0], priority||'normal').run()
-  // Add initial note if provided
-  if (notes) {
-    const noteId = crypto.randomUUID()
-    await c.env.DB.prepare('INSERT INTO consultation_notes (id, consultation_id, author_id, note_type, content) VALUES (?,?,?,?,?)').bind(noteId, id, user.id, 'general', notes).run()
-  }
-  return c.json({ id })
-})
-
-app.put('/api/protected/consultations/:id', async (c) => {
-  const user = c.get('user')!
-  const body = await c.req.json()
-  const id = c.req.param('id')
-  const updates: string[] = []
-  const vals: any[] = []
-  const fields = ['status','assigned_counselor','estimated_amount','agreed_amount','paid_amount','next_visit_date','priority','lost_reason','patient_phone','treatment_type']
-  for (const f of fields) {
-    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
-  }
-  updates.push('updated_at=?'); vals.push(new Date().toISOString())
-  vals.push(id, user.hospitalId)
-  await c.env.DB.prepare(`UPDATE consultations SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
-  return c.json({ success: true })
-})
-
-app.delete('/api/protected/consultations/:id', async (c) => {
-  const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM consultations WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
-  return c.json({ success: true })
-})
-
-// 상담 노트
-app.get('/api/protected/consultations/:id/notes', async (c) => {
-  const user = c.get('user')!
-  const rows = await c.env.DB.prepare(`
-    SELECT cn.*, u.name as author_name FROM consultation_notes cn
-    LEFT JOIN users u ON cn.author_id = u.id
-    WHERE cn.consultation_id = ?
-    ORDER BY cn.created_at DESC
-  `).bind(c.req.param('id')).all()
   return c.json(rows.results)
 })
 
-app.post('/api/protected/consultations/:id/notes', async (c) => {
+// 상담 기록 추가
+app.post('/api/protected/consult-records', async (c) => {
   const user = c.get('user')!
-  const { content, note_type } = await c.req.json()
-  if (!content) return c.json({ error: '내용을 입력해주세요' }, 400)
-  const noteId = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO consultation_notes (id, consultation_id, author_id, note_type, content) VALUES (?,?,?,?,?)').bind(noteId, c.req.param('id'), user.id, note_type||'general', content).run()
-  return c.json({ id: noteId })
+  const body = await c.req.json()
+  if (!body.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  if (!body.record_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
+  
+  const id = 'cr-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare(`
+    INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name,
+      doctor_name, counselor_name, planned_amount, agreed_amount, discount_note,
+      patient_type, treatment_category, treatment_confirmed, appointment_made,
+      recall_done, kakao_registered, pdf_provided, notes, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).bind(
+    id, user.hospitalId,
+    body.record_date,
+    body.chart_number || '',
+    body.patient_name,
+    body.doctor_name || '',
+    body.counselor_name || '',
+    body.planned_amount || 0,
+    body.agreed_amount || 0,
+    body.discount_note || '',
+    body.patient_type || 'new',
+    body.treatment_category || 'general',
+    body.treatment_confirmed || '',
+    body.appointment_made || '',
+    body.recall_done || '',
+    body.kakao_registered || '',
+    body.pdf_provided || '',
+    body.notes || '',
+    user.id
+  ).run()
+  return c.json({ success: true, id })
 })
 
-// 상담 전환율 통계
-app.get('/api/protected/consultations/stats/conversion', async (c) => {
+// 상담 기록 수정
+app.put('/api/protected/consult-records/:id', async (c) => {
   const user = c.get('user')!
-  const period = c.req.query('period') || new Date().toISOString().slice(0,7)
-  const all = await c.env.DB.prepare(`
-    SELECT status, source_channel, treatment_type, estimated_amount, agreed_amount, paid_amount
-    FROM consultations WHERE hospital_id = ? AND consultation_date LIKE ?
-  `).bind(user.hospitalId, period + '%').all()
-  const rows = all.results as any[]
-  const total = rows.length
-  const visited = rows.filter(r => !['inquiry','reserved','cancelled'].includes(r.status)).length
-  const agreed = rows.filter(r => ['agreed','payment','treatment','completed'].includes(r.status)).length
-  const paid = rows.filter(r => ['payment','treatment','completed'].includes(r.status)).length
-  const completed = rows.filter(r => r.status === 'completed').length
-  const lost = rows.filter(r => r.status === 'lost').length
-  const totalEstimated = rows.reduce((s: number, r: any) => s + (r.estimated_amount||0), 0)
-  const totalAgreed = rows.reduce((s: number, r: any) => s + (r.agreed_amount||0), 0)
-  const totalPaid = rows.reduce((s: number, r: any) => s + (r.paid_amount||0), 0)
-  // By source
-  const bySource: Record<string, { total: number; agreed: number; paid: number }> = {}
-  rows.forEach(r => {
-    if (!bySource[r.source_channel]) bySource[r.source_channel] = { total:0, agreed:0, paid:0 }
-    bySource[r.source_channel].total++
-    if (['agreed','payment','treatment','completed'].includes(r.status)) bySource[r.source_channel].agreed++
-    if (['payment','treatment','completed'].includes(r.status)) bySource[r.source_channel].paid++
-  })
-  // By treatment
-  const byTreatment: Record<string, { total: number; agreed: number; amount: number }> = {}
-  rows.forEach(r => {
-    if (!byTreatment[r.treatment_type]) byTreatment[r.treatment_type] = { total:0, agreed:0, amount:0 }
-    byTreatment[r.treatment_type].total++
-    if (['agreed','payment','treatment','completed'].includes(r.status)) { byTreatment[r.treatment_type].agreed++; byTreatment[r.treatment_type].amount += (r.agreed_amount||0) }
-  })
-  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
+  const body = await c.req.json()
+  const id = c.req.param('id')
+  const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name',
+    'planned_amount','agreed_amount','discount_note','patient_type','treatment_category',
+    'treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','notes']
+  const updates: string[] = []
+  const vals: any[] = []
+  for (const f of fields) {
+    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
+  }
+  if (updates.length === 0) return c.json({ error: '수정할 내용이 없습니다' }, 400)
+  updates.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE consult_records SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 상담 기록 삭제
+app.delete('/api/protected/consult-records/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM consult_records WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// 상담사/의사 목록 (드롭다운용)
+app.get('/api/protected/consult-records/staff', async (c) => {
+  const user = c.get('user')!
+  const counselors = await c.env.DB.prepare(
+    'SELECT DISTINCT counselor_name FROM consult_records WHERE hospital_id=? AND counselor_name != "" ORDER BY counselor_name'
+  ).bind(user.hospitalId).all()
+  const doctors = await c.env.DB.prepare(
+    'SELECT DISTINCT doctor_name FROM consult_records WHERE hospital_id=? AND doctor_name != "" ORDER BY doctor_name'
+  ).bind(user.hospitalId).all()
+  // 또한 users 테이블에서도
+  const staffUsers = await c.env.DB.prepare(
+    'SELECT name, role, position, is_doctor FROM users WHERE hospital_id=? AND is_active=1 ORDER BY name'
+  ).bind(user.hospitalId).all()
   return c.json({
-    total, visited, agreed, paid, completed, lost,
-    conversionRate: total ? Math.round(agreed/total*100) : 0,
-    paymentRate: agreed ? Math.round(paid/agreed*100) : 0,
-    totalEstimated: canSeeFinancials ? totalEstimated : null,
-    totalAgreed: canSeeFinancials ? totalAgreed : null,
-    totalPaid: canSeeFinancials ? totalPaid : null,
-    bySource, byTreatment,
-    canSeeFinancials
+    counselors: (counselors.results as any[]).map(r => r.counselor_name),
+    doctors: (doctors.results as any[]).map(r => r.doctor_name),
+    users: staffUsers.results
   })
+})
+
+// ═══ 상담 대시보드 통계 ═══
+app.get('/api/protected/consult-records/dashboard', async (c) => {
+  const user = c.get('user')!
+  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const hid = user.hospitalId
+  
+  // 해당 월 전체 레코드
+  const all = await c.env.DB.prepare(
+    'SELECT * FROM consult_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date'
+  ).bind(hid, month + '%').all()
+  const rows = all.results as any[]
+  
+  const total = rows.length
+  const confirmed = rows.filter(r => r.treatment_confirmed === 'O').length
+  const rejected = rows.filter(r => r.treatment_confirmed === 'X').length
+  const pending = rows.filter(r => r.treatment_confirmed !== 'O' && r.treatment_confirmed !== 'X').length
+  const newPatients = rows.filter(r => r.patient_type === 'new').length
+  const existingPatients = rows.filter(r => r.patient_type === 'existing').length
+  const totalPlanned = rows.reduce((s,r:any) => s + (r.planned_amount||0), 0)
+  const totalAgreed = rows.reduce((s,r:any) => s + (r.agreed_amount||0), 0)
+  
+  // 상담사별 통계
+  const byCounselor: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
+  rows.forEach((r:any) => {
+    const name = r.counselor_name || '미지정'
+    if (!byCounselor[name]) byCounselor[name] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
+    byCounselor[name].total++
+    if (r.treatment_confirmed === 'O') byCounselor[name].confirmed++
+    if (r.treatment_confirmed === 'X') byCounselor[name].rejected++
+    byCounselor[name].planned += (r.planned_amount||0)
+    byCounselor[name].agreed += (r.agreed_amount||0)
+  })
+  
+  // 상담의별 통계
+  const byDoctor: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
+  rows.forEach((r:any) => {
+    const name = r.doctor_name || '미지정'
+    if (!byDoctor[name]) byDoctor[name] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
+    byDoctor[name].total++
+    if (r.treatment_confirmed === 'O') byDoctor[name].confirmed++
+    if (r.treatment_confirmed === 'X') byDoctor[name].rejected++
+    byDoctor[name].planned += (r.planned_amount||0)
+    byDoctor[name].agreed += (r.agreed_amount||0)
+  })
+  
+  // 카테고리별 통계
+  const byCategory: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
+  rows.forEach((r:any) => {
+    const cat = r.treatment_category || 'general'
+    if (!byCategory[cat]) byCategory[cat] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
+    byCategory[cat].total++
+    if (r.treatment_confirmed === 'O') byCategory[cat].confirmed++
+    if (r.treatment_confirmed === 'X') byCategory[cat].rejected++
+    byCategory[cat].planned += (r.planned_amount||0)
+    byCategory[cat].agreed += (r.agreed_amount||0)
+  })
+  
+  // 일별 건수
+  const byDate: Record<string, {total:number,confirmed:number,planned:number,agreed:number}> = {}
+  rows.forEach((r:any) => {
+    const d = r.record_date
+    if (!byDate[d]) byDate[d] = {total:0,confirmed:0,planned:0,agreed:0}
+    byDate[d].total++
+    if (r.treatment_confirmed === 'O') byDate[d].confirmed++
+    byDate[d].planned += (r.planned_amount||0)
+    byDate[d].agreed += (r.agreed_amount||0)
+  })
+  
+  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
+  
+  return c.json({
+    summary: {
+      total, confirmed, rejected, pending,
+      confirmRate: (confirmed + rejected) > 0 ? Math.round(confirmed / (confirmed + rejected) * 1000) / 10 : 0,
+      newPatients, existingPatients,
+      totalPlanned: canSeeFinancials ? totalPlanned : null,
+      totalAgreed: canSeeFinancials ? totalAgreed : null,
+      discountRate: totalPlanned > 0 ? Math.round((1 - totalAgreed / totalPlanned) * 1000) / 10 : 0,
+    },
+    byCounselor: canSeeFinancials ? byCounselor : Object.fromEntries(Object.entries(byCounselor).map(([k,v]) => [k, {total:v.total,confirmed:v.confirmed,rejected:v.rejected,planned:null,agreed:null}])),
+    byDoctor: canSeeFinancials ? byDoctor : Object.fromEntries(Object.entries(byDoctor).map(([k,v]) => [k, {total:v.total,confirmed:v.confirmed,rejected:v.rejected,planned:null,agreed:null}])),
+    byCategory,
+    byDate,
+  })
+})
+
+// 상담 기록 벌크 임포트 (엑셀 데이터 이관용)
+app.post('/api/protected/consult-records/bulk', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin') return c.json({ error: '관리자만 가능합니다' }, 403)
+  const { records } = await c.req.json()
+  if (!Array.isArray(records) || records.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
+  
+  let inserted = 0
+  for (const r of records) {
+    const id = 'cr-' + crypto.randomUUID().slice(0,8)
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name,
+          doctor_name, counselor_name, planned_amount, agreed_amount, discount_note,
+          patient_type, treatment_category, treatment_confirmed, appointment_made,
+          recall_done, kakao_registered, pdf_provided, notes, created_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).bind(
+        id, user.hospitalId,
+        r.record_date || '', r.chart_number || '', r.patient_name || '',
+        r.doctor_name || '', r.counselor_name || '',
+        r.planned_amount || 0, r.agreed_amount || 0, r.discount_note || '',
+        r.patient_type || 'new', r.treatment_category || 'general',
+        r.treatment_confirmed || '', r.appointment_made || '',
+        r.recall_done || '', r.kakao_registered || '', r.pdf_provided || '',
+        r.notes || '', user.id
+      ).run()
+      inserted++
+    } catch(e) {}
+  }
+  return c.json({ success: true, inserted, total: records.length })
 })
 
 /* ─── 연차/휴가 관리 ─── */
@@ -2299,6 +2404,7 @@ function getHTML(): string {
 <script src="/static/modules/hire.js"><` + `/script>
 <script src="/static/modules/hr.js"><` + `/script>
 <script src="/static/modules/clinical.js"><` + `/script>
+<script src="/static/modules/consult.js"><` + `/script>
 <script src="/static/modules/leave.js"><` + `/script>
 <script src="/static/modules/meetings.js"><` + `/script>
 <script src="/static/modules/fee-schedule.js"><` + `/script>

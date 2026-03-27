@@ -379,10 +379,10 @@ function getNavConfig() {
   if (isManager) {
     nav.push({ id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart });
     nav.push({
-      id: 'consultation_group', label: '상담관리', icon: ICONS.message,
+      id: 'consult_group', label: '상담관리', icon: ICONS.message,
       children: [
-        { id: 'consultation', label: '상담 파이프라인', icon: ICONS.users },
-        { id: 'consultation_stats', label: '전환율 분석', icon: ICONS.chart },
+        { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
+        { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
       ]
     });
   }
@@ -704,8 +704,8 @@ function renderPage() {
     hire_interviews: ['인터뷰', ICONS.message],
     hire_onboarding: ['온보딩', ICONS_HIRE.userCheck],
     clinical_board: ['📡 오늘의 진료보드', ICONS.dashboard],
-    consultation: ['💬 상담 파이프라인', ICONS.message],
-    consultation_stats: ['📊 전환율 분석', ICONS.chart],
+    consult_records: ['📋 상담 기록', ICONS.edit],
+    consult_dashboard: ['📊 상담 분석', ICONS.chart],
     fee_schedule: ['💰 수가표', ICONS.pricing],
     funnel: ['🔄 Patient Funnel', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
@@ -744,8 +744,8 @@ function renderPage() {
     case 'hire_interviews': M.hire.renderHireInterviews(body, actions); break;
     case 'hire_onboarding': M.hire.renderHireOnboarding(body, actions); break;
     case 'clinical_board': M.clinical.renderTreatmentBoard(body, actions); break;
-    case 'consultation': M.clinical.renderConsultationPipeline(body, actions); break;
-    case 'consultation_stats': M.clinical.renderConsultationStats(body, actions); break;
+    case 'consult_records': M.consult.renderConsultRecords(body, actions); break;
+    case 'consult_dashboard': M.consult.renderConsultDashboard(body, actions); break;
     case 'leave_management': M.leave.renderLeaveManagement(body, actions); break;
     case 'meetings': M.meetings.renderMeetings(body, actions); break;
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
