@@ -132,7 +132,6 @@ function renderAuth() {
       </div>
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">로그인</button>
-        <button class="auth-tab" data-tab="join">직원 가입</button>
         <button class="auth-tab" data-tab="register">병원 등록</button>
       </div>
       <div class="auth-error" id="authError"></div>
@@ -210,10 +209,41 @@ function renderAuth() {
     </div>
   </div>`;
 
-  let mode = 'login';
+  // 초대 링크로 진입했는지 확인
+  const joinMatch = window.location.hash.match(/^#join\/(.+)$/);
+  let mode = joinMatch ? 'join' : 'login';
   const tabs = app.querySelectorAll('.auth-tab');
   const dayLabels = ['월','화','수','목','금','토','일'];
   const dayKeys = ['mon','tue','wed','thu','fri','sat','sun'];
+
+  // 초대 링크로 진입 시 직원가입 화면 자동 표시
+  if (joinMatch) {
+    document.getElementById('inviteCodeField').style.display = '';
+    document.getElementById('regNameField').style.display = '';
+    document.getElementById('joinPhoneField').style.display = '';
+    document.getElementById('joinPositionTeam').style.display = '';
+    document.getElementById('joinScheduleField').style.display = '';
+    document.getElementById('authSubmitBtn').textContent = '직원 가입';
+    document.getElementById('inviteCode').value = joinMatch[1].toUpperCase();
+    // 탭 숨기고 헤더 변경
+    document.querySelector('.auth-tabs').innerHTML = `
+      <div style="text-align:center;padding:8px 0">
+        <span style="font-size:14px;font-weight:700;color:var(--primary)">🤝 직원 초대 가입</span>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">초대받은 병원에 직원으로 가입합니다</div>
+      </div>`;
+    buildScheduleGrid();
+    // 자동으로 초대코드 검증
+    setTimeout(async () => {
+      try {
+        const info = await api('/api/auth/invite/' + joinMatch[1].toUpperCase());
+        document.getElementById('inviteInfo').innerHTML = `<span style="color:var(--success)">✅ <strong>${info.hospital_name}</strong> 초대 확인됨</span>`;
+        if (info.position) document.getElementById('joinPosition').value = info.position;
+        if (info.team) document.getElementById('joinTeam').value = info.team;
+      } catch(err) {
+        document.getElementById('inviteInfo').innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`;
+      }
+    }, 300);
+  }
 
   function buildScheduleGrid() {
     const grid = document.getElementById('scheduleGrid');
@@ -250,7 +280,7 @@ function renderAuth() {
       document.getElementById('joinPhoneField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinPositionTeam').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinScheduleField').style.display = mode === 'join' ? '' : 'none';
-      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : mode === 'join' ? '직원 가입' : '🏥 병원 등록하기';
+      document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : '🏥 병원 등록하기';
       document.getElementById('authError').classList.remove('show');
       if (mode === 'join') buildScheduleGrid();
     });
@@ -327,12 +357,14 @@ function renderAuth() {
         }});
         saveAuth(data.token, data.user);
       }
+      // 가입 후 해시 초기화
+      if (window.location.hash.startsWith('#join/')) window.location.hash = '';
       renderApp();
     } catch(err) {
       errEl.textContent = err.message;
       errEl.classList.add('show');
       btn.disabled = false;
-      btn.textContent = mode === 'login' ? '로그인' : '병원 등록하기';
+      btn.textContent = mode === 'login' ? '로그인' : mode === 'join' ? '직원 가입' : '🏥 병원 등록하기';
     }
   });
 }
@@ -721,6 +753,12 @@ window.PFM = {
 // 모듈 로드 완료 후 실행 (DOMContentLoaded에서 호출)
 function boot() {
   getStoredAuth();
+  // 해시 변경 감지 (초대 링크 등)
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash.startsWith('#join/') && !state.user) {
+      renderAuth();
+    }
+  });
   renderApp();
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();

@@ -296,19 +296,41 @@ async function renderStaffManagement(body, actions) {
             position: document.getElementById('invPosition').value,
             team: document.getElementById('invTeam').value,
           }});
+          const inviteLink = window.location.origin + '/#join/' + result.invite_code;
           const modal2 = document.getElementById('modalContent');
           modal2.innerHTML = `
-            <div class="modal-header"><h3>✅ 초대 코드 생성 완료</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+            <div class="modal-header"><h3>✅ 초대 링크 생성 완료</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
             <div class="modal-body" style="text-align:center">
               <div style="font-size:36px;font-weight:900;letter-spacing:6px;color:var(--primary);background:var(--primary-bg);padding:20px;border-radius:12px;margin:20px 0;font-family:monospace">${result.invite_code}</div>
-              <p style="font-size:13px;color:var(--text-secondary)">이 코드를 직원에게 전달해주세요.<br>직원은 로그인 화면에서 "직원 가입" 탭으로 가입할 수 있습니다.</p>
-              <p style="font-size:11px;color:var(--text-muted);margin-top:8px">유효기간: 7일</p>
+              <div style="margin:16px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:flex;align-items:center;gap:8px">
+                <input class="form-input" id="invLinkInput" value="${inviteLink}" readonly style="flex:1;font-size:12px;background:transparent;border:none;padding:0;color:var(--text)">
+                <button class="btn btn-primary btn-sm" id="invLinkCopyBtn" style="white-space:nowrap">📋 링크 복사</button>
+              </div>
+              <p style="font-size:13px;color:var(--text-secondary)">이 링크를 직원에게 카톡/문자로 보내주세요.<br>링크를 열면 <strong>바로 가입 화면</strong>으로 이동합니다.</p>
+              <p style="font-size:11px;color:var(--text-muted);margin-top:8px">유효기간: ${result.expires_at ? result.expires_at.slice(0,10) : '7일'}</p>
             </div>
-            <div class="modal-footer"><button class="btn btn-primary" id="invCopyBtn">📋 코드 복사</button></div>`;
+            <div class="modal-footer">
+              <button class="btn btn-secondary" id="invCodeCopyBtn">코드만 복사</button>
+              <button class="btn btn-primary" id="invShareBtn">📤 공유하기</button>
+            </div>`;
           document.getElementById('modalClose').addEventListener('click', closeModal);
-          document.getElementById('invCopyBtn').addEventListener('click', () => {
+          document.getElementById('invLinkCopyBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(inviteLink);
+            toast('초대 링크가 복사되었습니다!', 'success');
+            document.getElementById('invLinkCopyBtn').textContent = '✅ 복사됨';
+          });
+          document.getElementById('invCodeCopyBtn').addEventListener('click', () => {
             navigator.clipboard.writeText(result.invite_code);
             toast('코드가 복사되었습니다!', 'success');
+          });
+          document.getElementById('invShareBtn').addEventListener('click', () => {
+            const text = `[${state.user.hospitalName || 'PFM'}] 직원 초대\n아래 링크로 가입해주세요:\n${inviteLink}`;
+            if (navigator.share) {
+              navigator.share({ title: '직원 초대', text }).catch(()=>{});
+            } else {
+              navigator.clipboard.writeText(text);
+              toast('공유 메시지가 복사되었습니다!', 'success');
+            }
           });
         } catch(e) { toast(e.message, 'error'); }
       });
