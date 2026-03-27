@@ -1,9 +1,16 @@
 /* ═══ Module: KPI System - 월간 목표 + 일간 기록 ═══ */
 (function(PFM) {
 'use strict';
-const { api, ICONS, state, toast, esc, showModal, closeModal, navigate, formatPrice } = PFM;
+const { api, ICONS, state, toast, esc, showModal, closeModal, navigate } = PFM;
 
 const DAY_NAMES = { mon:'월', tue:'화', wed:'수', thu:'목', fri:'금', sat:'토', sun:'일' };
+
+// KPI 전용 숫자 포맷 (0도 "0"으로 표시, 천단위 콤마)
+function fmtNum(n) {
+  if (n === null || n === undefined) return '-';
+  const num = Math.round(n);
+  return num.toLocaleString('ko-KR');
+}
 
 // 병원 핵심진료/지역 설정 가져오기
 async function getHospitalConfig() {
@@ -85,8 +92,8 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">💰</div>
         <div style="font-size:11px;color:var(--text-muted);font-weight:600">누적 매출</div>
-        <div style="font-size:24px;font-weight:900;color:#3b82f6;margin:4px 0">${formatPrice(s.cum_revenue||0)}만</div>
-        <div style="font-size:11px;color:var(--text-muted)">목표 ${formatPrice(t.target_revenue||0)}만</div>
+        <div style="font-size:24px;font-weight:900;color:#3b82f6;margin:4px 0">${fmtNum(s.cum_revenue||0)}만</div>
+        <div style="font-size:11px;color:var(--text-muted)">목표 ${fmtNum(t.target_revenue||0)}만</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">🎯</div>
@@ -97,14 +104,14 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">${s.cum_diff >= 0 ? '📈' : '📉'}</div>
         <div style="font-size:11px;color:var(--text-muted);font-weight:600">목표 대비</div>
-        <div style="font-size:24px;font-weight:900;color:${s.cum_diff >= 0 ? '#22c55e' : '#ef4444'};margin:4px 0">${s.cum_diff >= 0 ? '+' : ''}${formatPrice(s.cum_diff||0)}만</div>
+        <div style="font-size:24px;font-weight:900;color:${s.cum_diff >= 0 ? '#22c55e' : '#ef4444'};margin:4px 0">${s.cum_diff >= 0 ? '+' : ''}${fmtNum(s.cum_diff||0)}만</div>
         <div style="font-size:11px;color:var(--text-muted)">차이 누계</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">👥</div>
         <div style="font-size:11px;color:var(--text-muted);font-weight:600">누적 신환</div>
         <div style="font-size:24px;font-weight:900;color:#8b5cf6;margin:4px 0">${s.cum_new_patients||0}명</div>
-        <div style="font-size:11px;color:var(--text-muted)">비급여 ${formatPrice(s.cum_non_insurance||0)}만</div>
+        <div style="font-size:11px;color:var(--text-muted)">비급여 ${fmtNum(s.cum_non_insurance||0)}만</div>
       </div>
     </div>
 
@@ -121,7 +128,7 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
             const isOff = info.hours <= 0;
             return `<div style="text-align:center;padding:8px 2px;background:${isOff ? 'var(--bg-hover)' : d==='sat'?'#dbeafe22':d==='sun'?'#fee2e222':'#f0fdf422'};border-radius:8px;border:1px solid var(--border-light)">
               <div style="font-size:11px;font-weight:800;color:${isOff?'#94a3b8':d==='sat'?'#1d4ed8':d==='sun'?'#dc2626':'var(--text)'}">${dowNames[d]}</div>
-              <div style="font-size:13px;font-weight:900;color:${isOff?'#cbd5e1':'#3b82f6'};margin:2px 0">${isOff?'휴':formatPrice(info.dayTarget)}</div>
+              <div style="font-size:13px;font-weight:900;color:${isOff?'#cbd5e1':'#3b82f6'};margin:2px 0">${isOff?'휴':fmtNum(info.dayTarget)}</div>
               <div style="font-size:9px;color:var(--text-muted)">${isOff?'휴진':info.hours+'h'}</div>
             </div>`;
           }).join('');
@@ -131,13 +138,18 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
     ` : ''}
 
     ${daily.length > 0 ? `
-    <!-- 일별 매출 차트 -->
+    <!-- 일별 매출 차트 (전체 월간 캘린더형) -->
     <div class="section-title">📈 <span>일별 매출 추이</span></div>
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;overflow-x:auto">
-      <div style="display:flex;align-items:end;gap:3px;height:160px;min-width:${daily.length * 24}px" id="kpiChart"></div>
-      <div style="display:flex;gap:3px;margin-top:6px;min-width:${daily.length * 24}px" id="kpiChartLabels"></div>
-      <div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border-light);font-size:11px;color:var(--text-muted)">
-        <span>🟦 실제 매출</span><span>━ 목표 라인</span>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px">
+        <div id="kpiChart" style="position:relative"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border-light);font-size:11px;color:var(--text-muted)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;vertical-align:middle;margin-right:3px"></span>목표 달성</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f87171;border-radius:2px;vertical-align:middle;margin-right:3px"></span>목표 미달</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#a5b4fc;border-radius:2px;vertical-align:middle;margin-right:3px"></span>휴진일 매출(보너스)</span>
+        <span><span style="display:inline-block;width:10px;height:2px;background:#f59e0b;vertical-align:middle;margin-right:3px"></span>목표선</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:2px;vertical-align:middle;margin-right:3px"></span>기록 없음</span>
       </div>
     </div>
 
@@ -145,8 +157,8 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
     <div class="section-title">🏃 <span>달성 진행률</span></div>
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px">
-        <span style="font-weight:700">${formatPrice(s.cum_revenue||0)}만</span>
-        <span style="color:var(--text-muted)">목표 ${formatPrice(t.target_revenue||0)}만</span>
+        <span style="font-weight:700">${fmtNum(s.cum_revenue||0)}만</span>
+        <span style="color:var(--text-muted)">목표 ${fmtNum(t.target_revenue||0)}만</span>
       </div>
       <div style="background:var(--border-light);border-radius:8px;height:24px;overflow:hidden;position:relative">
         <div style="background:linear-gradient(90deg,#3b82f6,#8b5cf6);height:100%;border-radius:8px;width:${Math.min(100, s.achieve_rate||0)}%;transition:width .5s"></div>
@@ -175,13 +187,14 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
             const dateStr = d.record_date.slice(5);
             const dow = DAY_NAMES[d.day_of_week] || '';
             const isWeekend = ['sat','sun'].includes(d.day_of_week);
+            const isOff = d.day_target === 0;
             const diffColor = d.diff >= 0 ? '#22c55e' : '#ef4444';
             return `<tr style="border-bottom:1px solid var(--border-light)${isWeekend ? ';background:rgba(99,102,241,0.03)' : ''}">
-              <td style="padding:8px 12px;font-weight:600">${dateStr} ${dow}</td>
-              <td style="padding:8px;text-align:right;color:var(--text-muted)">${formatPrice(d.day_target)}</td>
-              <td style="padding:8px;text-align:right;font-weight:700">${formatPrice(d.total_revenue)}</td>
-              <td style="padding:8px;text-align:right;color:${diffColor};font-weight:600">${d.diff >= 0 ? '+' : ''}${formatPrice(d.diff)}</td>
-              <td style="padding:8px;text-align:right;color:${d.cum_diff >= 0 ? '#22c55e' : '#ef4444'}">${d.cum_diff >= 0 ? '+' : ''}${formatPrice(d.cum_diff)}</td>
+              <td style="padding:8px 12px;font-weight:600">${dateStr} ${dow}${isOff ? ' <span style="font-size:9px;background:#f1f5f9;color:#94a3b8;padding:1px 5px;border-radius:4px">휴</span>' : ''}</td>
+              <td style="padding:8px;text-align:right;color:var(--text-muted)">${isOff ? '<span style="color:#cbd5e1">-</span>' : fmtNum(d.day_target)}</td>
+              <td style="padding:8px;text-align:right;font-weight:700">${fmtNum(d.total_revenue)}</td>
+              <td style="padding:8px;text-align:right;color:${isOff ? '#8b5cf6' : diffColor};font-weight:600">${isOff ? '+' + fmtNum(d.total_revenue) + ' ★' : (d.diff >= 0 ? '+' : '') + fmtNum(d.diff)}</td>
+              <td style="padding:8px;text-align:right;color:${d.cum_diff >= 0 ? '#22c55e' : '#ef4444'}">${d.cum_diff >= 0 ? '+' : ''}${fmtNum(d.cum_diff)}</td>
               <td style="padding:8px;text-align:right">${d.new_patients||0}</td>
               <td style="padding:8px;text-align:right">${d.total_consultations||0}</td>
               <td style="padding:8px;text-align:right">${d.naver_reviews||0}</td>
@@ -193,26 +206,154 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
     ` : `<div style="text-align:center;padding:40px;color:var(--text-muted)"><p>아직 기록된 데이터가 없습니다.<br>일간 기록을 입력해주세요.</p></div>`}
   `;
 
-  // 차트 렌더
+  // ════ 차트 렌더 (전체 월간 캘린더형 차트) ════
   if (daily.length > 0) {
-    const maxRev = Math.max(1, ...daily.map(d => Math.max(d.total_revenue, d.day_target)));
     const chartEl = document.getElementById('kpiChart');
-    const labelsEl = document.getElementById('kpiChartLabels');
-    if (chartEl) {
-      chartEl.innerHTML = daily.map(d => {
-        const pct = Math.max(3, d.total_revenue / maxRev * 100);
-        const tgtPct = d.day_target / maxRev * 100;
-        const col = d.diff >= 0 ? '#3b82f6' : '#f87171';
-        return `<div style="flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:end;min-width:20px">
-          <div style="font-size:8px;font-weight:700;color:${d.diff >= 0 ? '#22c55e' : '#ef4444'};margin-bottom:2px">${d.total_revenue > 0 ? formatPrice(d.total_revenue) : ''}</div>
-          <div style="width:80%;height:${pct}%;background:${col};border-radius:4px 4px 1px 1px;min-height:3px"></div>
-          <div style="position:absolute;left:0;right:0;bottom:${tgtPct}%;height:2px;background:#f59e0b;opacity:0.6;border-radius:1px"></div>
-        </div>`;
-      }).join('');
+    if (!chartEl) return;
+    
+    // 해당 월의 전체 날짜 생성
+    const [yr, mn] = month.split('-').map(Number);
+    const daysInMonth = new Date(yr, mn, 0).getDate();
+    const jsKeys = ['sun','mon','tue','wed','thu','fri','sat'];
+    const dailyMap = {};
+    daily.forEach(d => { dailyMap[d.record_date] = d; });
+    
+    // dowInfo에서 요일별 목표 가져오기
+    const dowTargetMap = {};
+    (dowInfo || []).forEach(d => { dowTargetMap[d.dow] = d; });
+    
+    // 전체 날짜 배열 생성
+    const allDays = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(yr, mn - 1, day);
+      const dateStr = `${yr}-${String(mn).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dowKey = jsKeys[dateObj.getDay()];
+      const dowLabel = DAY_NAMES[dowKey] || '';
+      const info = dowTargetMap[dowKey] || { hours: 0, dayTarget: 0 };
+      const record = dailyMap[dateStr];
+      allDays.push({
+        day, dateStr, dowKey, dowLabel,
+        isOff: info.hours <= 0,
+        hours: info.hours || 0,
+        dayTarget: info.dayTarget || 0,
+        record: record || null,
+        revenue: record ? record.total_revenue : null,
+        diff: record ? record.diff : null,
+      });
     }
-    if (labelsEl) {
-      labelsEl.innerHTML = daily.map(d => `<div style="flex:1;text-align:center;font-size:8px;color:var(--text-muted);min-width:20px">${d.record_date.slice(8)}${DAY_NAMES[d.day_of_week]||''}</div>`).join('');
+    
+    // 차트 사이즈 설정 (모바일 대응)
+    const containerW = chartEl.parentElement.clientWidth - 8;
+    const colW = Math.max(24, Math.min(38, Math.floor((containerW - 10) / daysInMonth) - 2));
+    const gap = 2;
+    const chartH = 160;
+    const topLabelH = 18;
+    const bottomLabelH = 30;
+    const totalH = chartH + topLabelH + bottomLabelH;
+    const totalW = daysInMonth * (colW + gap) + gap;
+    
+    // 최대값 계산 (기록된 매출 + 목표 중 최대)
+    const maxVal = Math.max(
+      1,
+      ...allDays.map(d => Math.max(d.revenue || 0, d.dayTarget || 0))
+    );
+    
+    // 주 구분선 위치 (월요일 시작)
+    const weekStarts = allDays.filter((d,i) => d.dowKey === 'mon' && i > 0).map(d => d.day);
+    
+    let html = `<svg width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="display:block;min-width:${totalW}px" xmlns="http://www.w3.org/2000/svg">`;
+    
+    // 배경 + 주 구분선
+    html += `<rect x="0" y="0" width="${totalW}" height="${totalH}" fill="transparent"/>`;
+    weekStarts.forEach(d => {
+      const x = (d - 1) * (colW + gap) + gap / 2;
+      html += `<line x1="${x}" y1="${topLabelH}" x2="${x}" y2="${topLabelH + chartH}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3"/>`;
+    });
+    
+    // 눈금선 (25%, 50%, 75%)
+    [0.25, 0.5, 0.75].forEach(pct => {
+      const y = topLabelH + chartH - (chartH * pct);
+      html += `<line x1="0" y1="${y}" x2="${totalW}" y2="${y}" stroke="#f1f5f9" stroke-width="1"/>`;
+      html += `<text x="2" y="${y - 2}" fill="#94a3b8" font-size="8" font-family="sans-serif">${fmtNum(Math.round(maxVal * pct))}</text>`;
+    });
+    
+    // 목표선 (SVG polyline으로 연결)
+    let targetPoints = [];
+    allDays.forEach((d, i) => {
+      if (d.dayTarget > 0) {
+        const cx = i * (colW + gap) + gap + colW / 2;
+        const cy = topLabelH + chartH - (d.dayTarget / maxVal * chartH);
+        targetPoints.push(`${cx},${cy}`);
+      }
+    });
+    if (targetPoints.length > 1) {
+      html += `<polyline points="${targetPoints.join(' ')}" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,2" opacity="0.7"/>`;
     }
+    // 목표 점
+    allDays.forEach((d, i) => {
+      if (d.dayTarget > 0) {
+        const cx = i * (colW + gap) + gap + colW / 2;
+        const cy = topLabelH + chartH - (d.dayTarget / maxVal * chartH);
+        html += `<circle cx="${cx}" cy="${cy}" r="2.5" fill="#f59e0b" opacity="0.6"/>`;
+      }
+    });
+    
+    // 바 렌더링
+    allDays.forEach((d, i) => {
+      const x = i * (colW + gap) + gap;
+      const barBase = topLabelH + chartH;
+      
+      // 배경 스트라이프 (주말/휴진)
+      if (d.isOff) {
+        html += `<rect x="${x - 1}" y="${topLabelH}" width="${colW + 2}" height="${chartH}" fill="#f8fafc" rx="2"/>`;
+      } else if (d.dowKey === 'sat') {
+        html += `<rect x="${x - 1}" y="${topLabelH}" width="${colW + 2}" height="${chartH}" fill="#eff6ff" rx="2" opacity="0.5"/>`;
+      }
+      
+      if (d.revenue !== null) {
+        // 기록 있음 → 바 그리기
+        const barH = Math.max(2, (d.revenue / maxVal) * chartH);
+        let barColor;
+        if (d.isOff) barColor = '#a5b4fc'; // 휴진일 보너스
+        else if (d.diff >= 0) barColor = '#3b82f6'; // 목표 달성
+        else barColor = '#f87171'; // 미달
+        
+        const barY = barBase - barH;
+        html += `<rect x="${x}" y="${barY}" width="${colW}" height="${barH}" fill="${barColor}" rx="3" opacity="0.85">`;
+        html += `<title>${d.dateStr} (${d.dowLabel}) | 실적: ${fmtNum(d.revenue)}만 | 목표: ${d.isOff ? '휴진' : fmtNum(d.dayTarget) + '만'}</title>`;
+        html += `</rect>`;
+        
+        // 바 위 숫자 (공간이 충분할 때만)
+        if (colW >= 28) {
+          const numColor = d.isOff ? '#6366f1' : d.diff >= 0 ? '#16a34a' : '#dc2626';
+          const numY = barY - 3;
+          if (numY > topLabelH + 5) {
+            html += `<text x="${x + colW/2}" y="${numY}" text-anchor="middle" fill="${numColor}" font-size="8" font-weight="700" font-family="sans-serif">${Math.round(d.revenue / 100) / 10}</text>`;
+          }
+        }
+      } else {
+        // 기록 없음 → 빈 칸 표시 (오늘 이전만)
+        const today = new Date().toISOString().slice(0,10);
+        if (d.dateStr <= today && !d.isOff) {
+          html += `<rect x="${x}" y="${barBase - 3}" width="${colW}" height="3" fill="#e2e8f0" rx="1"/>`;
+        }
+      }
+      
+      // 하단 라벨 (날짜)
+      const labelY = barBase + 12;
+      const dowColor = d.dowKey === 'sun' ? '#dc2626' : d.dowKey === 'sat' ? '#1d4ed8' : '#64748b';
+      const dayFontW = d.day === new Date().getDate() && month === new Date().toISOString().slice(0,7) ? '800' : '600';
+      html += `<text x="${x + colW/2}" y="${labelY}" text-anchor="middle" fill="${d.isOff ? '#94a3b8' : 'var(--text)'}" font-size="10" font-weight="${dayFontW}" font-family="sans-serif">${d.day}</text>`;
+      html += `<text x="${x + colW/2}" y="${labelY + 11}" text-anchor="middle" fill="${dowColor}" font-size="8" font-weight="500" font-family="sans-serif">${d.dowLabel}</text>`;
+      
+      // 오늘 표시
+      if (d.dateStr === new Date().toISOString().slice(0,10)) {
+        html += `<circle cx="${x + colW/2}" cy="${labelY + 16}" r="2" fill="#3b82f6"/>`;
+      }
+    });
+    
+    html += `</svg>`;
+    chartEl.innerHTML = html;
   }
 
   // 이벤트
@@ -281,7 +422,7 @@ function renderDailyForm(body, record, cfg, date, reload, isManager) {
       ${row('공단청구(급여)', 'revenue_insurance', r.revenue_insurance, '만')}
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;background:var(--bg-hover);border-radius:8px;padding:8px 12px;margin-top:4px">
         <span style="font-size:13px;font-weight:700">전체 매출</span>
-        <span style="font-size:16px;font-weight:900;color:#3b82f6" id="totalRevenue">${formatPrice((r.revenue_non_insurance||0)+(r.revenue_insurance||0))}만</span>
+        <span style="font-size:16px;font-weight:900;color:#3b82f6" id="totalRevenue">${fmtNum((r.revenue_non_insurance||0)+(r.revenue_insurance||0))}만</span>
       </div>
 
       ${section('환자수 관련', '👥')}
@@ -341,7 +482,7 @@ function renderDailyForm(body, record, cfg, date, reload, isManager) {
     form.querySelector(`[name="${n}"]`)?.addEventListener('input', () => {
       const ni = parseFloat(form.querySelector('[name="revenue_non_insurance"]').value) || 0;
       const ins = parseFloat(form.querySelector('[name="revenue_insurance"]').value) || 0;
-      document.getElementById('totalRevenue').textContent = formatPrice(ni + ins) + '만';
+      document.getElementById('totalRevenue').textContent = fmtNum(ni + ins) + '만';
     });
   });
 
@@ -531,7 +672,7 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
             <div>
               <span style="font-weight:700">${t.year_month.replace('-','년 ')}월</span>
             </div>
-            <div style="font-weight:800;color:#3b82f6">${formatPrice(t.target_revenue)}만</div>
+            <div style="font-weight:800;color:#3b82f6">${fmtNum(t.target_revenue)}만</div>
           </div>
         `).join('')}
       </div>` : ''}
@@ -558,15 +699,15 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
           const isOff = d.hours === 0;
           return `<div style="text-align:center;padding:8px 2px;background:${isOff ? '#f8fafc' : 'white'};border-radius:8px;border:1px solid ${isOff ? '#e2e8f0' : '#c7d2fe'}">
             <div style="font-size:12px;font-weight:800;color:${isOff ? '#94a3b8' : '#3730a3'}">${d.label}</div>
-            <div style="font-size:14px;font-weight:900;color:${isOff ? '#cbd5e1' : '#3b82f6'};margin:2px 0">${isOff ? '-' : formatPrice(dayTarget)}</div>
+            <div style="font-size:14px;font-weight:900;color:${isOff ? '#cbd5e1' : '#3b82f6'};margin:2px 0">${isOff ? '-' : fmtNum(dayTarget)+'만'}</div>
             <div style="font-size:9px;color:#64748b">${isOff ? '휴진' : d.hours + 'h × ' + d.days + '일'}</div>
           </div>`;
         }).join('')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;background:white;border-radius:8px">
-        <div>시간당 목표: <strong style="color:#3b82f6">${formatPrice(Math.round(hourlyTarget))}만</strong></div>
-        <div>보험 목표: <strong style="color:#3b82f6">${formatPrice(Math.round(insTarget))}만</strong></div>
-        <div>비급여 목표: <strong style="color:#8b5cf6">${formatPrice(Math.round(rev - insTarget))}만</strong></div>
+        <div>시간당 목표: <strong style="color:#3b82f6">${fmtNum(Math.round(hourlyTarget))}만</strong></div>
+        <div>보험 목표: <strong style="color:#3b82f6">${fmtNum(Math.round(insTarget))}만</strong></div>
+        <div>비급여 목표: <strong style="color:#8b5cf6">${fmtNum(Math.round(rev - insTarget))}만</strong></div>
         <div>총 진료: <strong>${totalHours}시간 / ${workingDays}일</strong></div>
       </div>
     `;
