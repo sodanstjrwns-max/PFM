@@ -417,6 +417,14 @@ function getNavConfig() {
         { id: 'meetings', label: '회의록', icon: ICONS.edit },
       ]
     },
+    {
+      id: 'kpi_group', label: '📊 KPI', icon: ICONS.chart,
+      children: [
+        { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
+        { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
+        ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
+      ]
+    },
     { id: 'settings', label: '설정', icon: ICONS.settings },
   );
   if (isManager) {
@@ -700,6 +708,9 @@ function renderPage() {
     consultation_stats: ['📊 전환율 분석', ICONS.chart],
     fee_schedule: ['💰 수가표', ICONS.pricing],
     funnel: ['🔄 Patient Funnel', ICONS.chart],
+    kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
+    kpi_daily: ['📝 일간 기록', ICONS.edit],
+    kpi_targets: ['🎯 목표 설정', ICONS.star],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     settings: ['설정', ICONS.settings],
@@ -739,6 +750,9 @@ function renderPage() {
     case 'meetings': M.meetings.renderMeetings(body, actions); break;
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
+    case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
+    case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
+    case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }

@@ -56,6 +56,16 @@ async function renderSettings(body) {
       <div id="locationPresetsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
+
+      <div class="section-title">🦷 <span>핵심 진료 설정 (KPI용)</span></div>
+      <div id="coreTreatmentsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
+      <div class="section-title">📍 <span>핵심 지역 설정 (KPI용)</span></div>
+      <div id="coreRegionsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
       ` : ''}
 
       <div class="section-title">${ICONS.users}<span>계정</span></div>
@@ -81,6 +91,8 @@ async function renderSettings(body) {
       renderFloorMap(hospitalSettings);
       renderLocationTerms(hospitalSettings);
       renderLocationPresets(hospitalSettings);
+      renderCoreTreatments(hospitalSettings);
+      renderCoreRegions(hospitalSettings);
     }
   } catch(e) {
     document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${e.message}</div>`;
@@ -709,6 +721,121 @@ function renderLocationPresets(settings) {
   }
 
   renderPresetList();
+}
+
+/* ─── 핵심 진료 설정 ─── */
+function renderCoreTreatments(settings) {
+  const section = document.getElementById('coreTreatmentsSection');
+  if (!section) return;
+  const treatments = settings.core_treatments || [
+    { key: 'core1', label: '핵심진료 1', name: '' },
+    { key: 'core2', label: '핵심진료 2', name: '' },
+    { key: 'core3', label: '핵심진료 3', name: '' },
+  ];
+
+  const examples = ['임플란트', '교정', '보철', '충치치료', '라미네이트', '미백', '사랑니 발치', '잇몸치료', '크라운', '소아치과'];
+
+  section.innerHTML = `
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+      KPI 일간 기록에서 <strong>신환 진료별 · 상담별 · 진행수</strong>를 분류하는 기준이 됩니다.<br>
+      우리 병원의 대표 진료 3가지를 설정하세요.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${treatments.map((t, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px;background:var(--bg-hover);border-radius:10px;border:1px solid var(--border-light)">
+          <div style="min-width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${i+1}</div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px">${esc(t.label)}</div>
+            <input type="text" class="form-input ct-input" data-idx="${i}" value="${esc(t.name || '')}" placeholder="예: ${examples[i] || '진료명 입력'}" style="width:100%;padding:8px 12px;font-size:14px;font-weight:600">
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--text-muted);line-height:24px">빠른선택:</span>
+      ${examples.map(ex => `<button class="ct-quick" data-name="${ex}" style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:16px;background:var(--bg-card);cursor:pointer;color:var(--text)">${ex}</button>`).join('')}
+    </div>
+    <button class="btn btn-primary" id="ctSaveBtn" style="margin-top:16px;width:100%">💾 핵심진료 저장</button>
+  `;
+
+  // 빠른선택 버튼 클릭 → 비어있는 첫 번째 인풋에 채우기
+  section.querySelectorAll('.ct-quick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const inputs = section.querySelectorAll('.ct-input');
+      for (const inp of inputs) {
+        if (!inp.value.trim()) { inp.value = btn.dataset.name; inp.focus(); return; }
+      }
+      // 모두 차있으면 마지막에 넣기
+      inputs[inputs.length - 1].value = btn.dataset.name;
+    });
+  });
+
+  // 저장
+  document.getElementById('ctSaveBtn').addEventListener('click', async () => {
+    const inputs = section.querySelectorAll('.ct-input');
+    const updated = treatments.map((t, i) => ({
+      ...t,
+      name: inputs[i]?.value.trim() || '',
+    }));
+    try {
+      await api('/api/protected/hospital/settings', { method: 'PUT', json: { core_treatments: updated }});
+      toast('✅ 핵심진료가 저장되었습니다');
+    } catch(e) { toast('❌ 저장 실패: ' + e.message, 'error'); }
+  });
+}
+
+/* ─── 핵심 지역 설정 ─── */
+function renderCoreRegions(settings) {
+  const section = document.getElementById('coreRegionsSection');
+  if (!section) return;
+  const regions = settings.core_regions || [
+    { key: 'region_core', label: '핵심 지역', name: '' },
+    { key: 'region_expand', label: '확장 지역', name: '' },
+    { key: 'region_adjacent', label: '인접 지역', name: '' },
+    { key: 'region_other', label: '그 외 지역', name: '그외' },
+  ];
+
+  const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#6b7280'];
+  const descriptions = [
+    '우리 병원의 핵심 진료권 (예: 불당동)',
+    '1차 확장 가능 지역 (예: 천안시)',
+    '인접 도시/지역 (예: 아산시)',
+    '그 외 먼 지역',
+  ];
+
+  section.innerHTML = `
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+      KPI 일간 기록에서 <strong>신환의 지역별 유입 현황</strong>을 분석하는 기준이 됩니다.<br>
+      병원 소재지 중심으로 4단계 지역을 설정하세요.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${regions.map((r, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:14px;background:var(--bg-hover);border-radius:10px;border-left:4px solid ${colors[i]}">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:700;color:${colors[i]}">${esc(r.label)}</span>
+              <span style="font-size:10px;color:var(--text-muted)">${descriptions[i]}</span>
+            </div>
+            <input type="text" class="form-input cr-input" data-idx="${i}" value="${esc(r.name || '')}" placeholder="지역명 입력" style="width:100%;padding:8px 12px;font-size:14px;font-weight:600">
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <button class="btn btn-primary" id="crSaveBtn" style="margin-top:16px;width:100%">💾 핵심지역 저장</button>
+  `;
+
+  // 저장
+  document.getElementById('crSaveBtn').addEventListener('click', async () => {
+    const inputs = section.querySelectorAll('.cr-input');
+    const updated = regions.map((r, i) => ({
+      ...r,
+      name: inputs[i]?.value.trim() || '',
+    }));
+    try {
+      await api('/api/protected/hospital/settings', { method: 'PUT', json: { core_regions: updated }});
+      toast('✅ 핵심지역이 저장되었습니다');
+    } catch(e) { toast('❌ 저장 실패: ' + e.message, 'error'); }
+  });
 }
 
 PFM.modules.settings = { renderSettings };

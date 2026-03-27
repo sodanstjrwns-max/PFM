@@ -1105,12 +1105,25 @@ app.get('/api/protected/hospital/settings', async (c) => {
       holiday_notice: '',
     },
     floor_map: [],
+    core_treatments: [
+      { key: 'core1', label: '핵심진료 1', name: '' },
+      { key: 'core2', label: '핵심진료 2', name: '' },
+      { key: 'core3', label: '핵심진료 3', name: '' },
+    ],
+    core_regions: [
+      { key: 'region_core', label: '핵심 지역', name: '' },
+      { key: 'region_expand', label: '확장 지역', name: '' },
+      { key: 'region_adjacent', label: '인접 지역', name: '' },
+      { key: 'region_other', label: '그 외 지역', name: '그외' },
+    ],
   }
   const merged: any = {
     location_terms: { ...defaults.location_terms, ...(settings.location_terms || {}) },
     location_presets: settings.location_presets || defaults.location_presets,
     operating_hours: { ...defaults.operating_hours, ...(settings.operating_hours || {}) },
     floor_map: settings.floor_map || defaults.floor_map,
+    core_treatments: settings.core_treatments || defaults.core_treatments,
+    core_regions: settings.core_regions || defaults.core_regions,
   }
   return c.json(merged)
 })
@@ -1983,6 +1996,213 @@ app.delete('/api/protected/funnel/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/* ─── KPI System: 월간 목표 + 일간 기록 ─── */
+
+// KPI 목표 조회
+app.get('/api/protected/kpi/targets', async (c) => {
+  const user = c.get('user')!
+  const yearMonth = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const row = await c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, yearMonth).first()
+  return c.json(row || null)
+})
+
+// KPI 목표 목록 (최근 12개월)
+app.get('/api/protected/kpi/targets/list', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 12').bind(user.hospitalId).all()
+  return c.json(rows?.results || [])
+})
+
+// KPI 목표 설정/수정
+app.post('/api/protected/kpi/targets', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const { year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes } = body
+  if (!year_month) return c.json({ error: '월을 선택하세요' }, 400)
+  
+  const existing = await c.env.DB.prepare('SELECT id FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, year_month).first()
+  
+  if (existing) {
+    await c.env.DB.prepare(`UPDATE kpi_targets SET target_revenue=?, insurance_ratio=?, target_new_patients_weekday=?, target_new_patients_weekend=?, total_hours=?, weekdays=?, weekend_days=?, notes=?, updated_at=? WHERE id=?`)
+      .bind(target_revenue||0, insurance_ratio||13, target_new_patients_weekday||25, target_new_patients_weekend||20, total_hours||260, weekdays||21, weekend_days||10, notes||'', new Date().toISOString(), existing.id).run()
+    return c.json({ success: true, id: existing.id, updated: true })
+  } else {
+    const id = 'kpi-' + crypto.randomUUID().slice(0,8)
+    await c.env.DB.prepare(`INSERT INTO kpi_targets (id, hospital_id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(id, user.hospitalId, year_month, target_revenue||0, insurance_ratio||13, target_new_patients_weekday||25, target_new_patients_weekend||20, total_hours||260, weekdays||21, weekend_days||10, notes||'', user.id).run()
+    return c.json({ success: true, id, created: true })
+  }
+})
+
+// 일간 기록 조회 (날짜 or 기간)
+app.get('/api/protected/kpi/daily', async (c) => {
+  const user = c.get('user')!
+  const date = c.req.query('date')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  
+  if (date) {
+    const row = await c.env.DB.prepare('SELECT * FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, date).first()
+    return c.json(row || null)
+  }
+  if (from && to) {
+    const rows = await c.env.DB.prepare('SELECT * FROM daily_records WHERE hospital_id=? AND record_date>=? AND record_date<=? ORDER BY record_date')
+      .bind(user.hospitalId, from, to).all()
+    return c.json(rows?.results || [])
+  }
+  // 기본: 이번 달
+  const thisMonth = new Date().toISOString().slice(0,7)
+  const rows = await c.env.DB.prepare("SELECT * FROM daily_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date")
+    .bind(user.hospitalId, thisMonth + '%').all()
+  return c.json(rows?.results || [])
+})
+
+// 일간 기록 저장/수정
+app.post('/api/protected/kpi/daily', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const { record_date } = body
+  if (!record_date) return c.json({ error: '날짜를 입력하세요' }, 400)
+  
+  const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(record_date + 'T00:00:00').getDay()]
+  const existing: any = await c.env.DB.prepare('SELECT id FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, record_date).first()
+  
+  const fields = [
+    'revenue_non_insurance','revenue_insurance','existing_patients','new_patients',
+    'core_treatment_1_new','core_treatment_2_new','core_treatment_3_new',
+    'region_core_new','region_expand_new','region_adjacent_new','region_other_new',
+    'referral_new','online_new','etc_new',
+    'core_treatment_1_count','core_treatment_2_count','core_treatment_3_count',
+    'total_consultations','core_treat_1_consult','core_treat_1_agree',
+    'core_treat_2_consult','core_treat_2_agree','core_treat_3_consult','core_treat_3_agree',
+    'referral_thanks','inbound_calls','outbound_calls','cancel_count','complaint_count',
+    'avg_wait_time','naver_reviews','notes'
+  ]
+  
+  if (existing) {
+    const sets = fields.map(f => `${f}=?`).join(',')
+    const vals = fields.map(f => f === 'notes' ? (body[f] || '') : (body[f] ?? 0))
+    await c.env.DB.prepare(`UPDATE daily_records SET ${sets}, day_of_week=?, updated_at=? WHERE id=?`)
+      .bind(...vals, dow, new Date().toISOString(), existing.id).run()
+    return c.json({ success: true, id: existing.id, updated: true })
+  } else {
+    const id = 'dr-' + crypto.randomUUID().slice(0,8)
+    const cols = ['id','hospital_id','record_date','day_of_week', ...fields, 'recorded_by'].join(',')
+    const placeholders = Array(fields.length + 5).fill('?').join(',')
+    const vals = [id, user.hospitalId, record_date, dow, ...fields.map(f => f === 'notes' ? (body[f] || '') : (body[f] ?? 0)), user.id]
+    await c.env.DB.prepare(`INSERT INTO daily_records (${cols}) VALUES (${placeholders})`).bind(...vals).run()
+    return c.json({ success: true, id, created: true })
+  }
+})
+
+// 주간 집계
+app.get('/api/protected/kpi/weekly', async (c) => {
+  const user = c.get('user')!
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  if (!from || !to) return c.json({ error: 'from, to 필수' }, 400)
+  
+  const rows = await c.env.DB.prepare(`SELECT 
+    COUNT(*) as days,
+    SUM(revenue_non_insurance) as revenue_non_insurance,
+    SUM(revenue_insurance) as revenue_insurance,
+    SUM(revenue_non_insurance + revenue_insurance) as total_revenue,
+    SUM(existing_patients) as existing_patients,
+    SUM(new_patients) as new_patients,
+    SUM(existing_patients + new_patients) as total_patients,
+    SUM(core_treatment_1_new) as core_treatment_1_new,
+    SUM(core_treatment_2_new) as core_treatment_2_new,
+    SUM(core_treatment_3_new) as core_treatment_3_new,
+    SUM(region_core_new) as region_core_new,
+    SUM(region_expand_new) as region_expand_new,
+    SUM(region_adjacent_new) as region_adjacent_new,
+    SUM(region_other_new) as region_other_new,
+    SUM(referral_new) as referral_new,
+    SUM(online_new) as online_new,
+    SUM(etc_new) as etc_new,
+    SUM(core_treatment_1_count) as core_treatment_1_count,
+    SUM(core_treatment_2_count) as core_treatment_2_count,
+    SUM(core_treatment_3_count) as core_treatment_3_count,
+    SUM(total_consultations) as total_consultations,
+    SUM(core_treat_1_consult) as core_treat_1_consult,
+    SUM(core_treat_1_agree) as core_treat_1_agree,
+    SUM(core_treat_2_consult) as core_treat_2_consult,
+    SUM(core_treat_2_agree) as core_treat_2_agree,
+    SUM(core_treat_3_consult) as core_treat_3_consult,
+    SUM(core_treat_3_agree) as core_treat_3_agree,
+    SUM(referral_thanks) as referral_thanks,
+    SUM(inbound_calls) as inbound_calls,
+    SUM(outbound_calls) as outbound_calls,
+    SUM(cancel_count) as cancel_count,
+    SUM(complaint_count) as complaint_count,
+    ROUND(AVG(avg_wait_time),1) as avg_wait_time,
+    SUM(naver_reviews) as naver_reviews
+  FROM daily_records WHERE hospital_id=? AND record_date>=? AND record_date<=?`)
+    .bind(user.hospitalId, from, to).first()
+  return c.json(rows || {})
+})
+
+// KPI 대시보드 통계 (목표 vs 실적)
+app.get('/api/protected/kpi/dashboard', async (c) => {
+  const user = c.get('user')!
+  const yearMonth = c.req.query('month') || new Date().toISOString().slice(0,7)
+  
+  const [target, dailyRows] = await Promise.all([
+    c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, yearMonth).first(),
+    c.env.DB.prepare("SELECT * FROM daily_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date")
+      .bind(user.hospitalId, yearMonth + '%').all(),
+  ])
+  
+  const records: any[] = dailyRows?.results || []
+  
+  // 일별 누적 계산
+  let cumRevenue = 0, cumNonIns = 0, cumIns = 0, cumNew = 0, cumDiff = 0
+  const daily: any[] = records.map((r: any) => {
+    const dayRevenue = (r.revenue_non_insurance||0) + (r.revenue_insurance||0)
+    const isWeekend = ['sat','sun'].includes(r.day_of_week)
+    const tgt: any = target || {}
+    
+    // 목표 계산: 평일/주말 구분
+    const totalDays = (tgt.weekdays||21) + (tgt.weekend_days||10)
+    const weekdayTarget = totalDays > 0 ? (tgt.target_revenue||0) * (tgt.weekdays||21) / totalDays / (tgt.weekdays||21) : 0
+    const weekendTarget = totalDays > 0 ? (tgt.target_revenue||0) * (tgt.weekend_days||10) / totalDays / (tgt.weekend_days||10) : 0
+    const dayTarget = isWeekend ? weekendTarget : weekdayTarget
+    
+    const diff = dayRevenue - dayTarget
+    cumRevenue += dayRevenue
+    cumNonIns += (r.revenue_non_insurance||0)
+    cumIns += (r.revenue_insurance||0)
+    cumNew += (r.new_patients||0)
+    cumDiff += diff
+    
+    return {
+      ...r,
+      total_revenue: dayRevenue,
+      day_target: Math.round(dayTarget),
+      diff: Math.round(diff),
+      cum_revenue: cumRevenue,
+      cum_diff: Math.round(cumDiff),
+    }
+  })
+  
+  // 요약
+  const achieveRate = (target as any)?.target_revenue > 0 ? Math.round(cumRevenue / (target as any).target_revenue * 100 * 10) / 10 : 0
+  
+  return c.json({
+    target: target || null,
+    daily,
+    summary: {
+      cum_revenue: cumRevenue,
+      cum_non_insurance: cumNonIns,
+      cum_insurance: cumIns,
+      cum_new_patients: cumNew,
+      cum_diff: Math.round(cumDiff),
+      achieve_rate: achieveRate,
+      days_recorded: records.length,
+    }
+  })
+})
+
 /* ─── Main Page (SPA) ─── */
 app.get('*', async (c) => {
   // Serve static files from R2 first, then SPA
@@ -2018,6 +2238,7 @@ function getHTML(): string {
 <script src="/static/modules/meetings.js"><` + `/script>
 <script src="/static/modules/fee-schedule.js"><` + `/script>
 <script src="/static/modules/funnel.js"><` + `/script>
+<script src="/static/modules/kpi.js"><` + `/script>
 <script src="/static/modules/settings.js"><` + `/script>
 </body>
 </html>`
