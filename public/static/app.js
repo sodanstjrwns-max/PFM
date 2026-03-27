@@ -371,21 +371,26 @@ function renderAuth() {
 
 /* ─── Nav Config ─── */
 function getNavConfig() {
-  return [
+  const isManager = ['admin','manager'].includes(state.user?.role);
+  const nav = [
     { id: 'dashboard', label: '대시보드', icon: ICONS.dashboard },
     { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
-    { id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart },
-    {
+  ];
+  if (isManager) {
+    nav.push({ id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart });
+    nav.push({
       id: 'consultation_group', label: '상담관리', icon: ICONS.message,
       children: [
         { id: 'consultation', label: '상담 파이프라인', icon: ICONS.users },
         { id: 'consultation_stats', label: '전환율 분석', icon: ICONS.chart },
       ]
-    },
+    });
+  }
+  nav.push(
     {
       id: 'management', label: '진료 관리', icon: ICONS.folder,
       children: [
-        { id: 'fee_schedule', label: '수가표', icon: ICONS.pricing },
+        ...(isManager ? [{ id: 'fee_schedule', label: '수가표', icon: ICONS.pricing }] : []),
         { id: 'materials', label: '설명자료', icon: ICONS.materials },
         { id: 'pricing', label: '비용 안내', icon: ICONS.pricing },
         { id: 'cases', label: '케이스 사진', icon: ICONS.cases },
@@ -402,18 +407,6 @@ function getNavConfig() {
       ]
     },
     {
-      id: 'hr', label: 'HR', icon: ICONS_HIRE.briefcase,
-      children: [
-        { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
-        { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
-        { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
-        { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
-        { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
-        { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
-        { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
-      ]
-    },
-    {
       id: 'operations', label: '병원 운영', icon: ICONS.settings,
       children: [
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
@@ -424,15 +417,33 @@ function getNavConfig() {
         { id: 'meetings', label: '회의록', icon: ICONS.edit },
       ]
     },
-    {
-      id: 'marketing_group', label: '마케팅', icon: ICONS.chart,
-      children: [
-        { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
-        { id: 'reviews', label: '후기 관리', icon: ICONS.star },
-      ]
-    },
     { id: 'settings', label: '설정', icon: ICONS.settings },
-  ];
+  );
+  if (isManager) {
+    // HR과 마케팅은 관리자만
+    nav.splice(nav.length - 1, 0,
+      {
+        id: 'hr', label: 'HR', icon: ICONS_HIRE.briefcase,
+        children: [
+          { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
+          { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
+          { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
+          { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
+          { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
+          { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
+          { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
+        ]
+      },
+      {
+        id: 'marketing_group', label: '마케팅', icon: ICONS.chart,
+        children: [
+          { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
+          { id: 'reviews', label: '후기 관리', icon: ICONS.star },
+        ]
+      },
+    );
+  }
+  return nav;
 }
 
 /* ─── Render Main App ─── */
