@@ -2147,11 +2147,74 @@ app.get('/api/protected/kpi/dashboard', async (c) => {
   const user = c.get('user')!
   const yearMonth = c.req.query('month') || new Date().toISOString().slice(0,7)
   
-  const [target, dailyRows] = await Promise.all([
+  const [target, dailyRows, hospitalRow] = await Promise.all([
     c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, yearMonth).first(),
     c.env.DB.prepare("SELECT * FROM daily_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date")
       .bind(user.hospitalId, yearMonth + '%').all(),
+    c.env.DB.prepare('SELECT settings FROM hospitals WHERE id=?').bind(user.hospitalId).first(),
   ])
+  
+  // 병원 진료시간 설정 파싱
+  let hospitalSettings: any = {}
+  try { hospitalSettings = JSON.parse((hospitalRow as any)?.settings || '{}') } catch(e) {}
+  const oh = hospitalSettings.operating_hours || {}
+  
+  // 요일별 실 진료시간(시간 단위) 계산 헬퍼
+  function calcDayHours(dayConfig: any, lunchConfig: any): number {
+    if (!dayConfig || !dayConfig.enabled || !dayConfig.start || !dayConfig.end) return 0
+    const [sh, sm] = dayConfig.start.split(':').map(Number)
+    const [eh, em] = dayConfig.end.split(':').map(Number)
+    let hours = (eh + em/60) - (sh + sm/60)
+    // 점심시간 차감
+    if (lunchConfig && lunchConfig.enabled && lunchConfig.start && lunchConfig.end) {
+      const [lsh, lsm] = lunchConfig.start.split(':').map(Number)
+      const [leh, lem] = lunchConfig.end.split(':').map(Number)
+      const lunchH = (leh + lem/60) - (lsh + lsm/60)
+      // 점심시간이 해당 진료시간 내에 있을 때만 차감
+      if ((lsh + lsm/60) >= (sh + sm/60) && (leh + lem/60) <= (eh + em/60)) {
+        hours -= lunchH
+      }
+    }
+    return Math.max(0, hours)
+  }
+  
+  const lunch = oh.lunch || null
+  // 요일 → 진료시간 매핑 (mon~sun)
+  const holidays = oh.regular_holidays || []
+  const dayHoursMap: Record<string, number> = {
+    mon: holidays.includes('mon') ? 0 : calcDayHours(oh.weekday, lunch),
+    tue: holidays.includes('tue') ? 0 : calcDayHours(oh.weekday, lunch),
+    wed: holidays.includes('wed') ? 0 : calcDayHours(oh.weekday, lunch),
+    thu: holidays.includes('thu') ? 0 : calcDayHours(oh.weekday, lunch),
+    fri: holidays.includes('fri') ? 0 : calcDayHours(oh.weekday, lunch),
+    sat: holidays.includes('sat') ? 0 : calcDayHours(oh.saturday, lunch),
+    sun: holidays.includes('sun') ? 0 : calcDayHours(oh.sunday, lunch),
+  }
+  
+  // 해당 월의 요일별 일수 계산
+  const [year, month] = yearMonth.split('-').map(Number)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const dowKeys = ['sun','mon','tue','wed','thu','fri','sat']
+  const dowDayCount: Record<string, number> = { sun:0, mon:0, tue:0, wed:0, thu:0, fri:0, sat:0 }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = dowKeys[new Date(year, month-1, d).getDay()]
+    dowDayCount[dow]++
+  }
+  
+  // 월 전체 진료시간 합산 + 요일별 1일 진료시간
+  let totalMonthHours = 0
+  for (const dow of Object.keys(dowDayCount)) {
+    totalMonthHours += dayHoursMap[dow] * dowDayCount[dow]
+  }
+  
+  // 진료시간 비례 일별 목표 계산 함수
+  function getDayTarget(dayOfWeek: string): number {
+    const tgt: any = target || {}
+    if (!tgt.target_revenue || totalMonthHours <= 0) return 0
+    const dayH = dayHoursMap[dayOfWeek] || 0
+    if (dayH <= 0) return 0
+    return tgt.target_revenue * (dayH / totalMonthHours)
+  }
   
   const records: any[] = dailyRows?.results || []
   
@@ -2159,14 +2222,7 @@ app.get('/api/protected/kpi/dashboard', async (c) => {
   let cumRevenue = 0, cumNonIns = 0, cumIns = 0, cumNew = 0, cumDiff = 0
   const daily: any[] = records.map((r: any) => {
     const dayRevenue = (r.revenue_non_insurance||0) + (r.revenue_insurance||0)
-    const isWeekend = ['sat','sun'].includes(r.day_of_week)
-    const tgt: any = target || {}
-    
-    // 목표 계산: 평일/주말 구분
-    const totalDays = (tgt.weekdays||21) + (tgt.weekend_days||10)
-    const weekdayTarget = totalDays > 0 ? (tgt.target_revenue||0) * (tgt.weekdays||21) / totalDays / (tgt.weekdays||21) : 0
-    const weekendTarget = totalDays > 0 ? (tgt.target_revenue||0) * (tgt.weekend_days||10) / totalDays / (tgt.weekend_days||10) : 0
-    const dayTarget = isWeekend ? weekendTarget : weekdayTarget
+    const dayTarget = getDayTarget(r.day_of_week)
     
     const diff = dayRevenue - dayTarget
     cumRevenue += dayRevenue
@@ -2179,6 +2235,7 @@ app.get('/api/protected/kpi/dashboard', async (c) => {
       ...r,
       total_revenue: dayRevenue,
       day_target: Math.round(dayTarget),
+      day_hours: dayHoursMap[r.day_of_week] || 0,
       diff: Math.round(diff),
       cum_revenue: cumRevenue,
       cum_diff: Math.round(cumDiff),
@@ -2188,9 +2245,17 @@ app.get('/api/protected/kpi/dashboard', async (c) => {
   // 요약
   const achieveRate = (target as any)?.target_revenue > 0 ? Math.round(cumRevenue / (target as any).target_revenue * 100 * 10) / 10 : 0
   
+  // 요일별 정보 (프론트에서 활용)
+  const dowInfo = Object.entries(dayHoursMap).map(([dow, hours]) => ({
+    dow, hours, days: dowDayCount[dow],
+    dayTarget: Math.round(getDayTarget(dow)),
+  }))
+  
   return c.json({
     target: target || null,
     daily,
+    dowInfo,
+    totalMonthHours: Math.round(totalMonthHours * 10) / 10,
     summary: {
       cum_revenue: cumRevenue,
       cum_non_insurance: cumNonIns,

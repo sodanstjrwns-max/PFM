@@ -52,7 +52,7 @@ async function renderKpiDashboard(body, actions) {
 }
 
 function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
-  const { target, daily, summary } = data;
+  const { target, daily, summary, dowInfo, totalMonthHours } = data;
   const t = target || {};
   const s = summary || {};
   
@@ -107,6 +107,28 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
         <div style="font-size:11px;color:var(--text-muted)">비급여 ${formatPrice(s.cum_non_insurance||0)}만</div>
       </div>
     </div>
+
+    ${(dowInfo && dowInfo.length > 0 && target) ? `
+    <!-- 요일별 목표 (진료시간 비례) -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">🕐 요일별 목표 <span style="font-weight:500">(진료시간 ${totalMonthHours||0}h 비례)</span></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+        ${(() => {
+          const dowNames = {mon:'월',tue:'화',wed:'수',thu:'목',fri:'금',sat:'토',sun:'일'};
+          const order = ['mon','tue','wed','thu','fri','sat','sun'];
+          return order.map(d => {
+            const info = (dowInfo||[]).find(i => i.dow === d) || {hours:0,days:0,dayTarget:0};
+            const isOff = info.hours <= 0;
+            return `<div style="text-align:center;padding:8px 2px;background:${isOff ? 'var(--bg-hover)' : d==='sat'?'#dbeafe22':d==='sun'?'#fee2e222':'#f0fdf422'};border-radius:8px;border:1px solid var(--border-light)">
+              <div style="font-size:11px;font-weight:800;color:${isOff?'#94a3b8':d==='sat'?'#1d4ed8':d==='sun'?'#dc2626':'var(--text)'}">${dowNames[d]}</div>
+              <div style="font-size:13px;font-weight:900;color:${isOff?'#cbd5e1':'#3b82f6'};margin:2px 0">${isOff?'휴':formatPrice(info.dayTarget)}</div>
+              <div style="font-size:9px;color:var(--text-muted)">${isOff?'휴진':info.hours+'h'}</div>
+            </div>`;
+          }).join('');
+        })()}
+      </div>
+    </div>
+    ` : ''}
 
     ${daily.length > 0 ? `
     <!-- 일별 매출 차트 -->
@@ -355,8 +377,13 @@ async function renderKpiTargets(body, actions) {
   
   const now = new Date();
   let selectedMonth = now.toISOString().slice(0,7);
+  let hospitalConfig = null;
   
   body.innerHTML = `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  
+  try {
+    hospitalConfig = await api('/api/protected/hospital/settings');
+  } catch(e) {}
   
   async function loadTarget(month) {
     selectedMonth = month;
@@ -364,20 +391,102 @@ async function renderKpiTargets(body, actions) {
       api(`/api/protected/kpi/targets?month=${month}`),
       api('/api/protected/kpi/targets/list'),
     ]);
-    renderTargetForm(body, target, targets, month, loadTarget);
+    renderTargetForm(body, target, targets, month, loadTarget, hospitalConfig);
   }
   
   await loadTarget(selectedMonth);
 }
 
-function renderTargetForm(body, target, targetList, month, reload) {
+// 진료시간 계산 헬퍼
+function calcDayHours(dayConfig, lunchConfig) {
+  if (!dayConfig || !dayConfig.enabled || !dayConfig.start || !dayConfig.end) return 0;
+  const [sh, sm] = dayConfig.start.split(':').map(Number);
+  const [eh, em] = dayConfig.end.split(':').map(Number);
+  let hours = (eh + em/60) - (sh + sm/60);
+  if (lunchConfig && lunchConfig.enabled && lunchConfig.start && lunchConfig.end) {
+    const [lsh, lsm] = lunchConfig.start.split(':').map(Number);
+    const [leh, lem] = lunchConfig.end.split(':').map(Number);
+    if ((lsh + lsm/60) >= (sh + sm/60) && (leh + lem/60) <= (eh + em/60)) {
+      hours -= (leh + lem/60) - (lsh + lsm/60);
+    }
+  }
+  return Math.max(0, hours);
+}
+
+function getMonthDowInfo(month, oh) {
+  const lunch = oh.lunch || null;
+  const holidays = oh.regular_holidays || [];
+  const dowNames = { mon:'월', tue:'화', wed:'수', thu:'목', fri:'금', sat:'토', sun:'일' };
+  const dowKeys = ['mon','tue','wed','thu','fri','sat','sun'];
+  
+  // 요일별 진료시간
+  const dayHoursMap = {};
+  dowKeys.forEach(d => {
+    if (holidays.includes(d)) { dayHoursMap[d] = 0; return; }
+    if (['mon','tue','wed','thu','fri'].includes(d)) dayHoursMap[d] = calcDayHours(oh.weekday, lunch);
+    else if (d === 'sat') dayHoursMap[d] = calcDayHours(oh.saturday, lunch);
+    else dayHoursMap[d] = calcDayHours(oh.sunday, lunch);
+  });
+  
+  // 해당 월의 요일별 일수
+  const [year, mon] = month.split('-').map(Number);
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  const jsKeys = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dowDayCount = { sun:0, mon:0, tue:0, wed:0, thu:0, fri:0, sat:0 };
+  for (let d = 1; d <= daysInMonth; d++) {
+    dowDayCount[jsKeys[new Date(year, mon-1, d).getDay()]]++;
+  }
+  
+  let totalHours = 0;
+  const info = dowKeys.map(d => {
+    const h = dayHoursMap[d];
+    const days = dowDayCount[d];
+    totalHours += h * days;
+    return { dow: d, label: dowNames[d], hours: h, days, totalH: h * days };
+  });
+  
+  return { info, totalHours };
+}
+
+function renderTargetForm(body, target, targetList, month, reload, hospitalConfig) {
   const t = target || {};
   const displayMonth = month.replace('-', '년 ') + '월';
+  const oh = (hospitalConfig && hospitalConfig.operating_hours) || {
+    weekday: { start:'09:00', end:'18:00', enabled:true },
+    saturday: { start:'09:00', end:'14:00', enabled:true },
+    sunday: { start:'', end:'', enabled:false },
+    lunch: { start:'13:00', end:'14:00', enabled:true },
+    regular_holidays: ['sun'],
+  };
+  
+  const { info: dowInfo, totalHours } = getMonthDowInfo(month, oh);
+  const workingDays = dowInfo.reduce((s, d) => s + (d.hours > 0 ? d.days : 0), 0);
   
   body.innerHTML = `
-    <div style="max-width:500px;margin:0 auto">
+    <div style="max-width:540px;margin:0 auto">
       <h2 style="text-align:center;font-size:20px;font-weight:800;margin-bottom:20px">🎯 ${displayMonth} 목표 설정</h2>
       
+      <!-- 진료시간 현황 -->
+      <div style="background:linear-gradient(135deg,#f0f9ff,#ede9fe);border:1px solid #c7d2fe;border-radius:14px;padding:18px;margin-bottom:16px">
+        <div style="font-weight:800;font-size:13px;color:#3730a3;margin-bottom:12px">🕐 ${displayMonth} 진료시간 현황 <span style="font-size:11px;font-weight:500;color:#6366f1">(설정 > 진료시간에서 변경)</span></div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:12px">
+          ${dowInfo.map(d => {
+            const isOff = d.hours === 0;
+            const bg = isOff ? '#f1f5f9' : d.dow === 'sat' ? '#dbeafe' : d.dow === 'sun' ? '#fee2e2' : '#f0fdf4';
+            const color = isOff ? '#94a3b8' : d.dow === 'sat' ? '#1d4ed8' : d.dow === 'sun' ? '#dc2626' : '#166534';
+            return `<div style="text-align:center;padding:10px 4px;background:${bg};border-radius:10px;border:1px solid ${isOff ? '#e2e8f0' : color}22">
+              <div style="font-size:13px;font-weight:800;color:${color}">${d.label}</div>
+              <div style="font-size:16px;font-weight:900;color:${color};margin:2px 0">${isOff ? '휴' : d.hours + 'h'}</div>
+              <div style="font-size:10px;color:${color}88">${isOff ? '휴진' : d.days + '일'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding:8px 12px;background:white;border-radius:8px">
+          <span>총 진료일: <strong>${workingDays}일</strong></span>
+          <span>총 진료시간: <strong>${totalHours}시간</strong></span>
+        </div>
+      </div>
+
       <form id="targetForm">
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
           <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">📅 목표 월</label>
@@ -391,31 +500,22 @@ function renderTargetForm(body, target, targetList, month, reload) {
           
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
             <div>
-              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">평일 신환 목표</label>
+              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">👥 평일 신환 목표</label>
               <input type="number" name="target_new_patients_weekday" value="${t.target_new_patients_weekday||25}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
             </div>
             <div>
-              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">주말 신환 목표</label>
+              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">👥 주말 신환 목표</label>
               <input type="number" name="target_new_patients_weekend" value="${t.target_new_patients_weekend||20}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
             </div>
           </div>
           
-          <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">⏱️ 총 진료시간</label>
-          <input type="number" name="total_hours" value="${t.total_hours||260}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:16px">
-          
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-            <div>
-              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">평일 진료일수</label>
-              <input type="number" name="weekdays" value="${t.weekdays||21}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
-            </div>
-            <div>
-              <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">주말 진료일수</label>
-              <input type="number" name="weekend_days" value="${t.weekend_days||10}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px">
-            </div>
-          </div>
+          <!-- 숨김 필드: 진료시간에서 자동 계산 -->
+          <input type="hidden" name="total_hours" value="${totalHours}">
+          <input type="hidden" name="weekdays" value="${dowInfo.filter(d => ['mon','tue','wed','thu','fri'].includes(d.dow) && d.hours > 0).reduce((s,d) => s+d.days, 0)}">
+          <input type="hidden" name="weekend_days" value="${dowInfo.filter(d => ['sat','sun'].includes(d.dow) && d.hours > 0).reduce((s,d) => s+d.days, 0)}">
         </div>
 
-        <!-- 자동 계산 미리보기 -->
+        <!-- 요일별 목표 미리보기 -->
         <div id="calcPreview" style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border:1px solid #c7d2fe;border-radius:12px;padding:16px;margin-bottom:16px;font-size:12px"></div>
 
         <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;font-weight:800">
@@ -440,32 +540,34 @@ function renderTargetForm(body, target, targetList, month, reload) {
 
   const form = document.getElementById('targetForm');
   
-  // 자동 계산
+  // 자동 계산 (진료시간 비례)
   function updateCalc() {
     const rev = parseFloat(form.querySelector('[name="target_revenue"]').value) || 0;
     const insRatio = parseFloat(form.querySelector('[name="insurance_ratio"]').value) || 13;
-    const wd = parseInt(form.querySelector('[name="weekdays"]').value) || 21;
-    const we = parseInt(form.querySelector('[name="weekend_days"]').value) || 10;
-    const totalDays = wd + we;
-    const hours = parseInt(form.querySelector('[name="total_hours"]').value) || 260;
     
-    if (rev <= 0 || totalDays <= 0) { document.getElementById('calcPreview').innerHTML = ''; return; }
+    if (rev <= 0 || totalHours <= 0) { document.getElementById('calcPreview').innerHTML = ''; return; }
     
-    const weekdayRev = rev * (wd/totalDays) / wd;
-    const weekendRev = rev * (we/totalDays) / we;
     const insTarget = rev * insRatio / 100;
-    const hourlyTarget = rev / hours;
-    const weeklyTarget = rev / (totalDays / 7);
+    const hourlyTarget = rev / totalHours;
     
     document.getElementById('calcPreview').innerHTML = `
-      <div style="font-weight:800;margin-bottom:8px;font-size:13px;color:#3730a3">📐 자동 계산 결과</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <div>평일 목표: <strong>${formatPrice(Math.round(weekdayRev))}만/일</strong></div>
-        <div>주말 목표: <strong>${formatPrice(Math.round(weekendRev))}만/일</strong></div>
-        <div>주간 목표: <strong>${formatPrice(Math.round(weeklyTarget))}만</strong></div>
-        <div>보험 목표: <strong>${formatPrice(Math.round(insTarget))}만</strong></div>
-        <div>비급여 목표: <strong>${formatPrice(Math.round(rev - insTarget))}만</strong></div>
-        <div>시간당 목표: <strong>${formatPrice(Math.round(hourlyTarget))}만</strong></div>
+      <div style="font-weight:800;margin-bottom:10px;font-size:13px;color:#3730a3">📐 진료시간 비례 일별 목표</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:12px">
+        ${dowInfo.map(d => {
+          const dayTarget = totalHours > 0 ? Math.round(rev * d.hours / totalHours) : 0;
+          const isOff = d.hours === 0;
+          return `<div style="text-align:center;padding:8px 2px;background:${isOff ? '#f8fafc' : 'white'};border-radius:8px;border:1px solid ${isOff ? '#e2e8f0' : '#c7d2fe'}">
+            <div style="font-size:12px;font-weight:800;color:${isOff ? '#94a3b8' : '#3730a3'}">${d.label}</div>
+            <div style="font-size:14px;font-weight:900;color:${isOff ? '#cbd5e1' : '#3b82f6'};margin:2px 0">${isOff ? '-' : formatPrice(dayTarget)}</div>
+            <div style="font-size:9px;color:#64748b">${isOff ? '휴진' : d.hours + 'h × ' + d.days + '일'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;background:white;border-radius:8px">
+        <div>시간당 목표: <strong style="color:#3b82f6">${formatPrice(Math.round(hourlyTarget))}만</strong></div>
+        <div>보험 목표: <strong style="color:#3b82f6">${formatPrice(Math.round(insTarget))}만</strong></div>
+        <div>비급여 목표: <strong style="color:#8b5cf6">${formatPrice(Math.round(rev - insTarget))}만</strong></div>
+        <div>총 진료: <strong>${totalHours}시간 / ${workingDays}일</strong></div>
       </div>
     `;
   }
