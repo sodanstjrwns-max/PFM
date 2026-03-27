@@ -60,7 +60,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
   const confirmed = records.filter(r => r.treatment_confirmed === 'O').length;
   const rejected = records.filter(r => r.treatment_confirmed === 'X').length;
   const pending = total - confirmed - rejected;
-  const rate = (confirmed + rejected) > 0 ? Math.round(confirmed / (confirmed + rejected) * 10) / 10 : 0;
+  const rate = (confirmed + rejected) > 0 ? Math.round(confirmed / (confirmed + rejected) * 1000) / 10 : 0;
   const totalPlanned = records.reduce((s,r) => s + (r.planned_amount||0), 0);
   const totalAgreed = records.reduce((s,r) => s + (r.agreed_amount||0), 0);
   const newP = records.filter(r => r.patient_type === 'new').length;
@@ -410,7 +410,7 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         </thead>
         <tbody>
           ${counselorArr.map(([name, v]) => {
-            const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 10) / 10 : 0;
+            const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 1000) / 10 : 0;
             const rc = r >= 80 ? '#22c55e' : r >= 70 ? '#f59e0b' : '#ef4444';
             const barW = s.total > 0 ? Math.round(v.total / counselorArr[0][1].total * 100) : 0;
             return `<tr style="border-bottom:1px solid var(--border-light)">
@@ -444,7 +444,7 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         </thead>
         <tbody>
           ${doctorArr.map(([name, v]) => {
-            const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 10) / 10 : 0;
+            const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 1000) / 10 : 0;
             const rc = r >= 80 ? '#22c55e' : r >= 70 ? '#f59e0b' : '#ef4444';
             return `<tr style="border-bottom:1px solid var(--border-light)">
               <td style="padding:8px 12px;font-weight:700">${esc(name)}</td>
@@ -465,7 +465,7 @@ function renderDashboardContent(body, data, month, isManager, reload) {
       ${categoryArr.map(([cat, v]) => {
         const label = CATEGORIES[cat] || cat;
         const color = CAT_COLORS[cat] || '#6b7280';
-        const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 10) / 10 : 0;
+        const r = (v.confirmed + v.rejected) > 0 ? Math.round(v.confirmed / (v.confirmed + v.rejected) * 1000) / 10 : 0;
         const pct = s.total > 0 ? Math.round(v.total / s.total * 100) : 0;
         return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;border-left:4px solid ${color}">
           <div style="font-size:14px;font-weight:800;color:${color};margin-bottom:8px">${label}</div>
