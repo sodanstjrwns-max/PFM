@@ -1374,10 +1374,10 @@ app.post('/api/protected/consult-records', async (c) => {
   const id = 'cr-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`
     INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name,
-      doctor_name, counselor_name, planned_amount, agreed_amount, discount_note,
+      doctor_name, counselor_name, desk_name, planned_amount, agreed_amount, discount_note,
       patient_type, treatment_category, treatment_confirmed, appointment_made,
       recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, user.hospitalId,
     body.record_date,
@@ -1385,6 +1385,7 @@ app.post('/api/protected/consult-records', async (c) => {
     body.patient_name,
     body.doctor_name || '',
     body.counselor_name || '',
+    body.desk_name || '',
     body.planned_amount || 0,
     body.agreed_amount || 0,
     body.discount_note || '',
@@ -1407,7 +1408,7 @@ app.put('/api/protected/consult-records/:id', async (c) => {
   const user = c.get('user')!
   const body = await c.req.json()
   const id = c.req.param('id')
-  const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name',
+  const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name','desk_name',
     'planned_amount','agreed_amount','discount_note','patient_type','treatment_category',
     'treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','visit_source','notes']
   const updates: string[] = []
@@ -1429,21 +1430,21 @@ app.delete('/api/protected/consult-records/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 상담사/의사 목록 (드롭다운용 - staff_presets 우선)
+// 상담의/상담사/데스크 목록 (드롭다운용 - staff_presets 우선)
 app.get('/api/protected/consult-records/staff', async (c) => {
   const user = c.get('user')!
-  // staff_presets에서 가져오기 (우선순위)
-  const presetDoctors = await c.env.DB.prepare(
-    "SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='doctor' AND is_active=1 ORDER BY sort_order"
-  ).bind(user.hospitalId).all()
-  const presetCounselors = await c.env.DB.prepare(
-    "SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='counselor' AND is_active=1 ORDER BY sort_order"
-  ).bind(user.hospitalId).all()
+  // staff_presets에서 가져오기 (3분류: doctor/counselor/desk)
+  const [presetDoctors, presetCounselors, presetDesk] = await Promise.all([
+    c.env.DB.prepare("SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='doctor' AND is_active=1 ORDER BY sort_order").bind(user.hospitalId).all(),
+    c.env.DB.prepare("SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='counselor' AND is_active=1 ORDER BY sort_order").bind(user.hospitalId).all(),
+    c.env.DB.prepare("SELECT name FROM staff_presets WHERE hospital_id=? AND preset_type='desk' AND is_active=1 ORDER BY sort_order").bind(user.hospitalId).all(),
+  ])
   
-  // 프리셋이 없으면 기존 방식 (DISTINCT from records)
   let doctors = (presetDoctors.results as any[]).map(r => r.name)
   let counselors = (presetCounselors.results as any[]).map(r => r.name)
+  let desk = (presetDesk.results as any[]).map(r => r.name)
   
+  // 프리셋이 없으면 기존 방식 (DISTINCT from records)
   if (doctors.length === 0) {
     const d = await c.env.DB.prepare('SELECT DISTINCT doctor_name FROM consult_records WHERE hospital_id=? AND doctor_name != "" ORDER BY doctor_name').bind(user.hospitalId).all()
     doctors = (d.results as any[]).map(r => r.doctor_name)
@@ -1456,7 +1457,7 @@ app.get('/api/protected/consult-records/staff', async (c) => {
   const staffUsers = await c.env.DB.prepare(
     'SELECT name, role, position, is_doctor FROM users WHERE hospital_id=? AND is_active=1 ORDER BY name'
   ).bind(user.hospitalId).all()
-  return c.json({ counselors, doctors, users: staffUsers.results })
+  return c.json({ doctors, counselors, desk, users: staffUsers.results })
 })
 
 // ═══ 상담 대시보드 통계 ═══
@@ -2611,7 +2612,7 @@ app.get('/api/protected/patients/search/autocomplete', async (c) => {
   const q = c.req.query('q')
   if (!q || q.length < 1) return c.json([])
   const rows = await c.env.DB.prepare(
-    `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, first_visit_date, last_visit_date, visit_count
+    `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, desk_staff, first_visit_date, last_visit_date, visit_count
     FROM patients WHERE hospital_id=? AND status='active' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ?)
     ORDER BY last_visit_date DESC LIMIT 15`
   ).bind(user.hospitalId, `%${q}%`, `%${q}%`, `%${q}%`).all()
@@ -2656,9 +2657,9 @@ app.post('/api/protected/patients', async (c) => {
   await c.env.DB.prepare(`
     INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender,
       patient_type, visit_source, visit_source_detail, referrer_name,
-      first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor,
+      first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, desk_staff,
       visit_reason, address, memo, status, kakao_registered, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, user.hospitalId,
     body.chart_number||'', body.patient_name, body.phone||'', body.birth_date||'', body.gender||'',
@@ -2667,7 +2668,7 @@ app.post('/api/protected/patients', async (c) => {
     body.first_visit_date || new Date().toISOString().slice(0,10),
     body.last_visit_date || body.first_visit_date || new Date().toISOString().slice(0,10),
     body.visit_count||1,
-    body.treatment_area||'', body.primary_doctor||'', body.assigned_counselor||'',
+    body.treatment_area||'', body.primary_doctor||'', body.assigned_counselor||'', body.desk_staff||'',
     body.visit_reason||'', body.address||'', body.memo||'',
     body.status||'active', body.kakao_registered||'', user.id
   ).run()
@@ -2681,7 +2682,7 @@ app.put('/api/protected/patients/:id', async (c) => {
   const id = c.req.param('id')
   const fields = ['chart_number','patient_name','phone','birth_date','gender','patient_type',
     'visit_source','visit_source_detail','referrer_name','first_visit_date','last_visit_date',
-    'visit_count','treatment_area','primary_doctor','assigned_counselor',
+    'visit_count','treatment_area','primary_doctor','assigned_counselor','desk_staff',
     'visit_reason','address','memo','status','kakao_registered']
   const updates: string[] = []; const vals: any[] = []
   for (const f of fields) {

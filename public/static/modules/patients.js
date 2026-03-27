@@ -82,6 +82,7 @@ async function renderPatients(body, actions) {
   function renderPatientList(patients, totalCount) {
     const doctors = staffData?.doctors || [];
     const counselors = staffData?.counselors || [];
+    const desk = staffData?.desk || [];
     
     // 클라이언트 정렬
     const sorted = [...patients].sort((a,b) => {
@@ -200,13 +201,14 @@ async function renderPatients(body, actions) {
               ${renderSortHeader('visit_source', '내원경로')}
               ${renderSortHeader('primary_doctor', '상담의')}
               ${renderSortHeader('assigned_counselor', '상담사')}
+              ${renderSortHeader('desk_staff', '데스크')}
               ${renderSortHeader('first_visit_date', '최초내원')}
               ${renderSortHeader('visit_count', '내원횟수')}
               ${renderSortHeader('visit_reason', '방문이유')}
             </tr>
           </thead>
           <tbody>
-            ${sorted.length === 0 ? `<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 환자가 없습니다</td></tr>` : ''}
+            ${sorted.length === 0 ? `<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 환자가 없습니다</td></tr>` : ''}
             ${sorted.map(p => {
               const typeColor = p.patient_type === 'new' ? '#3b82f6' : '#22c55e';
               const typeLabel = p.patient_type === 'new' ? '신환' : '구환';
@@ -224,6 +226,7 @@ async function renderPatients(body, actions) {
                 <td style="padding:10px 8px;font-size:11px"><span style="border-left:3px solid ${sgColor};padding-left:6px">${esc(sourceLabel)}</span></td>
                 <td style="padding:10px 8px;font-size:11px">${esc(p.primary_doctor||'-')}</td>
                 <td style="padding:10px 8px;font-size:11px">${esc(p.assigned_counselor||'-')}</td>
+                <td style="padding:10px 8px;font-size:11px">${esc(p.desk_staff||'-')}</td>
                 <td style="padding:10px 8px;font-size:11px;color:var(--text-muted)">${fmtDate(p.first_visit_date)}</td>
                 <td style="padding:10px 8px;text-align:center;font-size:11px">${p.visit_count||1}</td>
                 <td style="padding:10px 8px;font-size:11px;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.visit_reason||'-')}</td>
@@ -357,6 +360,7 @@ function openPatientForm(patient, staffData, onSave) {
   const isEdit = !!patient;
   const doctors = staffData?.doctors || [];
   const counselors = staffData?.counselors || [];
+  const desk = staffData?.desk || [];
   
   function opt(list, selected) {
     return list.map(name => `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(name)}</option>`).join('');
@@ -472,7 +476,7 @@ function openPatientForm(patient, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#8b5cf6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">진료</span> 진료 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
             <div>
               <label style="${ls}">🏥 진료 영역</label>
               <select name="treatment_area" style="${ss}">
@@ -486,10 +490,18 @@ function openPatientForm(patient, staffData, onSave) {
                 <option value="">선택</option>${opt(doctors, p.primary_doctor)}
               </select>
             </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
             <div>
               <label style="${ls}">👩‍⚕️ 담당 상담사</label>
               <select name="assigned_counselor" style="${ss}">
                 <option value="">선택</option>${opt(counselors, p.assigned_counselor)}
+              </select>
+            </div>
+            <div>
+              <label style="${ls}">🖥️ 데스크</label>
+              <select name="desk_staff" style="${ss}">
+                <option value="">선택</option>${opt(desk, p.desk_staff)}
               </select>
             </div>
           </div>
@@ -601,6 +613,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">내원 경로</span><strong>${esc(sourceLabel)}</strong></div>
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">상담의</span><strong>${esc(p.primary_doctor||'-')}</strong></div>
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">상담사</span><strong>${esc(p.assigned_counselor||'-')}</strong></div>
+            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">데스크</span><strong>${esc(p.desk_staff||'-')}</strong></div>
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">최초내원</span><strong>${fmtDate(p.first_visit_date)}</strong></div>
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">최근내원</span><strong>${fmtDate(p.last_visit_date)}</strong></div>
             <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">내원횟수</span><strong>${p.visit_count||1}회</strong></div>

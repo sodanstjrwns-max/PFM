@@ -98,17 +98,18 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
   
   // 필터/정렬 상태
   let sortKey = 'record_date', sortDir = -1;
-  let filters = { search: '', doctor: '', counselor: '', category: '', confirmed: '', patient_type: '', visit_source: '' };
+  let filters = { search: '', doctor: '', counselor: '', desk: '', category: '', confirmed: '', patient_type: '', visit_source: '' };
   let filterPanelOpen = false;
   
   // 유니크 값 추출
   const uniqueDoctors = [...new Set(records.map(r => r.doctor_name).filter(Boolean))].sort();
   const uniqueCounselors = [...new Set(records.map(r => r.counselor_name).filter(Boolean))].sort();
+  const uniqueDesk = [...new Set(records.map(r => r.desk_name).filter(Boolean))].sort();
   const uniqueSources = [...new Set(records.map(r => r.visit_source).filter(Boolean))];
   
   // 필터 라벨 매핑
   const filterLabels = {
-    doctor: '상담의', counselor: '상담사', category: '카테고리',
+    doctor: '상담의', counselor: '상담사', desk: '데스크', category: '카테고리',
     confirmed: '확정여부', patient_type: '구/신환', visit_source: '내원경로'
   };
   function getFilterDisplayValue(key, val) {
@@ -123,10 +124,11 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
     let list = records;
     if (filters.search) {
       const q = filters.search.toLowerCase();
-      list = list.filter(r => (r.patient_name||'').toLowerCase().includes(q) || (r.chart_number||'').toLowerCase().includes(q) || (r.doctor_name||'').toLowerCase().includes(q) || (r.counselor_name||'').toLowerCase().includes(q) || (r.discount_note||'').toLowerCase().includes(q) || (r.notes||'').toLowerCase().includes(q));
+      list = list.filter(r => (r.patient_name||'').toLowerCase().includes(q) || (r.chart_number||'').toLowerCase().includes(q) || (r.doctor_name||'').toLowerCase().includes(q) || (r.counselor_name||'').toLowerCase().includes(q) || (r.desk_name||'').toLowerCase().includes(q) || (r.discount_note||'').toLowerCase().includes(q) || (r.notes||'').toLowerCase().includes(q));
     }
     if (filters.doctor) list = list.filter(r => r.doctor_name === filters.doctor);
     if (filters.counselor) list = list.filter(r => r.counselor_name === filters.counselor);
+    if (filters.desk) list = list.filter(r => r.desk_name === filters.desk);
     if (filters.category) list = list.filter(r => r.treatment_category === filters.category);
     if (filters.confirmed) list = list.filter(r => r.treatment_confirmed === filters.confirmed);
     if (filters.patient_type) list = list.filter(r => r.patient_type === filters.patient_type);
@@ -192,7 +194,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
     }
     
     // 정렬 상태 표시
-    const sortNames = { record_date:'날짜', patient_name:'성함', doctor_name:'상담의', counselor_name:'상담사', planned_amount:'비용계획', agreed_amount:'동의금액', patient_type:'구분', treatment_category:'카테고리', treatment_confirmed:'확정', visit_source:'경로', appointment_made:'예약' };
+    const sortNames = { record_date:'날짜', patient_name:'성함', doctor_name:'상담의', counselor_name:'상담사', desk_name:'데스크', planned_amount:'비용계획', agreed_amount:'동의금액', patient_type:'구분', treatment_category:'카테고리', treatment_confirmed:'확정', visit_source:'경로', appointment_made:'예약' };
     const sortLabel = sortNames[sortKey] || sortKey;
     
     body.innerHTML = `
@@ -232,6 +234,13 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
               <select id="crF_counselor" style="${sStyle};width:100%;${filters.counselor ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
                 <option value="">전체</option>
                 ${uniqueCounselors.map(c => `<option value="${esc(c)}" ${filters.counselor===c?'selected':''}>${esc(c)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;letter-spacing:0.3px">🖥️ 데스크</label>
+              <select id="crF_desk" style="${sStyle};width:100%;${filters.desk ? 'border-color:#3b82f6;background:#eff6ff' : ''}">
+                <option value="">전체</option>
+                ${uniqueDesk.map(d => `<option value="${esc(d)}" ${filters.desk===d?'selected':''}>${esc(d)}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -295,13 +304,14 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
       
       <!-- 테이블 -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1060px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1160px">
           <thead>
             <tr style="background:var(--bg-hover)">
               <th style="${thCls("record_date","left")}" data-sort="record_date">날짜 ${sortIcon('record_date')}</th>
               <th style="${thCls("patient_name","left")}" data-sort="patient_name">성함 ${sortIcon('patient_name')}</th>
               <th style="${thCls("doctor_name","left")}" data-sort="doctor_name">상담의 ${sortIcon('doctor_name')}</th>
               <th style="${thCls("counselor_name","left")}" data-sort="counselor_name">상담사 ${sortIcon('counselor_name')}</th>
+              <th style="${thCls("desk_name","left")}" data-sort="desk_name">데스크 ${sortIcon('desk_name')}</th>
               <th style="${thCls("planned_amount","right")}" data-sort="planned_amount">비용계획 ${sortIcon('planned_amount')}</th>
               <th style="${thCls("agreed_amount","right")}" data-sort="agreed_amount">동의금액 ${sortIcon('agreed_amount')}</th>
               <th style="${thCls("patient_type","center")}" data-sort="patient_type">구분 ${sortIcon('patient_type')}</th>
@@ -312,7 +322,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
             </tr>
           </thead>
           <tbody>
-            ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:50px;text-align:center;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:10px">${hasAnyFilter ? '🔍' : '📋'}</div><div style="font-size:14px;font-weight:600">${hasAnyFilter ? '필터 조건에 맞는 기록이 없습니다' : '이달 기록이 없습니다'}</div>${hasAnyFilter ? '<div style="font-size:12px;margin-top:6px">필터 조건을 변경해 보세요</div>' : ''}</td></tr>` : ''}
+            ${filtered.length === 0 ? `<tr><td colspan="12" style="padding:50px;text-align:center;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:10px">${hasAnyFilter ? '🔍' : '📋'}</div><div style="font-size:14px;font-weight:600">${hasAnyFilter ? '필터 조건에 맞는 기록이 없습니다' : '이달 기록이 없습니다'}</div>${hasAnyFilter ? '<div style="font-size:12px;margin-top:6px">필터 조건을 변경해 보세요</div>' : ''}</td></tr>` : ''}
             ${filtered.map((r, idx) => {
               const dateStr = r.record_date?.slice(5) || '';
               const catLabel = CATEGORIES[r.treatment_category] || r.treatment_category;
@@ -334,6 +344,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name)}${r.chart_number ? '<span style="color:var(--text-muted);font-size:10px;margin-left:4px">#'+esc(String(r.chart_number))+'</span>' : ''}</td>
                 <td style="padding:7px 8px">${esc(r.doctor_name)}</td>
                 <td style="padding:8px">${esc(r.counselor_name)}</td>
+                <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.desk_name||'')}</td>
                 <td style="padding:8px;text-align:right;color:var(--text-muted)">${r.planned_amount ? fmtWon(r.planned_amount) : '-'}</td>
                 <td style="padding:8px;text-align:right;font-weight:700;color:#3b82f6">${r.agreed_amount ? fmtWon(r.agreed_amount) : '-'}</td>
                 <td style="padding:8px;text-align:center">${ptBadge}</td>
@@ -346,11 +357,11 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
           </tbody>
           ${filtered.length > 0 && isManager ? `<tfoot>
             <tr style="background:var(--bg-hover);border-top:2px solid var(--border)">
-              <td colspan="4" style="padding:10px 8px;font-weight:800;font-size:12px;color:var(--text-muted)">합계 (${total}건)</td>
+              <td colspan="5" style="padding:10px 8px;font-weight:800;font-size:12px;color:var(--text-muted)">합계 (${total}건)</td>
               <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:12px;color:#8b5cf6">${fmtMan(totalPlanned)}</td>
               <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:12px;color:#3b82f6">${fmtMan(totalAgreed)}</td>
               <td style="padding:10px 8px;text-align:center;font-size:11px;font-weight:700;color:#1d4ed8">${newP}신</td>
-              <td colspan="4" style="padding:10px 8px;text-align:right;font-size:11px;color:var(--text-muted)">확정률 <strong style="color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</strong></td>
+              <td colspan="5" style="padding:10px 8px;text-align:right;font-size:11px;color:var(--text-muted)">확정률 <strong style="color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</strong></td>
             </tr>
           </tfoot>` : ''}
         </table>
@@ -407,7 +418,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
     });
     
     // 필터 드롭다운
-    ['doctor','counselor','category','confirmed','patient_type','visit_source'].forEach(key => {
+    ['doctor','counselor','desk','category','confirmed','patient_type','visit_source'].forEach(key => {
       document.getElementById('crF_' + key)?.addEventListener('change', (e) => {
         filters[key] = e.target.value;
         render();
@@ -453,6 +464,7 @@ function openRecordForm(record, staffData, onSave) {
   const isEdit = !!record;
   const counselors = staffData?.counselors || [];
   const doctors = staffData?.doctors || [];
+  const desk = staffData?.desk || [];
   
   function opt(list, selected) {
     return list.map(name => `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(name)}</option>`).join('');
@@ -502,7 +514,7 @@ function openRecordForm(record, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#8b5cf6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">담당</span> 상담 배정
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div>
               <label style="${labelStyle}">🩺 상담의</label>
               <select name="doctor_name" style="${selectStyle}">
@@ -513,6 +525,12 @@ function openRecordForm(record, staffData, onSave) {
               <label style="${labelStyle}">👩‍⚕️ 상담사</label>
               <select name="counselor_name" style="${selectStyle}">
                 <option value="">선택</option>${opt(counselors, r.counselor_name)}
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">🖥️ 데스크</label>
+              <select name="desk_name" style="${selectStyle}">
+                <option value="">선택</option>${opt(desk, r.desk_name)}
               </select>
             </div>
           </div>
