@@ -2200,6 +2200,68 @@ app.post('/api/protected/kpi/daily', async (c) => {
   }
 })
 
+// ── KPI Bulk Import (월간 목표 + 일간 기록 일괄 입력) ──
+app.post('/api/protected/kpi/bulk-import', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const { targets, daily_records: records } = body
+  let targetCount = 0, dailyCount = 0
+
+  // 1) 월간 목표 일괄 입력
+  if (Array.isArray(targets)) {
+    for (const t of targets) {
+      if (!t.year_month) continue
+      const existing: any = await c.env.DB.prepare(
+        'SELECT id FROM kpi_targets WHERE hospital_id=? AND year_month=?'
+      ).bind(user.hospitalId, t.year_month).first()
+      if (existing) {
+        await c.env.DB.prepare(`UPDATE kpi_targets SET target_revenue=?, insurance_ratio=?, target_new_patients_weekday=?, target_new_patients_weekend=?, total_hours=?, weekdays=?, weekend_days=?, notes=?, updated_at=? WHERE id=?`)
+          .bind(t.target_revenue||0, t.insurance_ratio||13, t.target_new_patients_weekday||25, t.target_new_patients_weekend||20, t.total_hours||260, t.weekdays||21, t.weekend_days||10, t.notes||'', new Date().toISOString(), existing.id).run()
+      } else {
+        const id = 'kpi-' + crypto.randomUUID().slice(0,8)
+        await c.env.DB.prepare(`INSERT INTO kpi_targets (id, hospital_id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(id, user.hospitalId, t.year_month, t.target_revenue||0, t.insurance_ratio||13, t.target_new_patients_weekday||25, t.target_new_patients_weekend||20, t.total_hours||260, t.weekdays||21, t.weekend_days||10, t.notes||'', user.id).run()
+      }
+      targetCount++
+    }
+  }
+
+  // 2) 일간 기록 일괄 입력
+  const dailyFields = [
+    'revenue_non_insurance','revenue_insurance','existing_patients','new_patients',
+    'core_treatment_1_new','core_treatment_2_new','core_treatment_3_new',
+    'region_core_new','region_expand_new','region_adjacent_new','region_other_new',
+    'referral_new','online_new','etc_new',
+    'core_treatment_1_count','core_treatment_2_count','core_treatment_3_count',
+    'total_consultations','core_treat_1_consult','core_treat_1_agree',
+    'core_treat_2_consult','core_treat_2_agree','core_treat_3_consult','core_treat_3_agree',
+    'referral_thanks','inbound_calls','outbound_calls','cancel_count','complaint_count',
+    'avg_wait_time','naver_reviews','notes'
+  ]
+  if (Array.isArray(records)) {
+    for (const r of records) {
+      if (!r.record_date) continue
+      const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(r.record_date + 'T00:00:00').getDay()]
+      const existing: any = await c.env.DB.prepare('SELECT id FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, r.record_date).first()
+      if (existing) {
+        const sets = dailyFields.map(f => `${f}=?`).join(',')
+        const vals = dailyFields.map(f => f === 'notes' ? (r[f] || '') : (r[f] ?? 0))
+        await c.env.DB.prepare(`UPDATE daily_records SET ${sets}, day_of_week=?, updated_at=? WHERE id=?`)
+          .bind(...vals, dow, new Date().toISOString(), existing.id).run()
+      } else {
+        const id = 'dr-' + crypto.randomUUID().slice(0,8)
+        const cols = ['id','hospital_id','record_date','day_of_week', ...dailyFields, 'recorded_by'].join(',')
+        const placeholders = Array(dailyFields.length + 5).fill('?').join(',')
+        const vals = [id, user.hospitalId, r.record_date, dow, ...dailyFields.map(f => f === 'notes' ? (r[f] || '') : (r[f] ?? 0)), user.id]
+        await c.env.DB.prepare(`INSERT INTO daily_records (${cols}) VALUES (${placeholders})`).bind(...vals).run()
+      }
+      dailyCount++
+    }
+  }
+
+  return c.json({ success: true, targets_imported: targetCount, daily_records_imported: dailyCount })
+})
+
 // 주간 집계
 app.get('/api/protected/kpi/weekly', async (c) => {
   const user = c.get('user')!
