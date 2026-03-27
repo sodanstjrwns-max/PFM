@@ -1,147 +1,164 @@
 /* ═══ Module: Dashboard ═══ */
 (function(PFM) {
 'use strict';
-const { api, ICONS, ICONS_HIRE, navigate, esc, toast } = PFM;
+const { api, ICONS, ICONS_HIRE, navigate, esc, toast, formatPrice, state } = PFM;
+
+const FUNNEL_STAGES = [
+  { key: 'awareness', label: '인지', icon: '👁️', color: '#94a3b8' },
+  { key: 'interest', label: '관심', icon: '💡', color: '#f59e0b' },
+  { key: 'appointment', label: '예약', icon: '📅', color: '#3b82f6' },
+  { key: 'visit', label: '방문', icon: '🏥', color: '#8b5cf6' },
+  { key: 'waiting', label: '대기', icon: '⏳', color: '#06b6d4' },
+  { key: 'diagnosis', label: '진단', icon: '🔍', color: '#10b981' },
+  { key: 'consultation', label: '상담', icon: '💬', color: '#f97316' },
+  { key: 'treatment', label: '진료', icon: '🦷', color: '#ef4444' },
+  { key: 'management', label: '관리', icon: '📋', color: '#22c55e' },
+  { key: 'referral', label: '소개', icon: '🤝', color: '#ec4899' },
+];
 
 async function renderDashboard(body) {
   body.innerHTML = `
-    <div class="dashboard-grid" id="dashStats">
-      ${[1,2,3,4].map(() => `<div class="stat-card" style="opacity:0.5"><div class="stat-card-icon teal"><span class="loading-spinner"></span></div><div class="stat-card-body"><div class="stat-card-label">로딩중...</div></div></div>`).join('')}
+    <div id="dashLoading" style="text-align:center;padding:40px"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">대시보드 로딩중...</div></div>`;
+
+  try {
+    const stats = await api('/api/protected/dashboard');
+    renderDashboardContent(body, stats);
+  } catch(e) {
+    body.innerHTML = `<div style="color:#ef4444;text-align:center;padding:40px">대시보드 로딩 실패: ${e.message}</div>`;
+  }
+}
+
+function renderDashboardContent(body, s) {
+  const now = new Date();
+  const greeting = now.getHours() < 12 ? '좋은 아침이에요' : now.getHours() < 18 ? '오후도 화이팅' : '수고하셨습니다';
+  const todayStr = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+
+  body.innerHTML = `
+    <!-- 인사 헤더 -->
+    <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:16px;padding:24px 28px;margin-bottom:24px;color:white;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-20px;top:-20px;font-size:120px;opacity:0.1">🏥</div>
+      <div style="font-size:13px;opacity:0.85">${todayStr}</div>
+      <div style="font-size:22px;font-weight:800;margin:6px 0">${greeting}, ${esc(state.user.name)} 원장님!</div>
+      <div style="display:flex;gap:20px;margin-top:12px;font-size:13px;opacity:0.9">
+        <span>👥 출근 ${s.staff?.present||0}/${s.staff?.total||0}명</span>
+        <span>🩺 원장 ${s.staff?.doctorsPresent||0}/${s.staff?.doctors||0}명</span>
+        <span>💺 체어 ${s.chairs?.busy||0}/${s.chairs?.total||0} 사용중</span>
+      </div>
     </div>
+
+    <!-- 오늘의 현황 카드 -->
+    <div class="section-title">📊 <span>오늘의 현황</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px">
+      ${[
+        { label: '오늘 환자', value: s.todayPatients, icon: '🦷', color: '#3b82f6', goto: 'clinical_board' },
+        { label: '진료중', value: s.inTreatment, icon: '⚡', color: '#f59e0b', goto: 'clinical_board' },
+        { label: '완료', value: s.completedToday, icon: '✅', color: '#22c55e', goto: 'clinical_board' },
+        { label: '원장 필요', value: s.doctorNeeded, icon: '🚨', color: '#ef4444', goto: 'clinical_board' },
+        { label: '이달 상담', value: s.monthConsultations, icon: '💬', color: '#8b5cf6', goto: 'consultation' },
+        { label: '전환율', value: s.conversionRate + '%', icon: '📈', color: '#0ea5e9', goto: 'consultation_stats' },
+      ].map(c => `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden" data-goto="${c.goto}" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+          <div style="position:absolute;right:8px;top:8px;font-size:28px;opacity:0.15">${c.icon}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">${c.label}</div>
+          <div style="font-size:28px;font-weight:900;color:${c.color};margin-top:4px">${c.value}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Patient Funnel 미니 -->
+    <div class="section-title">🔄 <span>Patient Funnel</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">환자 여정 10단계</span></div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
+      <div style="display:flex;gap:2px;align-items:end;height:80px;margin-bottom:12px" id="funnelChart"></div>
+      <div style="display:flex;gap:2px" id="funnelLabels"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)">
+        <button class="btn btn-primary btn-sm" data-goto="funnel" style="font-size:12px">📊 퍼널 상세보기</button>
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--text-muted)">
+          <span>총 <strong style="color:var(--text)">${Object.values(s.funnel||{}).reduce((a,b) => a+b, 0)}</strong>명</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 빠른 메뉴 -->
     <div class="section-title">${ICONS.folder}<span>빠른 메뉴</span></div>
     <div class="quick-links">
-      <div class="quick-link-card" data-goto="materials">
-        <div class="quick-link-icon teal-bg">📖</div>
-        <div class="quick-link-text"><h3>설명자료</h3><p>환자 교육 자료 관리</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="pricing">
-        <div class="quick-link-icon blue-bg">💰</div>
-        <div class="quick-link-text"><h3>비용 안내</h3><p>시술별 비용 관리</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="cases">
-        <div class="quick-link-icon amber-bg">📸</div>
-        <div class="quick-link-text"><h3>케이스 사진</h3><p>Before/After 포트폴리오</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="settings">
-        <div class="quick-link-icon purple-bg">⚙️</div>
-        <div class="quick-link-text"><h3>설정</h3><p>병원 정보 및 계정</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="praise">
-        <div class="quick-link-icon" style="background:#fce7f3">💛</div>
-        <div class="quick-link-text"><h3>칭찬하기</h3><p>동료에게 감사 전하기</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="kanban_purchase">
-        <div class="quick-link-icon" style="background:#ecfdf5">🛒</div>
-        <div class="quick-link-text"><h3>물품 구매</h3><p>필요 물품 요청</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="checklists">
-        <div class="quick-link-icon" style="background:#f0fdf4">✅</div>
-        <div class="quick-link-text"><h3>체크리스트</h3><p>일일 점검 체크</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="scripts">
-        <div class="quick-link-icon" style="background:#eff6ff">🎯</div>
-        <div class="quick-link-text"><h3>상담 스크립트</h3><p>시술별 상담 가이드</p></div>
-      </div>
-      <div class="quick-link-card" data-goto="hire_postings">
-        <div class="quick-link-icon" style="background:#f0fdf4">💼</div>
-        <div class="quick-link-text"><h3>채용 관리</h3><p>PF Hire 채용 모듈</p></div>
-      </div>
+      ${[
+        { id: 'clinical_board', icon: '🦷', title: '진료보드', desc: '오늘의 진료 현황', bg: '#f0fdfa' },
+        { id: 'consultation', icon: '💬', title: '상담관리', desc: '상담 파이프라인', bg: '#fef3c7' },
+        { id: 'funnel', icon: '🔄', title: '환자 퍼널', desc: '10단계 여정 관리', bg: '#ede9fe' },
+        { id: 'fee_schedule', icon: '💰', title: '수가표', desc: '진료 항목별 비용', bg: '#dbeafe' },
+        { id: 'hr_staff', icon: '👥', title: '직원 관리', desc: '출퇴근·스케줄', bg: '#dcfce7' },
+        { id: 'checklists', icon: '✅', title: '체크리스트', desc: '일일 점검 체크', bg: '#f0fdf4' },
+        { id: 'materials', icon: '📖', title: '설명자료', desc: '환자 교육 자료', bg: '#f0fdfa' },
+        { id: 'scripts', icon: '🎯', title: '상담 스크립트', desc: '시술별 상담 가이드', bg: '#eff6ff' },
+        { id: 'kanban_purchase', icon: '🛒', title: '물품 구매', desc: '필요 물품 요청', bg: '#ecfdf5' },
+        { id: 'settings', icon: '⚙️', title: '설정', desc: '병원 정보·계정', bg: '#f3f4f6' },
+      ].map(q => `
+        <div class="quick-link-card" data-goto="${q.id}">
+          <div class="quick-link-icon" style="background:${q.bg}">${q.icon}</div>
+          <div class="quick-link-text"><h3>${q.title}</h3><p>${q.desc}</p></div>
+        </div>
+      `).join('')}
     </div>`;
 
+  // 퍼널 차트 렌더
+  const funnelData = s.funnel || {};
+  const maxVal = Math.max(1, ...FUNNEL_STAGES.map(st => funnelData[st.key]||0));
+  const chartEl = document.getElementById('funnelChart');
+  const labelsEl = document.getElementById('funnelLabels');
+  if (chartEl && labelsEl) {
+    chartEl.innerHTML = FUNNEL_STAGES.map(st => {
+      const val = funnelData[st.key] || 0;
+      const pct = Math.max(8, (val / maxVal) * 100);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:4px">
+        <div style="font-size:10px;font-weight:700;color:${st.color}">${val}</div>
+        <div style="width:100%;height:${pct}%;background:${st.color};border-radius:6px 6px 2px 2px;min-height:6px;transition:height .3s"></div>
+      </div>`;
+    }).join('');
+    labelsEl.innerHTML = FUNNEL_STAGES.map(st => `
+      <div style="flex:1;text-align:center;font-size:9px;color:var(--text-muted);line-height:1.3">
+        <div>${st.icon}</div><div>${st.label}</div>
+      </div>
+    `).join('');
+  }
+
+  // 이벤트
   body.querySelectorAll('[data-goto]').forEach(el => {
     el.addEventListener('click', () => navigate(el.dataset.goto));
   });
 
-  try {
-    const stats = await api('/api/protected/dashboard');
-    document.getElementById('dashStats').innerHTML = `
-      <div class="stat-card">
-        <div class="stat-card-icon teal">${ICONS.materials}</div>
-        <div class="stat-card-body"><div class="stat-card-label">설명자료</div><div class="stat-card-value">${stats.materials}</div><div class="stat-card-sub">등록된 자료</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon blue">${ICONS.pricing}</div>
-        <div class="stat-card-body"><div class="stat-card-label">비용 항목</div><div class="stat-card-value">${stats.pricing}</div><div class="stat-card-sub">시술 항목</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon amber">${ICONS.cases}</div>
-        <div class="stat-card-body"><div class="stat-card-label">케이스</div><div class="stat-card-value">${stats.cases}</div><div class="stat-card-sub">등록된 케이스</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon purple">${ICONS.eye}</div>
-        <div class="stat-card-body"><div class="stat-card-label">케이스 사진</div><div class="stat-card-value">${stats.caseImages}</div><div class="stat-card-sub">총 이미지</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon" style="background:linear-gradient(135deg,#fce7f3,#fbcfe8);color:#ec4899">${ICONS.heart}</div>
-        <div class="stat-card-body"><div class="stat-card-label">커뮤니티</div><div class="stat-card-value">${stats.posts}</div><div class="stat-card-sub">게시글</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706">${ICONS.cart}</div>
-        <div class="stat-card-body"><div class="stat-card-label">진행중 요청</div><div class="stat-card-value">${stats.pendingTasks}</div><div class="stat-card-sub">물품/수리</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);color:#059669">${ICONS_HIRE.briefcase}</div>
-        <div class="stat-card-body"><div class="stat-card-label">채용 공고</div><div class="stat-card-value">${stats.openJobs}</div><div class="stat-card-sub">진행중</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon" style="background:linear-gradient(135deg,#ede9fe,#c4b5fd);color:#7c3aed">${ICONS_HIRE.userPlus}</div>
-        <div class="stat-card-body"><div class="stat-card-label">지원자</div><div class="stat-card-value">${stats.activeApplicants}</div><div class="stat-card-sub">검토 대기</div></div>
+  // 온보딩 (데이터 없을 때)
+  if (s.materials === 0 && s.pricing === 0 && s.cases === 0 && PFM.canManage()) {
+    const guideEl = document.createElement('div');
+    guideEl.style.marginTop = '24px';
+    guideEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:2px solid #99f6e4;border-radius:16px;padding:28px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <span style="font-size:32px">🎉</span>
+          <div>
+            <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f766e">병원 초기 설정을 시작하세요</h3>
+            <p style="margin:4px 0 0;font-size:13px;color:#115e59">아래 단계를 따라 시스템을 세팅하세요</p>
+          </div>
+        </div>
+        <div style="display:grid;gap:10px">
+          ${[
+            { goto: 'hr_staff', icon: '👥', bg: '#dbeafe', title: '1단계: 직원 초대', desc: '초대 링크로 직원 가입시키기', tc: '#1e40af' },
+            { goto: 'fee_schedule', icon: '💰', bg: '#fef3c7', title: '2단계: 수가표 등록', desc: '진료 항목별 비용 설정', tc: '#92400e' },
+            { goto: 'materials', icon: '📖', bg: '#dcfce7', title: '3단계: 설명자료 업로드', desc: '환자 교육 자료 등록', tc: '#166534' },
+            { goto: 'scripts', icon: '🎯', bg: '#fce7f3', title: '4단계: 상담 스크립트', desc: '시술별 상담 가이드 작성', tc: '#9d174d' },
+          ].map(s => `
+            <div class="onboard-step" data-goto="${s.goto}" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow=''">
+              <div style="width:44px;height:44px;border-radius:12px;background:${s.bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.icon}</div>
+              <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${s.title}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
+              <span style="font-size:20px">→</span>
+            </div>
+          `).join('')}
+        </div>
       </div>`;
-
-    // 온보딩 가이드: 데이터가 거의 없는 신규 병원일 때 표시
-    if (stats.materials === 0 && stats.pricing === 0 && stats.cases === 0 && PFM.canManage()) {
-      const guideEl = document.createElement('div');
-      guideEl.style.cssText = 'margin-top:24px';
-      guideEl.innerHTML = `
-        <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:2px solid #99f6e4;border-radius:16px;padding:28px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <span style="font-size:32px">🎉</span>
-            <div>
-              <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f766e">환영합니다! 병원 초기 설정을 시작하세요</h3>
-              <p style="margin:4px 0 0;font-size:13px;color:#115e59">아래 단계를 따라 병원 시스템을 세팅하세요</p>
-            </div>
-          </div>
-          <div style="display:grid;gap:10px">
-            <div class="onboard-step" data-goto="hr_staff" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
-              <div style="width:44px;height:44px;border-radius:12px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👥</div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:14px;color:#1e40af">1단계: 직원 초대하기</div>
-                <div style="font-size:12px;color:#64748b;margin-top:2px">초대 코드를 생성해서 직원들을 가입시키세요</div>
-              </div>
-              <span style="font-size:20px">→</span>
-            </div>
-            <div class="onboard-step" data-goto="pricing" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
-              <div style="width:44px;height:44px;border-radius:12px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">💰</div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:14px;color:#92400e">2단계: 비용 안내 등록</div>
-                <div style="font-size:12px;color:#64748b;margin-top:2px">시술별 비용을 등록하면 상담 시 바로 활용할 수 있어요</div>
-              </div>
-              <span style="font-size:20px">→</span>
-            </div>
-            <div class="onboard-step" data-goto="materials" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
-              <div style="width:44px;height:44px;border-radius:12px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📖</div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:14px;color:#166534">3단계: 설명자료 업로드</div>
-                <div style="font-size:12px;color:#64748b;margin-top:2px">환자 교육 자료를 등록해서 상담 품질을 높이세요</div>
-              </div>
-              <span style="font-size:20px">→</span>
-            </div>
-            <div class="onboard-step" data-goto="scripts" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow='none'">
-              <div style="width:44px;height:44px;border-radius:12px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎯</div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:14px;color:#9d174d">4단계: 상담 스크립트 작성</div>
-                <div style="font-size:12px;color:#64748b;margin-top:2px">시술별 상담 대본을 만들어 전환율을 높이세요</div>
-              </div>
-              <span style="font-size:20px">→</span>
-            </div>
-          </div>
-        </div>`;
-      body.appendChild(guideEl);
-      guideEl.querySelectorAll('.onboard-step').forEach(el => {
-        el.addEventListener('click', () => navigate(el.dataset.goto));
-      });
-    }
-  } catch(e) { console.error('Dashboard load error:', e); }
+    body.appendChild(guideEl);
+    guideEl.querySelectorAll('[data-goto]').forEach(el => {
+      el.addEventListener('click', () => navigate(el.dataset.goto));
+    });
+  }
 }
 
 PFM.modules.dashboard = { renderDashboard };

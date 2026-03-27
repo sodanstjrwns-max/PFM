@@ -320,3 +320,49 @@ INSERT OR IGNORE INTO events (id, hospital_id, title, description, event_type, s
   ('ev-5',   'h-demo', '🏖️ 개원 기념일',                '서울비디치과 5주년 기념',                                              'other',       '2026-04-20', '2026-04-20', 1, '#22c55e', 'u-admin'),
   ('ev-6',   'h-demo', '📋 4월 위생사 면접',             '오전 10시~12시, 3명 면접 예정',                                         'other',       '2026-04-03', '2026-04-03', 0, '#6366f1', 'u-admin'),
   ('ev-7',   'h-demo', '🏥 파노라마 센서 수리',          '수리 업체 내원 예정 (오후 2시)',                                         'maintenance', '2026-03-28', '2026-03-28', 0, '#f59e0b', 'u-admin');
+
+-- ═══ 수가표 카테고리 ═══
+INSERT OR IGNORE INTO fee_categories (id, hospital_id, name, icon, color, sort_order) VALUES
+  ('fc-impl', 'h-demo', '임플란트', '🔩', '#3b82f6', 1),
+  ('fc-ortho', 'h-demo', '교정', '📐', '#8b5cf6', 2),
+  ('fc-pros', 'h-demo', '보철', '👑', '#f59e0b', 3),
+  ('fc-cons', 'h-demo', '보존', '🦷', '#22c55e', 4),
+  ('fc-cosm', 'h-demo', '심미', '✨', '#ec4899', 5),
+  ('fc-pedo', 'h-demo', '소아', '🧒', '#06b6d4', 6),
+  ('fc-peri', 'h-demo', '잇몸치료', '🩺', '#ef4444', 7);
+
+-- ═══ 수가 항목 ═══
+INSERT OR IGNORE INTO fee_items (id, hospital_id, category_id, name, base_price, discount_price, unit, duration_min, description) VALUES
+  ('fi-1', 'h-demo', 'fc-impl', '임플란트 (일반)', 1500000, 1200000, '개', 60, '오스템 TS3'),
+  ('fi-2', 'h-demo', 'fc-impl', '임플란트 (프리미엄)', 2000000, NULL, '개', 60, '스트라우만 BLX'),
+  ('fi-3', 'h-demo', 'fc-impl', '상악동거상술', 800000, NULL, '회', 40, 'Sinus Lift'),
+  ('fi-4', 'h-demo', 'fc-impl', 'GBR (골이식)', 500000, NULL, '부위', 30, '골이식재 포함'),
+  ('fi-5', 'h-demo', 'fc-ortho', '교정 (메탈)', 3500000, 3000000, '악', 30, '메탈 브라켓'),
+  ('fi-6', 'h-demo', 'fc-ortho', '교정 (세라믹)', 4500000, 4000000, '악', 30, '세라믹 브라켓'),
+  ('fi-7', 'h-demo', 'fc-ortho', '투명교정 (인비절라인)', 6000000, 5500000, '악', 30, '인비절라인 풀'),
+  ('fi-8', 'h-demo', 'fc-pros', '지르코니아 크라운', 600000, 500000, '개', 30, 'Full Zirconia'),
+  ('fi-9', 'h-demo', 'fc-pros', 'PFM 크라운', 400000, 350000, '개', 30, '도재관'),
+  ('fi-10', 'h-demo', 'fc-pros', '임시치아', 50000, NULL, '개', 15, 'Temporary Crown'),
+  ('fi-11', 'h-demo', 'fc-cons', '레진 충전', 150000, 120000, '면', 20, 'Composite Resin'),
+  ('fi-12', 'h-demo', 'fc-cons', '인레이 (레진)', 250000, NULL, '개', 30, 'Resin Inlay'),
+  ('fi-13', 'h-demo', 'fc-cons', '인레이 (골드)', 400000, NULL, '개', 30, 'Gold Inlay'),
+  ('fi-14', 'h-demo', 'fc-cons', '신경치료', 200000, NULL, '치아', 40, 'Root Canal Treatment'),
+  ('fi-15', 'h-demo', 'fc-cosm', '라미네이트', 700000, 600000, '개', 30, 'Porcelain Veneer'),
+  ('fi-16', 'h-demo', 'fc-cosm', '치아미백', 300000, 250000, '회', 60, 'Office Whitening'),
+  ('fi-17', 'h-demo', 'fc-pedo', '실란트', 30000, NULL, '치아', 10, 'Sealant'),
+  ('fi-18', 'h-demo', 'fc-pedo', '불소도포', 30000, NULL, '회', 10, 'Fluoride Application'),
+  ('fi-19', 'h-demo', 'fc-peri', '스케일링', 0, NULL, '회', 30, '보험 적용'),
+  ('fi-20', 'h-demo', 'fc-peri', '잇몸수술', 500000, NULL, '부위', 60, 'Flap Operation');
+
+-- ═══ 환자 퍼널 데모 데이터 ═══
+INSERT OR IGNORE INTO patient_funnel (id, hospital_id, patient_name, phone, source, current_stage, treatment_type, assigned_doctor, estimated_amount, agreed_amount, paid_amount, notes, stage_history) VALUES
+  ('pf-1', 'h-demo', '김민수', '010-1234-5001', '네이버',     'treatment',    '임플란트 2개',  'u-admin', 3000000, 2800000, 2800000, '하악 6,7번', '[]'),
+  ('pf-2', 'h-demo', '이수진', '010-1234-5002', '인스타그램', 'consultation', '교정 상담',     'u-mgr',   4500000, 0, 0, '투명교정 관심', '[]'),
+  ('pf-3', 'h-demo', '박지훈', '010-1234-5003', '지인소개',   'management',   '임플란트 1개',  'u-admin', 1500000, 1200000, 1200000, '정기검진 예정', '[]'),
+  ('pf-4', 'h-demo', '최영희', '010-1234-5004', '네이버',     'visit',        '충치치료',      '',        300000, 0, 0, '첫 방문', '[]'),
+  ('pf-5', 'h-demo', '정대호', '010-1234-5005', '블로그',     'diagnosis',    '발치+임플란트', 'u-admin', 2000000, 0, 0, 'CT 촬영 완료', '[]'),
+  ('pf-6', 'h-demo', '한미라', '010-1234-5006', '구글',       'interest',     '미백',          '',        300000, 0, 0, '블로그 후기 확인', '[]'),
+  ('pf-7', 'h-demo', '오세훈', '010-1234-5007', '지인소개',   'referral',     '임플란트 3개',  'u-admin', 4500000, 4200000, 4200000, '가족 소개함', '[]'),
+  ('pf-8', 'h-demo', '윤서연', '010-1234-5008', '인스타그램', 'appointment',  '교정 상담',     '',        5000000, 0, 0, '다음주 예약', '[]'),
+  ('pf-9', 'h-demo', '장기철', '010-1234-5009', '네이버',     'awareness',    '',              '',        0, 0, 0, '네이버 플레이스 조회', '[]'),
+  ('pf-10','h-demo', '송미영', '010-1234-5010', '유튜브',     'waiting',      '크라운',        'u-mgr',   600000, 0, 0, '대기중', '[]');

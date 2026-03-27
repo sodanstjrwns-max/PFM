@@ -832,7 +832,8 @@ app.get('/api/protected/dashboard', async (c) => {
   const hid = user.hospitalId
   const today = new Date().toISOString().split('T')[0]
   const thisMonth = new Date().toISOString().slice(0,7)
-  const [matCount, prcCount, caseCount, imgCount, postCount, kanbanCount, hireCount, applicantCount, tbTotal, tbDoctorNeeded, tbInTreatment, tbCompleted, csTotal, csAgreed, csPaid, csLost] = await Promise.all([
+  const dayOfWeek = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]
+  const [matCount, prcCount, caseCount, imgCount, postCount, kanbanCount, hireCount, applicantCount, tbTotal, tbDoctorNeeded, tbInTreatment, tbCompleted, csTotal, csAgreed, csPaid, csLost, staffAll, attendanceToday, chairAll, tbWaiting, funnelCounts] = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as c FROM materials WHERE hospital_id=? OR hospital_id IS NULL').bind(hid).first<{ c: number }>(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM pricing WHERE hospital_id=?').bind(hid).first<{ c: number }>(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM cases WHERE hospital_id=?').bind(hid).first<{ c: number }>(),
@@ -851,18 +852,47 @@ app.get('/api/protected/dashboard', async (c) => {
     c.env.DB.prepare("SELECT COUNT(*) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND status IN ('agreed','payment','treatment','completed')").bind(hid, thisMonth+'%').first<{ c: number }>(),
     c.env.DB.prepare("SELECT COALESCE(SUM(paid_amount),0) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND paid_amount IS NOT NULL").bind(hid, thisMonth+'%').first<{ c: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) as c FROM consultations WHERE hospital_id=? AND consultation_date LIKE ? AND status='lost'").bind(hid, thisMonth+'%').first<{ c: number }>(),
+    // 직원 현황
+    c.env.DB.prepare("SELECT id, name, role, position, team, is_doctor, work_schedule FROM users WHERE hospital_id=? AND is_active=1").bind(hid).all(),
+    c.env.DB.prepare("SELECT user_id, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?").bind(hid, today).all(),
+    // 체어 현황
+    c.env.DB.prepare("SELECT id, chair_number, floor, room_name FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number").bind(hid).all(),
+    c.env.DB.prepare("SELECT chair_id FROM treatment_board WHERE hospital_id=? AND board_date=? AND status IN ('in_treatment','doctor_needed','waiting')").bind(hid, today).all(),
+    // 퍼널 현황
+    c.env.DB.prepare("SELECT current_stage, COUNT(*) as c FROM patient_funnel WHERE hospital_id=? GROUP BY current_stage").bind(hid).all(),
   ])
+
+  // 직원 출근 현황 가공
+  const attendMap: any = {}
+  ;(attendanceToday?.results||[]).forEach((a: any) => { attendMap[a.user_id] = a })
+  const staffSummary = { total: 0, present: 0, doctors: 0, doctorsPresent: 0 }
+  ;(staffAll?.results||[]).forEach((s: any) => {
+    let ws: any = {}; try { ws = JSON.parse(s.work_schedule||'{}') } catch(e) {}
+    const scheduledToday = !!ws[dayOfWeek]
+    if (!scheduledToday) return
+    staffSummary.total++
+    if (s.is_doctor) staffSummary.doctors++
+    if (attendMap[s.id]?.check_in) { staffSummary.present++; if (s.is_doctor) staffSummary.doctorsPresent++ }
+  })
+
+  // 체어 사용 현황
+  const busyChairs = new Set((tbWaiting?.results||[]).map((r: any) => r.chair_id))
+  const chairSummary = { total: (chairAll?.results||[]).length, busy: busyChairs.size, available: (chairAll?.results||[]).length - busyChairs.size }
+
+  // 퍼널 현황
+  const funnelMap: any = {}
+  ;(funnelCounts?.results||[]).forEach((r: any) => { funnelMap[r.current_stage] = r.c })
+
   return c.json({
     materials: matCount?.c||0, pricing: prcCount?.c||0, cases: caseCount?.c||0, caseImages: imgCount?.c||0,
     posts: postCount?.c||0, pendingTasks: kanbanCount?.c||0,
     openJobs: hireCount?.c||0, activeApplicants: applicantCount?.c||0,
-    // 진료보드
     todayPatients: tbTotal?.c||0, doctorNeeded: tbDoctorNeeded?.c||0,
     inTreatment: tbInTreatment?.c||0, completedToday: tbCompleted?.c||0,
-    // 상담관리
     monthConsultations: csTotal?.c||0, monthAgreed: csAgreed?.c||0,
     monthPaid: csPaid?.c||0, monthLost: csLost?.c||0,
     conversionRate: (csTotal?.c||0) > 0 ? Math.round((csAgreed?.c||0)/(csTotal?.c||0)*100) : 0,
+    staff: staffSummary, chairs: chairSummary, funnel: funnelMap,
   })
 })
 
@@ -1799,6 +1829,160 @@ app.post('/api/protected/meetings/:id/minutes/upload', async (c) => {
   return c.json({ success: true, file_url: key, file_name: file.name })
 })
 
+/* ═══ 수가표 (Fee Schedule) ═══ */
+
+// 카테고리 목록
+app.get('/api/protected/fee/categories', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare('SELECT * FROM fee_categories WHERE hospital_id=? ORDER BY sort_order, name').bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
+
+// 카테고리 생성
+app.post('/api/protected/fee/categories', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const { name, icon, color } = await c.req.json()
+  if (!name) return c.json({ error: '카테고리명을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare('INSERT INTO fee_categories (id, hospital_id, name, icon, color) VALUES (?,?,?,?,?)').bind(id, user.hospitalId, name, icon||'🦷', color||'#3b82f6').run()
+  return c.json({ id, name, icon, color })
+})
+
+// 카테고리 삭제
+app.delete('/api/protected/fee/categories/:id', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM fee_categories WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+// 수가 항목 목록
+app.get('/api/protected/fee/items', async (c) => {
+  const user = c.get('user')!
+  const catId = c.req.query('category_id')
+  let sql = 'SELECT fi.*, fc.name as category_name, fc.icon as category_icon FROM fee_items fi JOIN fee_categories fc ON fi.category_id=fc.id WHERE fi.hospital_id=?'
+  const params: any[] = [user.hospitalId]
+  if (catId) { sql += ' AND fi.category_id=?'; params.push(catId) }
+  sql += ' ORDER BY fc.sort_order, fi.sort_order, fi.name'
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
+})
+
+// 수가 항목 생성
+app.post('/api/protected/fee/items', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const { category_id, name, base_price, discount_price, unit, duration_min, description } = await c.req.json()
+  if (!category_id || !name) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(
+    'INSERT INTO fee_items (id, hospital_id, category_id, name, base_price, discount_price, unit, duration_min, description) VALUES (?,?,?,?,?,?,?,?,?)'
+  ).bind(id, user.hospitalId, category_id, name, base_price||0, discount_price||null, unit||'개', duration_min||30, description||'').run()
+  return c.json({ id, name, base_price })
+})
+
+// 수가 항목 수정
+app.put('/api/protected/fee/items/:id', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const sets: string[] = []; const vals: any[] = []
+  for (const key of ['name','base_price','discount_price','unit','duration_min','description','is_active','sort_order']) {
+    if (body[key] !== undefined) { sets.push(`${key}=?`); vals.push(body[key]) }
+  }
+  if (!sets.length) return c.json({ error: '변경 사항 없음' }, 400)
+  sets.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(c.req.param('id'), user.hospitalId)
+  await c.env.DB.prepare(`UPDATE fee_items SET ${sets.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 수가 항목 삭제
+app.delete('/api/protected/fee/items/:id', requireRole('admin','manager'), async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM fee_items WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+/* ═══ 환자 퍼널 (Patient Funnel) ═══ */
+
+const FUNNEL_STAGES = ['awareness','interest','appointment','visit','waiting','diagnosis','consultation','treatment','management','referral']
+
+// 퍼널 목록
+app.get('/api/protected/funnel', async (c) => {
+  const user = c.get('user')!
+  const stage = c.req.query('stage')
+  const limit = parseInt(c.req.query('limit')||'50')
+  let sql = 'SELECT pf.*, u.name as doctor_name FROM patient_funnel pf LEFT JOIN users u ON pf.assigned_doctor=u.id WHERE pf.hospital_id=?'
+  const params: any[] = [user.hospitalId]
+  if (stage) { sql += ' AND pf.current_stage=?'; params.push(stage) }
+  sql += ' ORDER BY pf.updated_at DESC LIMIT ?'; params.push(limit)
+  const rows = await c.env.DB.prepare(sql).bind(...params).all()
+  return c.json(rows.results)
+})
+
+// 퍼널 통계
+app.get('/api/protected/funnel/stats', async (c) => {
+  const user = c.get('user')!
+  const period = c.req.query('period') || 'month'
+  let dateFilter = ''
+  const now = new Date()
+  if (period === 'month') dateFilter = now.toISOString().slice(0,7)
+  else if (period === 'week') {
+    const d = new Date(now); d.setDate(d.getDate() - 7)
+    dateFilter = d.toISOString().slice(0,10)
+  }
+  const countSql = "SELECT current_stage, COUNT(*) as count FROM patient_funnel WHERE hospital_id=?" + (dateFilter ? " AND created_at >= ?" : "") + " GROUP BY current_stage"
+  const params: any[] = [user.hospitalId]; if (dateFilter) params.push(dateFilter)
+  const counts = await c.env.DB.prepare(countSql).bind(...params).all()
+  const amountSql = "SELECT COALESCE(SUM(estimated_amount),0) as est, COALESCE(SUM(agreed_amount),0) as agreed, COALESCE(SUM(paid_amount),0) as paid FROM patient_funnel WHERE hospital_id=?" + (dateFilter ? " AND created_at >= ?" : "")
+  const amounts: any = await c.env.DB.prepare(amountSql).bind(...params).first()
+  const stageMap: any = {}
+  ;(counts?.results||[]).forEach((r: any) => { stageMap[r.current_stage] = r.count })
+  return c.json({ stages: stageMap, estimated: amounts?.est||0, agreed: amounts?.agreed||0, paid: amounts?.paid||0 })
+})
+
+// 퍼널 환자 등록
+app.post('/api/protected/funnel', async (c) => {
+  const user = c.get('user')!
+  const { patient_name, phone, source, current_stage, treatment_type, assigned_doctor, estimated_amount, notes } = await c.req.json()
+  if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  const stage = current_stage || 'awareness'
+  const history = JSON.stringify([{ stage, at: new Date().toISOString(), by: user.id }])
+  await c.env.DB.prepare(
+    'INSERT INTO patient_funnel (id, hospital_id, patient_name, phone, source, current_stage, treatment_type, assigned_doctor, estimated_amount, notes, stage_history) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+  ).bind(id, user.hospitalId, patient_name, phone||'', source||'', stage, treatment_type||'', assigned_doctor||'', estimated_amount||0, notes||'', history).run()
+  return c.json({ id, patient_name, current_stage: stage })
+})
+
+// 퍼널 단계 변경
+app.put('/api/protected/funnel/:id', async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const row: any = await c.env.DB.prepare('SELECT * FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!row) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
+  const sets: string[] = []; const vals: any[] = []
+  for (const key of ['patient_name','phone','source','current_stage','treatment_type','assigned_doctor','estimated_amount','agreed_amount','paid_amount','notes']) {
+    if (body[key] !== undefined) { sets.push(`${key}=?`); vals.push(body[key]) }
+  }
+  // 단계 변경 시 히스토리 추가
+  if (body.current_stage && body.current_stage !== row.current_stage) {
+    let history: any[] = []; try { history = JSON.parse(row.stage_history||'[]') } catch(e) {}
+    history.push({ stage: body.current_stage, from: row.current_stage, at: new Date().toISOString(), by: user.id })
+    sets.push('stage_history=?'); vals.push(JSON.stringify(history))
+  }
+  if (!sets.length) return c.json({ error: '변경 사항 없음' }, 400)
+  sets.push('updated_at=?'); vals.push(new Date().toISOString())
+  vals.push(c.req.param('id'), user.hospitalId)
+  await c.env.DB.prepare(`UPDATE patient_funnel SET ${sets.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  return c.json({ success: true })
+})
+
+// 퍼널 삭제
+app.delete('/api/protected/funnel/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
 /* ─── Main Page (SPA) ─── */
 app.get('*', async (c) => {
   // Serve static files from R2 first, then SPA
@@ -1832,6 +2016,8 @@ function getHTML(): string {
 <script src="/static/modules/clinical.js"><` + `/script>
 <script src="/static/modules/leave.js"><` + `/script>
 <script src="/static/modules/meetings.js"><` + `/script>
+<script src="/static/modules/fee-schedule.js"><` + `/script>
+<script src="/static/modules/funnel.js"><` + `/script>
 <script src="/static/modules/settings.js"><` + `/script>
 </body>
 </html>`

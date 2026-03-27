@@ -373,17 +373,19 @@ function renderAuth() {
 function getNavConfig() {
   return [
     { id: 'dashboard', label: '대시보드', icon: ICONS.dashboard },
-    { id: 'treatment_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
+    { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
+    { id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart },
     {
       id: 'consultation_group', label: '상담관리', icon: ICONS.message,
       children: [
-        { id: 'consultation_pipeline', label: '상담 파이프라인', icon: ICONS.users },
+        { id: 'consultation', label: '상담 파이프라인', icon: ICONS.users },
         { id: 'consultation_stats', label: '전환율 분석', icon: ICONS.chart },
       ]
     },
     {
       id: 'management', label: '진료 관리', icon: ICONS.folder,
       children: [
+        { id: 'fee_schedule', label: '수가표', icon: ICONS.pricing },
         { id: 'materials', label: '설명자료', icon: ICONS.materials },
         { id: 'pricing', label: '비용 안내', icon: ICONS.pricing },
         { id: 'cases', label: '케이스 사진', icon: ICONS.cases },
@@ -682,9 +684,11 @@ function renderPage() {
     hire_applicants: ['지원자 관리', ICONS_HIRE.userPlus],
     hire_interviews: ['인터뷰', ICONS.message],
     hire_onboarding: ['온보딩', ICONS_HIRE.userCheck],
-    treatment_board: ['📡 오늘의 진료보드', ICONS.dashboard],
-    consultation_pipeline: ['💬 상담 파이프라인', ICONS.message],
+    clinical_board: ['📡 오늘의 진료보드', ICONS.dashboard],
+    consultation: ['💬 상담 파이프라인', ICONS.message],
     consultation_stats: ['📊 전환율 분석', ICONS.chart],
+    fee_schedule: ['💰 수가표', ICONS.pricing],
+    funnel: ['🔄 Patient Funnel', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     settings: ['설정', ICONS.settings],
@@ -717,11 +721,13 @@ function renderPage() {
     case 'hire_applicants': M.hire.renderHireApplicants(body, actions); break;
     case 'hire_interviews': M.hire.renderHireInterviews(body, actions); break;
     case 'hire_onboarding': M.hire.renderHireOnboarding(body, actions); break;
-    case 'treatment_board': M.clinical.renderTreatmentBoard(body, actions); break;
-    case 'consultation_pipeline': M.clinical.renderConsultationPipeline(body, actions); break;
+    case 'clinical_board': M.clinical.renderTreatmentBoard(body, actions); break;
+    case 'consultation': M.clinical.renderConsultationPipeline(body, actions); break;
     case 'consultation_stats': M.clinical.renderConsultationStats(body, actions); break;
     case 'leave_management': M.leave.renderLeaveManagement(body, actions); break;
     case 'meetings': M.meetings.renderMeetings(body, actions); break;
+    case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
+    case 'funnel': M.funnel.renderFunnel(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }
