@@ -772,6 +772,11 @@ function openRecordForm(record, staffData, onSave) {
     if (counSel && !counSel.value && pt.assigned_counselor) {
       for (const opt of counSel.options) { if (opt.value === pt.assigned_counselor) { counSel.value = pt.assigned_counselor; break; } }
     }
+    // 데스크 자동채움
+    const deskSel = form.querySelector('[name="desk_name"]');
+    if (deskSel && !deskSel.value && pt.desk_staff) {
+      for (const opt of deskSel.options) { if (opt.value === pt.desk_staff) { deskSel.value = pt.desk_staff; break; } }
+    }
     // 환자구분
     const typeSel = form.querySelector('[name="patient_type"]');
     if (typeSel && pt.patient_type) typeSel.value = pt.patient_type;

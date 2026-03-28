@@ -2572,6 +2572,7 @@ app.get('/api/protected/patients', async (c) => {
   const status = c.req.query('status')
   const from = c.req.query('from')
   const to = c.req.query('to')
+  const sido = c.req.query('sido')
   const limit = parseInt(c.req.query('limit') || '200')
   const offset = parseInt(c.req.query('offset') || '0')
 
@@ -2583,6 +2584,7 @@ app.get('/api/protected/patients', async (c) => {
   if (doctor) { sql += ' AND primary_doctor=?'; params.push(doctor) }
   if (counselor) { sql += ' AND assigned_counselor=?'; params.push(counselor) }
   if (area) { sql += ' AND treatment_area=?'; params.push(area) }
+  if (sido) { sql += ' AND addr_sido=?'; params.push(sido) }
   if (status) { sql += ' AND status=?'; params.push(status) }
   else { sql += " AND status='active'" }
   if (from) { sql += ' AND first_visit_date>=?'; params.push(from) }
@@ -2598,6 +2600,7 @@ app.get('/api/protected/patients', async (c) => {
   if (doctor) { countSql += ' AND primary_doctor=?'; countParams.push(doctor) }
   if (counselor) { countSql += ' AND assigned_counselor=?'; countParams.push(counselor) }
   if (area) { countSql += ' AND treatment_area=?'; countParams.push(area) }
+  if (sido) { countSql += ' AND addr_sido=?'; countParams.push(sido) }
   if (status) { countSql += ' AND status=?'; countParams.push(status) }
   else { countSql += " AND status='active'" }
   if (from) { countSql += ' AND first_visit_date>=?'; countParams.push(from) }
@@ -2612,7 +2615,7 @@ app.get('/api/protected/patients/search/autocomplete', async (c) => {
   const q = c.req.query('q')
   if (!q || q.length < 1) return c.json([])
   const rows = await c.env.DB.prepare(
-    `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, desk_staff, first_visit_date, last_visit_date, visit_count
+    `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, desk_staff, addr_sido, addr_sigungu, first_visit_date, last_visit_date, visit_count
     FROM patients WHERE hospital_id=? AND status='active' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ?)
     ORDER BY last_visit_date DESC LIMIT 15`
   ).bind(user.hospitalId, `%${q}%`, `%${q}%`, `%${q}%`).all()
@@ -2658,8 +2661,8 @@ app.post('/api/protected/patients', async (c) => {
     INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender,
       patient_type, visit_source, visit_source_detail, referrer_name,
       first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, desk_staff,
-      visit_reason, address, memo, status, kakao_registered, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      visit_reason, address, addr_sido, addr_sigungu, addr_detail, memo, status, kakao_registered, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, user.hospitalId,
     body.chart_number||'', body.patient_name, body.phone||'', body.birth_date||'', body.gender||'',
@@ -2669,7 +2672,8 @@ app.post('/api/protected/patients', async (c) => {
     body.last_visit_date || body.first_visit_date || new Date().toISOString().slice(0,10),
     body.visit_count||1,
     body.treatment_area||'', body.primary_doctor||'', body.assigned_counselor||'', body.desk_staff||'',
-    body.visit_reason||'', body.address||'', body.memo||'',
+    body.visit_reason||'', body.address||'', body.addr_sido||'', body.addr_sigungu||'', body.addr_detail||'',
+    body.memo||'',
     body.status||'active', body.kakao_registered||'', user.id
   ).run()
   return c.json({ success: true, id })
@@ -2683,7 +2687,7 @@ app.put('/api/protected/patients/:id', async (c) => {
   const fields = ['chart_number','patient_name','phone','birth_date','gender','patient_type',
     'visit_source','visit_source_detail','referrer_name','first_visit_date','last_visit_date',
     'visit_count','treatment_area','primary_doctor','assigned_counselor','desk_staff',
-    'visit_reason','address','memo','status','kakao_registered']
+    'visit_reason','address','addr_sido','addr_sigungu','addr_detail','memo','status','kakao_registered']
   const updates: string[] = []; const vals: any[] = []
   for (const f of fields) {
     if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
