@@ -385,6 +385,10 @@ function getNavConfig() {
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
         { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
         { id: 'complaints_stats', label: '컴플레인 통계', icon: ICONS.chart },
+        { id: 'reservations', label: '📅 예약 관리', icon: ICONS.calendar },
+        { id: 'reservation_stats', label: '📅 예약 통계', icon: ICONS.chart },
+        { id: 'wait_times', label: '⏱️ 대기시간 관리', icon: ICONS.clock || ICONS.calendar },
+        { id: 'wait_time_stats', label: '⏱️ 대기시간 통계', icon: ICONS.chart },
       ]
     },
     {
@@ -442,6 +446,8 @@ function getNavConfig() {
         { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
+        { id: 'parking', label: '🅿️ 주차권 관리', icon: ICONS.cart },
+        { id: 'parking_stats', label: '🅿️ 주차권 통계', icon: ICONS.chart },
       ]
     },
     {
@@ -722,6 +728,12 @@ function renderPage() {
     kpi_stats: ['📊 KPI 통계', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
     kpi_targets: ['🎯 목표 설정', ICONS.star],
+    reservations: ['📅 예약 관리', ICONS.calendar],
+    reservation_stats: ['📅 예약 통계', ICONS.chart],
+    wait_times: ['⏱️ 대기시간 관리', ICONS.clock || ICONS.calendar],
+    wait_time_stats: ['⏱️ 대기시간 통계', ICONS.chart],
+    parking: ['🅿️ 주차권 관리', ICONS.cart],
+    parking_stats: ['🅿️ 주차권 통계', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     settings: ['설정', ICONS.settings],
@@ -772,6 +784,12 @@ function renderPage() {
     case 'kpi_stats': M.kpiStats.renderKpiStats(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
     case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
+    case 'reservations': M.reservations.renderReservations(body, actions); break;
+    case 'reservation_stats': M.reservations.renderReservationStats(body, actions); break;
+    case 'wait_times': M.waitTimes.renderWaitTimes(body, actions); break;
+    case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
+    case 'parking': M.parking.renderParking(body, actions); break;
+    case 'parking_stats': M.parking.renderParkingStats(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }
