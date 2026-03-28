@@ -13,7 +13,7 @@ operations.get('/reservations', async (c) => {
   if (from) { where += ' AND record_date >= ?'; params.push(from) }
   if (to) { where += ' AND record_date <= ?'; params.push(to) }
   if (search) { where += ' AND (memo LIKE ?)'; params.push(`%${search}%`) }
-  const rows = await c.env.DB.prepare(`SELECT * FROM reservation_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
+  const rows = await c.env.DB.prepare(`SELECT id, record_date, day_of_week, cancel_count, dentweb_cancel_count, fulfillment_rate, memo, created_by, created_at FROM reservation_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
   return c.json({ data: rows.results })
 })
 
@@ -76,7 +76,7 @@ operations.get('/wait-times', async (c) => {
   let where = 'hospital_id=?'; const params: any[] = [user.hospitalId]
   if (from) { where += ' AND record_date >= ?'; params.push(from) }
   if (to) { where += ' AND record_date <= ?'; params.push(to) }
-  const rows = await c.env.DB.prepare(`SELECT * FROM wait_time_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
+  const rows = await c.env.DB.prepare(`SELECT id, record_date, day_of_week, total_wait_minutes, avg_wait_minutes, memo, created_by, created_at FROM wait_time_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
   return c.json({ data: rows.results })
 })
 
@@ -139,7 +139,7 @@ operations.get('/parking', async (c) => {
   let where = 'hospital_id=?'; const params: any[] = [user.hospitalId]
   if (from) { where += ' AND record_date >= ?'; params.push(from) }
   if (to) { where += ' AND record_date <= ?'; params.push(to) }
-  const rows = await c.env.DB.prepare(`SELECT * FROM parking_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
+  const rows = await c.env.DB.prepare(`SELECT id, record_date, day_of_week, ticket_count, memo, created_by, created_at FROM parking_records WHERE ${where} ORDER BY record_date DESC LIMIT 500`).bind(...params).all()
   return c.json({ data: rows.results })
 })
 

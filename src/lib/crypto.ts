@@ -64,5 +64,5 @@ export async function verifyJWT(token: string, secret: string): Promise<Record<s
     const payload = JSON.parse(b64UrlDecodeStr(body))
     if (payload.exp && payload.exp < Date.now()) return null
     return payload
-  } catch { return null }
+  } catch { return null } // invalid token format, signature, or expiration → reject silently
 }

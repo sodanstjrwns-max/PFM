@@ -387,7 +387,7 @@ async function renderStaffSupplies(body, actions) {
           openSupplyDetail(el.dataset.id);
         });
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadBoard();
 

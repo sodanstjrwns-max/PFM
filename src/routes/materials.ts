@@ -8,7 +8,7 @@ const materials = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 materials.get('/categories/:module', async (c) => {
   const mod = sanitizeString(c.req.param('module'), 50)
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM categories WHERE module=? AND (hospital_id IS NULL OR hospital_id=?) ORDER BY sort_order').bind(mod, user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, name, module, hospital_id, sort_order, created_at FROM categories WHERE module=? AND (hospital_id IS NULL OR hospital_id=?) ORDER BY sort_order').bind(mod, user.hospitalId).all()
   return c.json(rows.results)
 })
 
@@ -134,7 +134,7 @@ materials.get('/cases/:id', async (c) => {
   const id = c.req.param('id')
   const cs: any = await c.env.DB.prepare('SELECT cs.*, c.name as category_name FROM cases cs JOIN categories c ON cs.category_id=c.id WHERE cs.id=? AND cs.hospital_id=?').bind(id, user.hospitalId).first()
   if (!cs) return c.json({ error: 'Not found' }, 404)
-  const images = await c.env.DB.prepare('SELECT * FROM case_images WHERE case_id=? ORDER BY sort_order').bind(id).all()
+  const images = await c.env.DB.prepare('SELECT id, case_id, image_url, image_type, caption, sort_order FROM case_images WHERE case_id=? ORDER BY sort_order').bind(id).all()
   return c.json({ ...cs, images: images.results })
 })
 

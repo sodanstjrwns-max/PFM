@@ -24,7 +24,7 @@ async function renderDashboard(body) {
     const stats = await api('/api/protected/dashboard');
     renderDashboardContent(body, stats);
   } catch(e) {
-    body.innerHTML = `<div style="color:#ef4444;text-align:center;padding:40px">대시보드 로딩 실패: ${e.message}</div>`;
+    body.innerHTML = `<div style="color:#ef4444;text-align:center;padding:40px">대시보드 로딩 실패: ${esc(e.message)}</div>`;
   }
 }
 

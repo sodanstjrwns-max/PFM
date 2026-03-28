@@ -95,7 +95,7 @@ async function renderSettings(body) {
       renderCoreRegions(hospitalSettings);
     }
   } catch(e) {
-    document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${e.message}</div>`;
+    document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
   }
 }
 

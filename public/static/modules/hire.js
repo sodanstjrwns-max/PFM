@@ -52,7 +52,7 @@ async function renderHirePostings(body, actions) {
       container.querySelectorAll('.hire-posting-card').forEach(card => {
         card.addEventListener('click', () => openPostingDetail(card.dataset.id, postings, loadPostings));
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadPostings();
 
@@ -254,7 +254,7 @@ async function renderHireApplicants(body, actions) {
           openApplicantDetail(el.dataset.id, applicants, loadApplicants);
         });
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadApplicants();
 
@@ -423,7 +423,7 @@ async function renderHireInterviews(body, actions) {
           if (iv) openInterviewDetail(iv, loadInterviews);
         });
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadInterviews();
 
@@ -575,7 +575,7 @@ async function renderHireOnboarding(body, actions) {
           toast(statusLabels[nextStatus]+' 처리됨','success'); loadOnboarding();
         });
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadOnboarding();
 

@@ -232,15 +232,16 @@ patients.post('/bulk', requireRole('admin'), async (c) => {
   if (!Array.isArray(patientList) || patientList.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
   if (patientList.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
+  const errors: Array<{index:number; name:string; error:string}> = []
   for (const p of patientList) {
     const id = 'pt-' + crypto.randomUUID().slice(0,8)
     try {
       await c.env.DB.prepare(`INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, visit_source_detail, referrer_name, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, visit_reason, address, memo, status, kakao_registered, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(id, user.hospitalId, sanitizeString(p.chart_number||'',50), sanitizeString(p.patient_name||'',100), sanitizeString(p.phone||'',20), sanitizeString(p.birth_date||'',10), sanitizeString(p.gender||'',10), sanitizeString(p.patient_type||'new',20), sanitizeString(p.visit_source||'',100), sanitizeString(p.visit_source_detail||'',200), sanitizeString(p.referrer_name||'',100), sanitizeString(p.first_visit_date||'',10), sanitizeString(p.last_visit_date||'',10), sanitizeNumber(p.visit_count,1,0,99999), sanitizeString(p.treatment_area||'',100), sanitizeString(p.primary_doctor||'',100), sanitizeString(p.assigned_counselor||'',100), sanitizeString(p.visit_reason||'',500), sanitizeString(p.address||'',500), sanitizeString(p.memo||'',2000), 'active', sanitizeString(p.kakao_registered||'',5), user.id).run()
       inserted++
-    } catch(e) {}
+    } catch(e) { errors.push({ index: patientList.indexOf(p), name: p.patient_name || '(미입력)', error: (e as Error).message }) }
   }
-  return c.json({ success: true, inserted, total: patientList.length })
+  return c.json({ success: true, inserted, failed: errors.length, total: patientList.length, ...(errors.length > 0 ? { errors: errors.slice(0, 5) } : {}) })
 })
 
 

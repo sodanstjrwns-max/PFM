@@ -147,7 +147,7 @@ async function renderHRDashboard(body, actions) {
           </div>
         </div>
       `;
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadDashboard();
 
@@ -258,7 +258,7 @@ async function renderStaffManagement(body, actions) {
           row.addEventListener('click', () => openStaffEditor(row.dataset.id, staff, loadStaff));
         });
       }
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadStaff();
 

@@ -7,7 +7,7 @@ const clinical = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 /* ─── Chairs ─── */
 clinical.get('/chairs', async (c) => {
   const user = c.get('user')!
-  const chairs = await c.env.DB.prepare('SELECT * FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number').bind(user.hospitalId).all()
+  const chairs = await c.env.DB.prepare('SELECT id, chair_number, floor, room_name, is_active, sort_order FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number').bind(user.hospitalId).all()
   return c.json(chairs.results)
 })
 

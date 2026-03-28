@@ -26,7 +26,7 @@ complaints.get('/', async (c) => {
 
   const [countResult, rows] = await Promise.all([
     c.env.DB.prepare(`SELECT COUNT(*) as c FROM complaints WHERE ${where}`).bind(...params).first(),
-    c.env.DB.prepare(`SELECT * FROM complaints WHERE ${where} ORDER BY complaint_date DESC, created_at DESC LIMIT ? OFFSET ?`).bind(...params, limit, offset).all(),
+    c.env.DB.prepare(`SELECT id, complaint_date, patient_name, part, category, description, responder, resolver, resolution, status, severity, created_by, created_at FROM complaints WHERE ${where} ORDER BY complaint_date DESC, created_at DESC LIMIT ? OFFSET ?`).bind(...params, limit, offset).all(),
   ])
   return c.json({ total: (countResult as any)?.c || 0, data: rows.results, page, limit })
 })

@@ -249,7 +249,7 @@ async function renderTreatmentBoard(body, actions) {
         });
       });
 
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadBoard();
 
@@ -547,7 +547,7 @@ async function renderConsultationPipeline(body, actions) {
           openConsultDetail(el.dataset.id, consultations, loadPipeline);
         });
       });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadPipeline();
 
@@ -811,7 +811,7 @@ async function renderConsultationStats(body, actions) {
             </div>
           </div>
         </div>`;
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${e.message}</p></div>`; }
+    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadStats();
 

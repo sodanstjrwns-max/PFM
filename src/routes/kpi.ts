@@ -14,7 +14,7 @@ kpi.get('/targets', async (c) => {
 
 kpi.get('/targets/list', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 12').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes, updated_at FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 12').bind(user.hospitalId).all()
   return c.json(rows?.results || [])
 })
 
@@ -254,7 +254,7 @@ kpi.get('/stats', async (c) => {
     FROM daily_records WHERE ${baseWhere} AND day_of_week != '' GROUP BY day_of_week`).bind(...params).all(),
     c.env.DB.prepare(`SELECT ${dateGroupExpr} as period_key, ${sumFields}
     FROM daily_records WHERE ${baseWhere} GROUP BY period_key ORDER BY period_key`).bind(...params).all(),
-    c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 24').bind(user.hospitalId).all(),
+    c.env.DB.prepare('SELECT id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 24').bind(user.hospitalId).all(),
   ]
   const results = await Promise.all(queries)
   return c.json({
@@ -337,7 +337,7 @@ kpi.get('/dashboard', async (c) => {
 kpi.get('/staff-presets', async (c) => {
   const user = c.get('user')!
   const type = sanitizeString(c.req.query('type') || '', 30)
-  let sql = 'SELECT * FROM staff_presets WHERE hospital_id=? AND is_active=1'
+  let sql = 'SELECT id, name, preset_type, sort_order FROM staff_presets WHERE hospital_id=? AND is_active=1'
   const params: any[] = [user.hospitalId]
   if (type) { sql += ' AND preset_type=?'; params.push(type) }
   sql += ' ORDER BY sort_order, name LIMIT 200'

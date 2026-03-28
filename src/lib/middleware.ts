@@ -1,6 +1,23 @@
 import type { AppType } from './types'
 import { verifyJWT } from './crypto'
 
+/* ═══ Query Constants ═══ */
+export const QUERY_LIMITS = {
+  DEFAULT: 200,    // 기본 목록 조회
+  SMALL: 50,       // 소규모 목록 (자동완성, 프리셋 등)
+  MEDIUM: 200,     // 중간 목록 (대부분의 CRUD)
+  LARGE: 500,      // 대량 목록 (일괄조회, 통계)
+  MAX_BULK: 500,   // 벌크 작업 최대
+} as const
+
+/* helper: parse pagination from query */
+export function parsePagination(c: any, maxLimit = QUERY_LIMITS.LARGE): { limit: number; offset: number; page: number } {
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || String(QUERY_LIMITS.DEFAULT)) || QUERY_LIMITS.DEFAULT, 1), maxLimit)
+  const page = Math.max(parseInt(c.req.query('page') || '1') || 1, 1)
+  const offset = parseInt(c.req.query('offset') || '') || (page - 1) * limit
+  return { limit, offset: Math.max(offset, 0), page }
+}
+
 /* ═══ Security Headers Middleware ═══ */
 export function securityHeaders(app: AppType) {
   app.use('*', async (c, next) => {

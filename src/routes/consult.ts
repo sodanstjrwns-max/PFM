@@ -12,7 +12,7 @@ consult.get('/', async (c) => {
   const category = sanitizeString(c.req.query('category') || '', 50)
   const confirmed = sanitizeString(c.req.query('confirmed') || '', 5)
   const patientType = sanitizeString(c.req.query('patient_type') || '', 20)
-  let sql = 'SELECT id, record_date, chart_number, patient_name, patient_type, visit_source, doctor_name, counselor_name, desk_name, treatment_category, treatment_confirmed, planned_amount, agreed_amount, paid_amount, next_visit_date, status, notes, created_at FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
+  let sql = 'SELECT id, record_date, chart_number, patient_name, patient_type, visit_source, doctor_name, counselor_name, desk_name, treatment_category, treatment_confirmed, planned_amount, agreed_amount, discount_note, appointment_made, recall_done, kakao_registered, pdf_provided, notes, created_at FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
   const params: any[] = [user.hospitalId, month + '%']
   if (counselor) { sql += ' AND counselor_name = ?'; params.push(counselor) }
   if (doctor) { sql += ' AND doctor_name = ?'; params.push(doctor) }
@@ -187,15 +187,16 @@ consult.post('/bulk', async (c) => {
   if (!Array.isArray(records) || records.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
   if (records.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
+  const errors: Array<{index:number; name:string; error:string}> = []
   for (const r of records) {
     const id = 'cr-' + crypto.randomUUID().slice(0,8)
     try {
       await c.env.DB.prepare(`INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(id, user.hospitalId, sanitizeString(r.record_date||'',10), sanitizeString(r.chart_number||'',50), sanitizeString(r.patient_name||'',100), sanitizeString(r.doctor_name||'',100), sanitizeString(r.counselor_name||'',100), sanitizeNumber(r.planned_amount,0,0,999999999), sanitizeNumber(r.agreed_amount,0,0,999999999), sanitizeString(r.discount_note||'',500), sanitizeString(r.patient_type||'new',20), sanitizeString(r.treatment_category||'general',100), sanitizeString(r.treatment_confirmed||'',5), sanitizeString(r.appointment_made||'',5), sanitizeString(r.recall_done||'',5), sanitizeString(r.kakao_registered||'',5), sanitizeString(r.pdf_provided||'',5), sanitizeString(r.visit_source||'',100), sanitizeString(r.notes||'',2000), user.id).run()
       inserted++
-    } catch(e) {}
+    } catch(e) { errors.push({ index: records.indexOf(r), name: r.patient_name || '(미입력)', error: (e as Error).message }) }
   }
-  return c.json({ success: true, inserted, total: records.length })
+  return c.json({ success: true, inserted, failed: errors.length, total: records.length, ...(errors.length > 0 ? { errors: errors.slice(0, 5) } : {}) })
 })
 
 export default consult

@@ -82,7 +82,7 @@ community.get('/kanban/:boardType', async (c) => {
   const user = c.get('user')!
   const boardType = sanitizeString(c.req.param('boardType'), 50)
   const department = sanitizeString(c.req.query('department') || '', 50)
-  let board: any = await c.env.DB.prepare('SELECT * FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
+  let board: any = await c.env.DB.prepare('SELECT id, board_type, title, created_at FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
   if (!board) {
     const id = crypto.randomUUID()
     const title = boardType === 'purchase' ? '물품 구매 요청' : boardType === 'repair' ? '수리/정비 요청' : '칸반보드'
@@ -199,7 +199,7 @@ community.delete('/staff-supplies/:id', async (c) => {
 /* ─── Marketing ─── */
 community.get('/marketing/channels', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM marketing_channels WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, name, monthly_cost, is_active, created_at FROM marketing_channels WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
   return c.json(rows.results)
 })
 
@@ -249,7 +249,7 @@ community.get('/reviews', async (c) => {
   const page = sanitizeNumber(c.req.query('page'), 1, 1, 1000)
   const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
   const offset = (page - 1) * limit
-  const rows = await c.env.DB.prepare('SELECT * FROM reviews WHERE hospital_id=? ORDER BY review_date DESC, created_at DESC LIMIT ? OFFSET ?').bind(user.hospitalId, limit, offset).all()
+  const rows = await c.env.DB.prepare('SELECT id, platform, reviewer_name, rating, content, reply, review_date, created_at FROM reviews WHERE hospital_id=? ORDER BY review_date DESC, created_at DESC LIMIT ? OFFSET ?').bind(user.hospitalId, limit, offset).all()
   return c.json({ data: rows.results, page, limit })
 })
 
@@ -272,7 +272,7 @@ community.post('/reviews', async (c) => {
 /* ─── Checklists ─── */
 community.get('/checklists', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM checklists WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, title, checklist_type, items, created_at FROM checklists WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
   return c.json(rows.results)
 })
 
