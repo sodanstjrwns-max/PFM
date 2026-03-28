@@ -42,6 +42,13 @@ const RECOGNITION_PATHS = [
   { key: 'etc', label: '기타' },
 ];
 
+const CALL_PURPOSES_INBOUND = [
+  { key: 'reservation', label: '예약', icon: '📅', color: '#3b82f6' },
+  { key: 'reservation_change', label: '예약변경', icon: '🔄', color: '#8b5cf6' },
+  { key: 'complaint', label: '컴플레인', icon: '⚠️', color: '#ef4444' },
+  { key: 'general_inquiry', label: '기타 문의', icon: '💬', color: '#6b7280' },
+];
+
 const RESERVATION_STATUS = [
   { key: 'reserved', label: '예약', icon: '✅', color: '#22c55e' },
   { key: 'not_reserved', label: '미예약', icon: '❌', color: '#ef4444' },
@@ -62,6 +69,10 @@ function getRecPath(key) {
   return RECOGNITION_PATHS.find(r => r.key === key) || { key, label: key || '-' };
 }
 
+function getCallPurposeIn(key) {
+  return CALL_PURPOSES_INBOUND.find(p => p.key === key) || { key, label: key || '-', icon: '📝', color: '#94a3b8' };
+}
+
 // ═══ 메인 렌더링 ═══
 async function renderCallsInbound(body, actions) {
   const isManager = ['admin','manager'].includes(state.user.role);
@@ -75,7 +86,7 @@ async function renderCallsInbound(body, actions) {
   
   body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
   
-  let filters = { search: '', staff: '', reservation: '' };
+  let filters = { search: '', staff: '', reservation: '', purpose: '' };
   
   async function loadRecords(month) {
     currentMonth = month;
@@ -85,6 +96,7 @@ async function renderCallsInbound(body, actions) {
     if (filters.search) params.set('search', filters.search);
     if (filters.staff) params.set('staff', filters.staff);
     if (filters.reservation) params.set('reservation', filters.reservation);
+    if (filters.purpose) params.set('purpose', filters.purpose);
     
     try {
       const data = await api(`/api/protected/calls?${params}`);
@@ -105,6 +117,14 @@ async function renderCallsInbound(body, actions) {
     const totalNew = records.filter(r => r.patient_type === 'new').length;
     const totalExisting = records.filter(r => r.patient_type === 'existing').length;
     const resRate = records.length > 0 ? Math.round(totalReserved / records.length * 100) : 0;
+    
+    // 콜 목적별 집계
+    const purposeCounts = {};
+    records.forEach(r => {
+      if (r.call_purpose) {
+        purposeCounts[r.call_purpose] = (purposeCounts[r.call_purpose] || 0) + 1;
+      }
+    });
     
     body.innerHTML = `
       <!-- 월 네비게이션 -->
@@ -142,6 +162,17 @@ async function renderCallsInbound(body, actions) {
         </div>
       </div>
       
+      <!-- 콜 목적 요약 칩 -->
+      ${Object.keys(purposeCounts).length > 0 ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        ${Object.entries(purposeCounts).sort((a,b) => b[1]-a[1]).map(([key, cnt]) => {
+          const p = getCallPurposeIn(key);
+          return \`<span style="background:\${p.color}10;border:1px solid \${p.color}30;border-radius:20px;padding:4px 10px;font-size:11px;display:inline-flex;align-items:center;gap:4px">
+            \${p.icon} \${esc(p.label)} <strong style="color:\${p.color}">\${cnt}</strong>
+          </span>\`;
+        }).join('')}
+      </div>` : ''}
+      
       <!-- 검색/필터 -->
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:1;min-width:180px;position:relative">
@@ -151,6 +182,10 @@ async function renderCallsInbound(body, actions) {
         <select id="ciFilterStaff" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
           <option value="">상담원 전체</option>
           ${STAFF_INBOUND.map(s => `<option value="${esc(s)}" ${filters.staff===s?'selected':''}>${esc(s)}</option>`).join('')}
+        </select>
+        <select id="ciFilterPurpose" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+          <option value="">콜 목적 전체</option>
+          ${CALL_PURPOSES_INBOUND.map(p => `<option value="${p.key}" ${filters.purpose===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
         </select>
         <select id="ciFilterRes" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
           <option value="">예약여부 전체</option>
@@ -170,17 +205,19 @@ async function renderCallsInbound(body, actions) {
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">상담원</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">관심진료</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">인지경로</th>
+              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">콜 목적</th>
               <th style="padding:10px 8px;text-align:center;font-weight:700;font-size:11px;color:var(--text-muted)">예약여부</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">예약일</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted);max-width:200px">메모</th>
             </tr>
           </thead>
           <tbody>
-            ${records.length === 0 ? `<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 인바운드 콜이 없습니다</td></tr>` : ''}
+            ${records.length === 0 ? `<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 인바운드 콜이 없습니다</td></tr>` : ''}
             ${records.map(r => {
               const treat = getTreatment(r.treatment_interest);
               const res = getResStatus(r.reservation_status);
               const path = getRecPath(r.recognition_path);
+              const purp = getCallPurposeIn(r.call_purpose);
               const ptColor = r.patient_type === 'new' ? '#3b82f6' : '#22c55e';
               const ptLabel = r.patient_type === 'new' ? '신환' : r.patient_type === 'existing' ? '구환' : '-';
               return `<tr class="ci-row" data-id="${r.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
@@ -191,6 +228,7 @@ async function renderCallsInbound(body, actions) {
                 <td style="padding:8px;font-size:11px">${esc(r.staff_name||'-')}</td>
                 <td style="padding:8px"><span style="background:${treat.color}20;color:${treat.color};padding:2px 6px;border-radius:6px;font-size:10px;font-weight:600">${esc(treat.label)}</span></td>
                 <td style="padding:8px;font-size:11px">${esc(path.label)}</td>
+                <td style="padding:8px"><span style="background:${purp.color}15;color:${purp.color};padding:2px 6px;border-radius:6px;font-size:10px;font-weight:600">${purp.icon} ${esc(purp.label)}</span></td>
                 <td style="padding:8px;text-align:center"><span style="color:${res.color};font-weight:700;font-size:12px">${res.icon}</span> <span style="font-size:10px;color:${res.color}">${res.label}</span></td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${fmtDate(r.reservation_date)}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.comment||'-')}</td>
@@ -212,6 +250,7 @@ async function renderCallsInbound(body, actions) {
       searchT = setTimeout(() => { filters.search = e.target.value.trim(); loadRecords(currentMonth); }, 300);
     });
     document.getElementById('ciFilterStaff')?.addEventListener('change', (e) => { filters.staff = e.target.value; loadRecords(currentMonth); });
+    document.getElementById('ciFilterPurpose')?.addEventListener('change', (e) => { filters.purpose = e.target.value; loadRecords(currentMonth); });
     document.getElementById('ciFilterRes')?.addEventListener('change', (e) => { filters.reservation = e.target.value; loadRecords(currentMonth); });
     
     document.querySelectorAll('.ci-row').forEach(row => {
@@ -299,17 +338,16 @@ function openCallForm(callType, record, onSave) {
           </div>
         </div>
         
-        <!-- 통화 목적 (아웃바운드만) -->
-        ${!isInbound ? `
+        <!-- 통화 목적 -->
         <div style="${cs}">
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:6px">
-            <span style="background:#f59e0b;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">목적</span> 통화 목적
+            <span style="background:${isInbound?'#3b82f6':'#f59e0b'};color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">목적</span> 콜의 목적
           </div>
           <select name="call_purpose" style="${ss}">
-            <option value="">-- 통화 목적 선택 --</option>
-            ${CALL_PURPOSES.map(p => `<option value="${p.key}" ${r.call_purpose===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
+            <option value="">-- 콜의 목적 선택 --</option>
+            ${(isInbound ? CALL_PURPOSES_INBOUND : CALL_PURPOSES).map(p => `<option value="${p.key}" ${r.call_purpose===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
           </select>
-        </div>` : ''}
+        </div>
         
         <!-- 인지경로 (인바운드만) -->
         ${isInbound ? `
@@ -499,6 +537,21 @@ async function openCallStats(callType, month) {
           </div>
         </div>` : ''}
         
+        ${stats.byPurpose && stats.byPurpose.length > 0 ? `
+        <div style="margin-bottom:16px">
+          <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">콜 목적별</h4>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            ${stats.byPurpose.map(p => {
+              const purp = isInbound ? (CALL_PURPOSES_INBOUND.find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' }) : ((PFM._callShared?.CALL_PURPOSES || []).find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' });
+              return \`<div style="display:flex;align-items:center;gap:8px;font-size:12px">
+                <span style="width:4px;height:18px;border-radius:2px;background:\${purp.color}"></span>
+                <span style="flex:1">\${purp.icon} \${esc(purp.label)}</span>
+                <strong>\${p.c}건</strong>
+              </div>\`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+        
         ${stats.byTreatment.length > 0 ? `
         <div style="margin-bottom:16px">
           <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">관심 진료별</h4>
@@ -548,8 +601,8 @@ const CALL_PURPOSES = [
 PFM.modules.callsInbound = { renderCallsInbound };
 // 공유 데이터 (아웃바운드 모듈에서 참조)
 PFM._callShared = {
-  STAFF_OUTBOUND, CALL_PURPOSES, TREATMENT_INTEREST, RESERVATION_STATUS,
-  RECOGNITION_PATHS, openCallForm, openCallStats, getTreatment, getResStatus, getRecPath, fmtDate
+  STAFF_OUTBOUND, CALL_PURPOSES, CALL_PURPOSES_INBOUND, TREATMENT_INTEREST, RESERVATION_STATUS,
+  RECOGNITION_PATHS, openCallForm, openCallStats, getTreatment, getResStatus, getRecPath, getCallPurposeIn, fmtDate
 };
 
 })(window.PFM);

@@ -2586,12 +2586,13 @@ app.get('/api/protected/calls/stats', async (c) => {
   const user = c.get('user')!
   const callType = c.req.query('type') || 'inbound'
   const month = c.req.query('month') || new Date().toISOString().slice(0,7)
-  const [total, byStaff, byReservation, byTreatment, byPatientType] = await Promise.all([
+  const [total, byStaff, byReservation, byTreatment, byPatientType, byPurpose] = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?').bind(user.hospitalId, callType, month+'%').first(),
     c.env.DB.prepare('SELECT staff_name, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND staff_name != "" GROUP BY staff_name ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
     c.env.DB.prepare('SELECT reservation_status, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? GROUP BY reservation_status ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
     c.env.DB.prepare('SELECT treatment_interest, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND treatment_interest != "" GROUP BY treatment_interest ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
     c.env.DB.prepare('SELECT patient_type, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND patient_type != "" GROUP BY patient_type ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT call_purpose, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND call_purpose != "" GROUP BY call_purpose ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
   ])
   return c.json({
     total: (total as any)?.c || 0,
@@ -2599,6 +2600,7 @@ app.get('/api/protected/calls/stats', async (c) => {
     byReservation: byReservation.results,
     byTreatment: byTreatment.results,
     byPatientType: byPatientType.results,
+    byPurpose: byPurpose.results,
   })
 })
 
