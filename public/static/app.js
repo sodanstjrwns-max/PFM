@@ -391,6 +391,7 @@ function getNavConfig() {
       children: [
         { id: 'calls_inbound', label: '📞 인바운드', icon: ICONS.phone || ICONS.message },
         { id: 'calls_outbound', label: '📱 아웃바운드', icon: ICONS.phone || ICONS.message },
+        { id: 'calls_stats', label: '📊 콜 통계', icon: ICONS.chart },
       ]
     });
   }
@@ -719,6 +720,7 @@ function renderPage() {
     patients: ['👥 환자 DB', ICONS.users],
     calls_inbound: ['📞 인바운드 콜', ICONS.phone || ICONS.message],
     calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
+    calls_stats: ['📊 콜 통계', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
     kpi_targets: ['🎯 목표 설정', ICONS.star],
@@ -764,6 +766,7 @@ function renderPage() {
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
+    case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
     case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
     case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;

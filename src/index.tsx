@@ -2856,6 +2856,7 @@ function getHTML(): string {
 <script src="/static/modules/patients.js"><` + `/script>
 <script src="/static/modules/calls-inbound.js"><` + `/script>
 <script src="/static/modules/calls-outbound.js"><` + `/script>
+<script src="/static/modules/calls-stats.js"><` + `/script>
 <script src="/static/modules/leave.js"><` + `/script>
 <script src="/static/modules/meetings.js"><` + `/script>
 <script src="/static/modules/fee-schedule.js"><` + `/script>
