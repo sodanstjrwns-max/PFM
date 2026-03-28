@@ -2400,6 +2400,98 @@ app.get('/api/protected/kpi/weekly', async (c) => {
   return c.json(rows || {})
 })
 
+// KPI 통계 (기간별 + 요일별 + 월별 트렌드)
+app.get('/api/protected/kpi/stats', async (c) => {
+  const user = c.get('user')!
+  const period = c.req.query('period') || 'monthly' // daily, weekly, monthly, yearly
+  const from = c.req.query('from') || ''
+  const to = c.req.query('to') || ''
+
+  let dateFilter = ''
+  const params: any[] = [user.hospitalId]
+  if (from && to) { dateFilter = ' AND record_date >= ? AND record_date <= ?'; params.push(from, to) }
+  else if (from) { dateFilter = ' AND record_date >= ?'; params.push(from) }
+  else if (to) { dateFilter = ' AND record_date <= ?'; params.push(to) }
+
+  const baseWhere = 'hospital_id=?' + dateFilter
+  const sumFields = `
+    COUNT(*) as days,
+    SUM(revenue_non_insurance) as revenue_ni,
+    SUM(revenue_insurance) as revenue_i,
+    SUM(revenue_non_insurance + revenue_insurance) as total_revenue,
+    SUM(existing_patients) as existing_patients,
+    SUM(new_patients) as new_patients,
+    SUM(existing_patients + new_patients) as total_patients,
+    SUM(core_treatment_1_new) as core_t1_new,
+    SUM(core_treatment_2_new) as core_t2_new,
+    SUM(core_treatment_3_new) as core_t3_new,
+    SUM(core_treatment_1_count) as core_t1_cnt,
+    SUM(core_treatment_2_count) as core_t2_cnt,
+    SUM(core_treatment_3_count) as core_t3_cnt,
+    SUM(region_core_new) as region_core,
+    SUM(region_expand_new) as region_expand,
+    SUM(region_adjacent_new) as region_adjacent,
+    SUM(region_other_new) as region_other,
+    SUM(referral_new) as referral_new,
+    SUM(online_new) as online_new,
+    SUM(etc_new) as etc_new,
+    SUM(total_consultations) as total_consult,
+    SUM(core_treat_1_consult) as t1_consult,
+    SUM(core_treat_1_agree) as t1_agree,
+    SUM(core_treat_2_consult) as t2_consult,
+    SUM(core_treat_2_agree) as t2_agree,
+    SUM(core_treat_3_consult) as t3_consult,
+    SUM(core_treat_3_agree) as t3_agree,
+    SUM(referral_thanks) as referral_thanks,
+    SUM(inbound_calls) as inbound_calls,
+    SUM(outbound_calls) as outbound_calls,
+    SUM(cancel_count) as cancel_count,
+    SUM(complaint_count) as complaint_count,
+    ROUND(AVG(CASE WHEN avg_wait_time>0 THEN avg_wait_time END),1) as avg_wait_time,
+    SUM(naver_reviews) as naver_reviews`
+
+  // 기간별 그룹 키
+  let dateGroupExpr = ''
+  if (period === 'daily') dateGroupExpr = 'record_date'
+  else if (period === 'weekly') dateGroupExpr = "strftime('%Y-W%W', record_date)"
+  else if (period === 'monthly') dateGroupExpr = "substr(record_date, 1, 7)"
+  else dateGroupExpr = "substr(record_date, 1, 4)"
+
+  const queries = [
+    // 0) 전체 합계
+    c.env.DB.prepare(`SELECT ${sumFields} FROM daily_records WHERE ${baseWhere}`).bind(...params).first(),
+    // 1) 요일별 평균
+    c.env.DB.prepare(`SELECT day_of_week,
+      COUNT(*) as days,
+      ROUND(AVG(revenue_non_insurance + revenue_insurance)) as avg_revenue,
+      ROUND(AVG(new_patients),1) as avg_new,
+      ROUND(AVG(existing_patients),1) as avg_existing,
+      ROUND(AVG(existing_patients + new_patients),1) as avg_total_patients,
+      ROUND(AVG(inbound_calls),1) as avg_inbound,
+      ROUND(AVG(outbound_calls),1) as avg_outbound,
+      ROUND(AVG(cancel_count),1) as avg_cancel,
+      ROUND(AVG(complaint_count),1) as avg_complaint,
+      ROUND(AVG(CASE WHEN avg_wait_time>0 THEN avg_wait_time END),1) as avg_wait,
+      ROUND(AVG(total_consultations),1) as avg_consult,
+      ROUND(AVG(naver_reviews),1) as avg_reviews
+    FROM daily_records WHERE ${baseWhere} AND day_of_week != '' GROUP BY day_of_week`).bind(...params).all(),
+    // 2) 기간별 트렌드
+    c.env.DB.prepare(`SELECT ${dateGroupExpr} as period_key, ${sumFields}
+    FROM daily_records WHERE ${baseWhere} GROUP BY period_key ORDER BY period_key`).bind(...params).all(),
+    // 3) 월별 목표 (최근 12개월)
+    c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 24').bind(user.hospitalId).all(),
+  ]
+
+  const results = await Promise.all(queries)
+  return c.json({
+    summary: results[0] || {},
+    byDayOfWeek: results[1].results,
+    trend: results[2].results,
+    targets: results[3].results,
+    period, from, to,
+  })
+})
+
 // KPI 대시보드 통계 (목표 vs 실적)
 app.get('/api/protected/kpi/dashboard', async (c) => {
   const user = c.get('user')!
@@ -2932,6 +3024,7 @@ function getHTML(): string {
 <script src="/static/modules/fee-schedule.js"><` + `/script>
 <script src="/static/modules/funnel.js"><` + `/script>
 <script src="/static/modules/kpi.js"><` + `/script>
+<script src="/static/modules/kpi-stats.js"><` + `/script>
 <script src="/static/modules/settings.js"><` + `/script>
 </body>
 </html>`

@@ -407,6 +407,7 @@ function getNavConfig() {
       id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
       children: [
         { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
+        { id: 'kpi_stats', label: 'KPI 통계', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
       ]
@@ -714,6 +715,7 @@ function renderPage() {
     calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
+    kpi_stats: ['📊 KPI 통계', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
     kpi_targets: ['🎯 목표 설정', ICONS.star],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
@@ -761,6 +763,7 @@ function renderPage() {
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
     case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
+    case 'kpi_stats': M.kpiStats.renderKpiStats(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
     case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
