@@ -451,6 +451,7 @@ function getNavConfig() {
       children: [
         { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
         { id: 'reviews', label: '후기 관리', icon: ICONS.star },
+        ...e ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : [],
       ]
     },
     {
@@ -760,6 +761,7 @@ function renderPage() {
     parking_stats: ['🅿️ 주차권 통계', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
+    surveys: ['📋 만족도 설문', ICONS.star],
     settings: ['설정', ICONS.settings],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
@@ -814,6 +816,7 @@ function renderPage() {
     case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
     case 'parking': M.parking.renderParking(body, actions); break;
     case 'parking_stats': M.parking.renderParkingStats(body, actions); break;
+    case 'surveys': M.surveys.renderSurveys(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }

@@ -1,7 +1,7 @@
-/* ═══ Module: Dashboard ═══ */
+/* ═══ Module: Dashboard + 경영 리포트 ═══ */
 (function(PFM) {
 'use strict';
-const { api, ICONS, ICONS_HIRE, navigate, esc, toast, formatPrice, state } = PFM;
+const { api, ICONS, ICONS_HIRE, navigate, esc, toast, formatPrice, state, showModal, closeModal } = PFM;
 
 const FUNNEL_STAGES = [
   { key: 'awareness', label: '인지', icon: '👁️', color: '#94a3b8' },
@@ -15,6 +15,21 @@ const FUNNEL_STAGES = [
   { key: 'management', label: '관리', icon: '📋', color: '#22c55e' },
   { key: 'referral', label: '소개', icon: '🤝', color: '#ec4899' },
 ];
+
+/* ──── 숫자 포맷 유틸 ──── */
+function fmtNum(n) { return (n||0).toLocaleString('ko-KR'); }
+function fmtMoney(n) {
+  if (!n) return '0';
+  if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '억';
+  if (n >= 10000) return (n / 10000).toFixed(0) + '만';
+  return n.toLocaleString('ko-KR');
+}
+function fmtPct(n) { return (n||0).toFixed(1) + '%'; }
+function changeArrow(pct) {
+  if (pct > 0) return `<span style="color:#22c55e;font-weight:700">▲ ${fmtPct(Math.abs(pct))}</span>`;
+  if (pct < 0) return `<span style="color:#ef4444;font-weight:700">▼ ${fmtPct(Math.abs(pct))}</span>`;
+  return `<span style="color:var(--text-muted)">— 0%</span>`;
+}
 
 async function renderDashboard(body) {
   body.innerHTML = `
@@ -44,7 +59,6 @@ function renderDashboardContent(body, s) {
     { label: '완료', value: s.completedToday, icon: '✅', color: '#22c55e', goto: 'clinical_board' },
     { label: '원장 필요', value: s.doctorNeeded, icon: '🚨', color: '#ef4444', goto: 'clinical_board' },
   ];
-  // 관리자 추가 카드
   if (isManager) {
     staffCards.push(
       { label: '이달 상담', value: s.monthConsultations, icon: '💬', color: '#8b5cf6', goto: 'consultation' },
@@ -52,7 +66,7 @@ function renderDashboardContent(body, s) {
     );
   }
 
-  // 빠른 메뉴 구성 - 역할별
+  // 빠른 메뉴 구성
   const quickLinks = [
     { id: 'clinical_board', icon: '🦷', title: '진료보드', desc: '오늘의 진료 현황', bg: '#f0fdfa' },
   ];
@@ -64,7 +78,6 @@ function renderDashboardContent(body, s) {
       { id: 'hr_staff', icon: '👥', title: '직원 관리', desc: '출퇴근·스케줄', bg: '#dcfce7' },
     );
   }
-  // 전 직원 공통 메뉴
   quickLinks.push(
     { id: 'checklists', icon: '✅', title: '체크리스트', desc: '일일 점검 체크', bg: '#f0fdf4' },
     { id: 'notice', icon: '📢', title: '공지사항', desc: '병원 공지 확인', bg: '#fffbeb' },
@@ -72,7 +85,6 @@ function renderDashboardContent(body, s) {
     { id: 'scripts', icon: '🎯', title: '상담 스크립트', desc: '시술별 상담 가이드', bg: '#eff6ff' },
   );
   if (!isManager) {
-    // 일반 직원 전용 메뉴
     quickLinks.push(
       { id: 'praise', icon: '👏', title: '칭찬하기', desc: '동료 칭찬 보내기', bg: '#fce7f3' },
       { id: 'leave_management', icon: '📅', title: '연차·휴가', desc: '내 휴가 신청·확인', bg: '#e0f2fe' },
@@ -94,6 +106,10 @@ function renderDashboardContent(body, s) {
         <span>🩺 원장 ${s.staff?.doctorsPresent||0}/${s.staff?.doctors||0}명</span>
         <span>💺 체어 ${s.chairs?.busy||0}/${s.chairs?.total||0} 사용중</span>
       </div>
+      ${isManager ? `<div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-sm" id="weekReportBtn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);font-size:11px;padding:6px 14px;border-radius:8px">📊 주간 리포트</button>
+        <button class="btn btn-sm" id="monthReportBtn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);font-size:11px;padding:6px 14px;border-radius:8px">📋 월간 리포트</button>
+      </div>` : ''}
     </div>
 
     <!-- 오늘의 현황 카드 -->
@@ -124,7 +140,6 @@ function renderDashboardContent(body, s) {
     ` : ''}
 
     ${!isManager ? `
-    <!-- 직원 안내 배너 -->
     <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border:1px solid #c7d2fe;border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:14px">
       <span style="font-size:28px">💪</span>
       <div>
@@ -146,33 +161,40 @@ function renderDashboardContent(body, s) {
     </div>`;
 
   // 퍼널 차트 렌더 (관리자만)
-  if (!isManager) { /* 퍼널 차트 스킵 */ } else {
-  const funnelData = s.funnel || {};
-  const maxVal = Math.max(1, ...FUNNEL_STAGES.map(st => funnelData[st.key]||0));
-  const chartEl = document.getElementById('funnelChart');
-  const labelsEl = document.getElementById('funnelLabels');
-  if (chartEl && labelsEl) {
-    chartEl.innerHTML = FUNNEL_STAGES.map(st => {
-      const val = funnelData[st.key] || 0;
-      const pct = Math.max(8, (val / maxVal) * 100);
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:4px">
-        <div style="font-size:10px;font-weight:700;color:${st.color}">${val}</div>
-        <div style="width:100%;height:${pct}%;background:${st.color};border-radius:6px 6px 2px 2px;min-height:6px;transition:height .3s"></div>
-      </div>`;
-    }).join('');
-    labelsEl.innerHTML = FUNNEL_STAGES.map(st => `
-      <div style="flex:1;text-align:center;font-size:9px;color:var(--text-muted);line-height:1.3">
-        <div>${st.icon}</div><div>${st.label}</div>
-      </div>
-    `).join('');
+  if (isManager) {
+    const funnelData = s.funnel || {};
+    const maxVal = Math.max(1, ...FUNNEL_STAGES.map(st => funnelData[st.key]||0));
+    const chartEl = document.getElementById('funnelChart');
+    const labelsEl = document.getElementById('funnelLabels');
+    if (chartEl && labelsEl) {
+      chartEl.innerHTML = FUNNEL_STAGES.map(st => {
+        const val = funnelData[st.key] || 0;
+        const pct = Math.max(8, (val / maxVal) * 100);
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:4px">
+          <div style="font-size:10px;font-weight:700;color:${st.color}">${val}</div>
+          <div style="width:100%;height:${pct}%;background:${st.color};border-radius:6px 6px 2px 2px;min-height:6px;transition:height .3s"></div>
+        </div>`;
+      }).join('');
+      labelsEl.innerHTML = FUNNEL_STAGES.map(st => `
+        <div style="flex:1;text-align:center;font-size:9px;color:var(--text-muted);line-height:1.3">
+          <div>${st.icon}</div><div>${st.label}</div>
+        </div>
+      `).join('');
+    }
   }
-
-  } // end funnel chart
 
   // 이벤트
   body.querySelectorAll('[data-goto]').forEach(el => {
     el.addEventListener('click', () => navigate(el.dataset.goto));
   });
+
+  // 리포트 버튼 이벤트 (관리자만)
+  if (isManager) {
+    const weekBtn = document.getElementById('weekReportBtn');
+    const monthBtn = document.getElementById('monthReportBtn');
+    if (weekBtn) weekBtn.addEventListener('click', (e) => { e.stopPropagation(); openReport('week'); });
+    if (monthBtn) monthBtn.addEventListener('click', (e) => { e.stopPropagation(); openReport('month'); });
+  }
 
   // 온보딩 (데이터 없을 때)
   if (s.materials === 0 && s.pricing === 0 && s.cases === 0 && PFM.canManage()) {
@@ -209,5 +231,163 @@ function renderDashboardContent(body, s) {
   }
 }
 
-PFM.modules.dashboard = { renderDashboard };
+/* ════════════════════════════════════════════════
+   경영 리포트 모달 (주간/월간)
+   ════════════════════════════════════════════════ */
+async function openReport(period) {
+  const modal = document.getElementById('modalContent');
+  const today = new Date().toISOString().slice(0,10);
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h3>${period === 'week' ? '📊 주간 경영 리포트' : '📋 월간 경영 리포트'}</h3>
+      <button class="btn-icon" id="modalClose">${ICONS.close}</button>
+    </div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto" id="reportBody">
+      <div style="text-align:center;padding:40px"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">리포트 생성중...</div></div>
+    </div>`;
+  showModal();
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+
+  try {
+    const r = await api(`/api/protected/dashboard/report?period=${period}&date=${today}`);
+    renderReportContent(document.getElementById('reportBody'), r, period);
+  } catch(e) {
+    document.getElementById('reportBody').innerHTML = `<div style="color:#ef4444;text-align:center;padding:30px">리포트 로딩 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderReportContent(el, r, period) {
+  const periodLabel = period === 'week' ? '주간' : '월간';
+  const rev = r.revenue || {};
+  const pat = r.patients || {};
+  const con = r.consult || {};
+  const call = r.calls || {};
+  const comp = r.complaints || {};
+  const doctors = r.topDoctors || [];
+  const counselors = r.topCounselors || [];
+
+  el.innerHTML = `
+    <!-- 기간 표시 -->
+    <div style="text-align:center;margin-bottom:20px;padding:12px;background:var(--primary-bg);border-radius:10px">
+      <div style="font-size:11px;color:var(--text-muted)">리포트 기간</div>
+      <div style="font-size:16px;font-weight:800;color:var(--primary)">${esc(r.label)}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px">비교: ${esc(r.prevLabel)}</div>
+    </div>
+
+    <!-- 매출 -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:6px">💰 매출 현황</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:10px;color:#065f46;font-weight:600">${periodLabel} 매출</div>
+          <div style="font-size:22px;font-weight:900;color:#047857;margin:6px 0">${fmtMoney(rev.total)}</div>
+          <div>${changeArrow(rev.change)}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:10px;color:var(--text-muted);font-weight:600;margin-bottom:8px">매출 구성</div>
+          <div style="font-size:12px;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;justify-content:space-between"><span>비급여</span><strong>${fmtMoney(rev.nonInsurance)}</strong></div>
+            <div style="display:flex;justify-content:space-between"><span>급여</span><strong>${fmtMoney(rev.insurance)}</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 환자 -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px">🦷 환자 현황</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${[
+          { label: '총 방문', value: fmtNum(pat.totalVisits), sub: `${fmtNum(pat.daysRecorded)}일 기록`, color: '#3b82f6' },
+          { label: '신환', value: fmtNum(pat.newFromKPI), sub: `등록 ${fmtNum(pat.registered)}`, color: '#8b5cf6' },
+          { label: '구환', value: fmtNum(pat.existing), sub: '', color: '#06b6d4' },
+        ].map(c => `
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600">${c.label}</div>
+            <div style="font-size:20px;font-weight:900;color:${c.color};margin:4px 0">${c.value}</div>
+            ${c.sub ? `<div style="font-size:10px;color:var(--text-muted)">${c.sub}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- 상담 -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px">💬 상담 성과</div>
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600">전환율</div>
+            <div style="font-size:26px;font-weight:900;color:${con.confirmRate >= 70 ? '#22c55e' : con.confirmRate >= 50 ? '#f59e0b' : '#ef4444'}">${fmtPct(con.confirmRate)}</div>
+            <div style="font-size:10px">${changeArrow(con.confirmRate - con.prevConfirmRate)} <span style="color:var(--text-muted)">전기 ${fmtPct(con.prevConfirmRate)}</span></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600">상담 건수</div>
+            <div style="font-size:26px;font-weight:900;color:#8b5cf6">${fmtNum(con.total)}</div>
+            <div style="font-size:10px">${changeArrow(con.change)} <span style="color:var(--text-muted)">확정 ${fmtNum(con.confirmed)}건</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;padding-top:12px;border-top:1px solid var(--border-light);font-size:12px">
+          <div style="flex:1"><span style="color:var(--text-muted)">제안액</span> <strong>${fmtMoney(con.planned)}</strong></div>
+          <div style="flex:1"><span style="color:var(--text-muted)">동의액</span> <strong>${fmtMoney(con.agreed)}</strong></div>
+          <div style="flex:1"><span style="color:var(--text-muted)">할인율</span> <strong>${fmtPct(con.discountRate)}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 콜 & 컴플레인 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">📞 콜</div>
+        <div style="font-size:11px;display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;justify-content:space-between"><span>총</span><strong>${fmtNum(call.total)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>인바운드</span><strong>${fmtNum(call.inbound)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>아웃바운드</span><strong>${fmtNum(call.outbound)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>예약 전환율</span><strong style="color:#22c55e">${fmtPct(call.reservationRate)}</strong></div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">⚠️ 컴플레인</div>
+        <div style="font-size:11px;display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;justify-content:space-between"><span>총</span><strong>${fmtNum(comp.total)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>해결</span><strong style="color:#22c55e">${fmtNum(comp.resolved)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>심각</span><strong style="color:#ef4444">${fmtNum(comp.severe)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>해결률</span><strong style="color:#22c55e">${fmtPct(comp.resolveRate)}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP 성과 -->
+    ${doctors.length || counselors.length ? `
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px">🏆 성과 TOP</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${doctors.length ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">👨‍⚕️ 원장 TOP</div>
+          ${doctors.map((d,i) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;${i>0?'border-top:1px solid var(--border-light)':''}">
+              <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${esc(d.name)}</span>
+              <span><strong>${fmtPct(d.rate)}</strong> (${fmtNum(d.total)}건)</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+        ${counselors.length ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💁 상담사 TOP</div>
+          ${counselors.map((d,i) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;${i>0?'border-top:1px solid var(--border-light)':''}">
+              <span>${i===0?'🥇':i===1?'🥈':'🥉'} ${esc(d.name)}</span>
+              <span><strong>${fmtPct(d.rate)}</strong> (${fmtNum(d.total)}건)</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+
+    <!-- 직원수 & 생성일 -->
+    <div style="text-align:center;font-size:10px;color:var(--text-muted);padding-top:12px;border-top:1px solid var(--border-light)">
+      직원 ${fmtNum(r.staffTotal)}명 · 리포트 생성: ${new Date(r.generatedAt).toLocaleString('ko-KR')}
+    </div>`;
+}
+
+PFM.modules.dashboard = { renderDashboard, openReport };
 })(window.PFM);

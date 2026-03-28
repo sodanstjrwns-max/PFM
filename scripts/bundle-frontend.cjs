@@ -14,7 +14,7 @@ const files = [
   'modules/leave.js', 'modules/meetings.js', 'modules/fee-schedule.js',
   'modules/funnel.js', 'modules/kpi.js', 'modules/kpi-stats.js',
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
-  'modules/parking.js', 'modules/settings.js',
+  'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
 ];
 
 let bundle = '';
