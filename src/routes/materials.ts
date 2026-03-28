@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 
 const materials = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── Categories ─── */
 materials.get('/categories/:module', async (c) => {
-  const mod = c.req.param('module')
+  const mod = sanitizeString(c.req.param('module'), 50)
   const user = c.get('user')!
   const rows = await c.env.DB.prepare('SELECT * FROM categories WHERE module=? AND (hospital_id IS NULL OR hospital_id=?) ORDER BY sort_order').bind(mod, user.hospitalId).all()
   return c.json(rows.results)
@@ -14,13 +15,13 @@ materials.get('/categories/:module', async (c) => {
 /* ─── Materials ─── */
 materials.get('/materials', async (c) => {
   const user = c.get('user')!
-  const cat = c.req.query('category')
-  const search = c.req.query('search')
+  const cat = sanitizeString(c.req.query('category') || '', 100)
+  const search = sanitizeString(c.req.query('search') || '', 200)
   let sql = 'SELECT m.*, c.name as category_name FROM materials m JOIN categories c ON m.category_id=c.id WHERE (m.hospital_id IS NULL OR m.hospital_id=?)'
   const params: any[] = [user.hospitalId]
   if (cat) { sql += ' AND m.category_id=?'; params.push(cat) }
   if (search) { sql += ' AND (m.title LIKE ? OR m.description LIKE ?)'; params.push('%' + search + '%', '%' + search + '%') }
-  sql += ' ORDER BY m.sort_order, m.created_at DESC'
+  sql += ' ORDER BY m.sort_order, m.created_at DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
@@ -28,13 +29,14 @@ materials.get('/materials', async (c) => {
 materials.post('/materials', async (c) => {
   const user = c.get('user')!
   const form = await c.req.formData()
-  const title = form.get('title') as string
-  const categoryId = form.get('category_id') as string
-  const description = form.get('description') as string || ''
+  const title = sanitizeString(form.get('title') as string || '', 200)
+  const categoryId = sanitizeString(form.get('category_id') as string || '', 100)
+  const description = sanitizeString(form.get('description') as string || '', 2000)
   const file = form.get('file') as File
   if (!title || !categoryId || !file) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
+  if (file.size > 50 * 1024 * 1024) return c.json({ error: '파일 크기는 50MB 이하여야 합니다' }, 400)
   const id = crypto.randomUUID()
-  const ext = file.name.split('.').pop() || 'jpg'
+  const ext = sanitizeString(file.name.split('.').pop() || 'jpg', 10).replace(/[^a-zA-Z0-9]/g, '')
   const key = `materials/${user.hospitalId}/${id}.${ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const fileUrl = `/api/protected/files/${key}`
@@ -52,29 +54,43 @@ materials.delete('/materials/:id', async (c) => {
 /* ─── Pricing ─── */
 materials.get('/pricing', async (c) => {
   const user = c.get('user')!
-  const cat = c.req.query('category')
+  const cat = sanitizeString(c.req.query('category') || '', 100)
   let sql = 'SELECT p.*, c.name as category_name FROM pricing p JOIN categories c ON p.category_id=c.id WHERE p.hospital_id=?'
   const params: any[] = [user.hospitalId]
   if (cat) { sql += ' AND p.category_id=?'; params.push(cat) }
-  sql += ' ORDER BY c.sort_order, p.sort_order'
+  sql += ' ORDER BY c.sort_order, p.sort_order LIMIT 500'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 materials.post('/pricing', async (c) => {
   const user = c.get('user')!
-  const { category_id, procedure_name, price_min, price_max, description } = await c.req.json()
-  if (!category_id || !procedure_name) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    category_id: { type: 'string', max: 100 },
+    procedure_name: { type: 'string', max: 200 },
+    price_min: { type: 'number', min: 0, max: 999999999 },
+    price_max: { type: 'number', min: 0, max: 999999999 },
+    description: { type: 'string', max: 2000 },
+  })
+  if (!b.category_id || !b.procedure_name) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO pricing (id, hospital_id, category_id, procedure_name, price_min, price_max, description) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, category_id, procedure_name, price_min || null, price_max || null, description || '').run()
+  await c.env.DB.prepare('INSERT INTO pricing (id, hospital_id, category_id, procedure_name, price_min, price_max, description) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.category_id, b.procedure_name, b.price_min || null, b.price_max || null, b.description || '').run()
   return c.json({ id })
 })
 
 materials.put('/pricing/:id', async (c) => {
   const user = c.get('user')!
   const id = c.req.param('id')
-  const { procedure_name, price_min, price_max, description, is_active } = await c.req.json()
-  await c.env.DB.prepare('UPDATE pricing SET procedure_name=?, price_min=?, price_max=?, description=?, is_active=? WHERE id=? AND hospital_id=?').bind(procedure_name, price_min, price_max, description || '', is_active ?? 1, id, user.hospitalId).run()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    procedure_name: { type: 'string', max: 200 },
+    price_min: { type: 'number', min: 0, max: 999999999 },
+    price_max: { type: 'number', min: 0, max: 999999999 },
+    description: { type: 'string', max: 2000 },
+    is_active: { type: 'number', min: 0, max: 1 },
+  })
+  await c.env.DB.prepare('UPDATE pricing SET procedure_name=?, price_min=?, price_max=?, description=?, is_active=? WHERE id=? AND hospital_id=?').bind(b.procedure_name, b.price_min, b.price_max, b.description || '', b.is_active ?? 1, id, user.hospitalId).run()
   return c.json({ success: true })
 })
 
@@ -87,21 +103,29 @@ materials.delete('/pricing/:id', async (c) => {
 /* ─── Cases ─── */
 materials.get('/cases', async (c) => {
   const user = c.get('user')!
-  const cat = c.req.query('category')
+  const cat = sanitizeString(c.req.query('category') || '', 100)
   let sql = 'SELECT cs.*, c.name as category_name, (SELECT COUNT(*) FROM case_images WHERE case_id=cs.id) as image_count FROM cases cs JOIN categories c ON cs.category_id=c.id WHERE cs.hospital_id=?'
   const params: any[] = [user.hospitalId]
   if (cat) { sql += ' AND cs.category_id=?'; params.push(cat) }
-  sql += ' ORDER BY cs.created_at DESC'
+  sql += ' ORDER BY cs.created_at DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 materials.post('/cases', async (c) => {
   const user = c.get('user')!
-  const { category_id, title, description, patient_age, patient_gender, treatment_period } = await c.req.json()
-  if (!category_id || !title) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    category_id: { type: 'string', max: 100 },
+    title: { type: 'string', max: 200 },
+    description: { type: 'string', max: 5000 },
+    patient_age: { type: 'string', max: 20 },
+    patient_gender: { type: 'string', max: 10 },
+    treatment_period: { type: 'string', max: 100 },
+  })
+  if (!b.category_id || !b.title) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO cases (id, hospital_id, category_id, title, description, patient_age, patient_gender, treatment_period, created_by) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, category_id, title, description || '', patient_age || '', patient_gender || '', treatment_period || '', user.id).run()
+  await c.env.DB.prepare('INSERT INTO cases (id, hospital_id, category_id, title, description, patient_age, patient_gender, treatment_period, created_by) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.category_id, b.title, b.description || '', b.patient_age || '', b.patient_gender || '', b.treatment_period || '', user.id).run()
   return c.json({ id })
 })
 
@@ -128,11 +152,12 @@ materials.post('/cases/:id/images', async (c) => {
   const caseId = c.req.param('id')
   const form = await c.req.formData()
   const file = form.get('file') as File
-  const imageType = (form.get('image_type') as string) || 'during'
-  const caption = (form.get('caption') as string) || ''
+  const imageType = sanitizeString((form.get('image_type') as string) || 'during', 20)
+  const caption = sanitizeString((form.get('caption') as string) || '', 500)
   if (!file) return c.json({ error: '파일을 선택해주세요' }, 400)
+  if (file.size > 20 * 1024 * 1024) return c.json({ error: '이미지 크기는 20MB 이하여야 합니다' }, 400)
   const imgId = crypto.randomUUID()
-  const ext = file.name.split('.').pop() || 'jpg'
+  const ext = sanitizeString(file.name.split('.').pop() || 'jpg', 10).replace(/[^a-zA-Z0-9]/g, '')
   const key = `cases/${user.hospitalId}/${caseId}/${imgId}.${ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const imageUrl = `/api/protected/files/${key}`
@@ -148,6 +173,7 @@ materials.delete('/case-images/:id', async (c) => {
 /* ─── File Serving (R2) ─── */
 materials.get('/files/*', async (c) => {
   const key = c.req.path.replace('/api/protected/files/', '')
+  if (key.includes('..')) return c.json({ error: 'Invalid path' }, 400)
   const obj = await c.env.R2.get(key)
   if (!obj) return c.json({ error: 'File not found' }, 404)
   return new Response(obj.body as ReadableStream, {
@@ -158,21 +184,29 @@ materials.get('/files/*', async (c) => {
 /* ─── Scripts ─── */
 materials.get('/scripts', async (c) => {
   const user = c.get('user')!
-  const cat = c.req.query('category')
+  const cat = sanitizeString(c.req.query('category') || '', 100)
   let sql = 'SELECT s.*, c.name as category_name FROM scripts s LEFT JOIN categories c ON s.category_id=c.id WHERE (s.hospital_id IS NULL OR s.hospital_id=?)'
   const params: any[] = [user.hospitalId]
   if (cat) { sql += ' AND s.category_id=?'; params.push(cat) }
-  sql += ' ORDER BY s.sort_order, s.created_at DESC'
+  sql += ' ORDER BY s.sort_order, s.created_at DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 materials.post('/scripts', async (c) => {
   const user = c.get('user')!
-  const { category_id, title, situation, script_text, objection, response } = await c.req.json()
-  if (!title || !script_text) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    category_id: { type: 'string', max: 100 },
+    title: { type: 'string', max: 200 },
+    situation: { type: 'string', max: 2000 },
+    script_text: { type: 'string', max: 5000 },
+    objection: { type: 'string', max: 2000 },
+    response: { type: 'string', max: 2000 },
+  })
+  if (!b.title || !b.script_text) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO scripts (id, hospital_id, category_id, title, situation, script_text, objection, response) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, category_id||null, title, situation||'', script_text, objection||'', response||'').run()
+  await c.env.DB.prepare('INSERT INTO scripts (id, hospital_id, category_id, title, situation, script_text, objection, response) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.category_id||null, b.title, b.situation||'', b.script_text, b.objection||'', b.response||'').run()
   return c.json({ id })
 })
 

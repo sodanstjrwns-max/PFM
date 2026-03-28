@@ -1,14 +1,17 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 
 const consult = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 consult.get('/', async (c) => {
   const user = c.get('user')!
-  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
-  const counselor = c.req.query('counselor'); const doctor = c.req.query('doctor')
-  const category = c.req.query('category'); const confirmed = c.req.query('confirmed')
-  const patientType = c.req.query('patient_type')
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
+  const counselor = sanitizeString(c.req.query('counselor') || '', 100)
+  const doctor = sanitizeString(c.req.query('doctor') || '', 100)
+  const category = sanitizeString(c.req.query('category') || '', 50)
+  const confirmed = sanitizeString(c.req.query('confirmed') || '', 5)
+  const patientType = sanitizeString(c.req.query('patient_type') || '', 20)
   let sql = 'SELECT * FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
   const params: any[] = [user.hospitalId, month + '%']
   if (counselor) { sql += ' AND counselor_name = ?'; params.push(counselor) }
@@ -16,27 +19,53 @@ consult.get('/', async (c) => {
   if (category) { sql += ' AND treatment_category = ?'; params.push(category) }
   if (confirmed) { sql += ' AND treatment_confirmed = ?'; params.push(confirmed) }
   if (patientType) { sql += ' AND patient_type = ?'; params.push(patientType) }
-  sql += ' ORDER BY record_date DESC, created_at DESC'
+  sql += ' ORDER BY record_date DESC, created_at DESC LIMIT 500'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 consult.post('/', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
-  if (!body.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
-  if (!body.record_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    record_date: { type: 'string', max: 20 },
+    chart_number: { type: 'string', max: 50 },
+    patient_name: { type: 'string', max: 100 },
+    doctor_name: { type: 'string', max: 100 },
+    counselor_name: { type: 'string', max: 100 },
+    desk_name: { type: 'string', max: 100 },
+    planned_amount: { type: 'number', min: 0, max: 999999999 },
+    agreed_amount: { type: 'number', min: 0, max: 999999999 },
+    discount_note: { type: 'string', max: 500 },
+    patient_type: { type: 'enum', values: ['new','existing'] },
+    treatment_category: { type: 'string', max: 100 },
+    treatment_confirmed: { type: 'string', max: 5 },
+    appointment_made: { type: 'string', max: 5 },
+    recall_done: { type: 'string', max: 5 },
+    kakao_registered: { type: 'string', max: 5 },
+    pdf_provided: { type: 'string', max: 5 },
+    visit_source: { type: 'string', max: 100 },
+    notes: { type: 'string', max: 2000 },
+  })
+  if (!b.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  if (!b.record_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
   const id = 'cr-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, desk_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(id, user.hospitalId, body.record_date, body.chart_number||'', body.patient_name, body.doctor_name||'', body.counselor_name||'', body.desk_name||'', body.planned_amount||0, body.agreed_amount||0, body.discount_note||'', body.patient_type||'new', body.treatment_category||'general', body.treatment_confirmed||'', body.appointment_made||'', body.recall_done||'', body.kakao_registered||'', body.pdf_provided||'', body.visit_source||'', body.notes||'', user.id).run()
+    .bind(id, user.hospitalId, b.record_date, b.chart_number||'', b.patient_name, b.doctor_name||'', b.counselor_name||'', b.desk_name||'', b.planned_amount||0, b.agreed_amount||0, b.discount_note||'', b.patient_type||'new', b.treatment_category||'general', b.treatment_confirmed||'', b.appointment_made||'', b.recall_done||'', b.kakao_registered||'', b.pdf_provided||'', b.visit_source||'', b.notes||'', user.id).run()
   return c.json({ success: true, id })
 })
 
 consult.put('/:id', async (c) => {
-  const user = c.get('user')!; const body = await c.req.json(); const id = c.req.param('id')
+  const user = c.get('user')!; const raw = await c.req.json(); const id = c.req.param('id')
   const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name','desk_name','planned_amount','agreed_amount','discount_note','patient_type','treatment_category','treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','visit_source','notes']
+  const numericFields = new Set(['planned_amount','agreed_amount'])
   const updates: string[] = []; const vals: any[] = []
-  for (const f of fields) { if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) } }
+  for (const f of fields) {
+    if (raw[f] !== undefined) {
+      const val = numericFields.has(f) ? sanitizeNumber(raw[f], 0, 0, 999999999) : sanitizeString(String(raw[f]), f === 'notes' ? 2000 : 200)
+      updates.push(`${f}=?`); vals.push(val)
+    }
+  }
   if (updates.length === 0) return c.json({ error: '수정할 내용이 없습니다' }, 400)
   updates.push('updated_at=?'); vals.push(new Date().toISOString()); vals.push(id, user.hospitalId)
   await c.env.DB.prepare(`UPDATE consult_records SET ${updates.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
@@ -67,7 +96,7 @@ consult.get('/staff', async (c) => {
 
 consult.get('/dashboard', async (c) => {
   const user = c.get('user')!
-  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
   const all = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date').bind(user.hospitalId, month + '%').all()
   const rows = all.results as any[]
   const total = rows.length
@@ -110,31 +139,38 @@ consult.get('/dashboard', async (c) => {
 })
 
 consult.get('/patient-search', async (c) => {
-  const user = c.get('user')!; const q = c.req.query('q')
+  const user = c.get('user')!
+  const q = sanitizeString(c.req.query('q') || '', 100)
   if (!q || q.length < 1) return c.json([])
   const rows = await c.env.DB.prepare(`SELECT patient_name, chart_number, MAX(record_date) as last_visit, COUNT(*) as visit_count, GROUP_CONCAT(DISTINCT treatment_category) as categories, GROUP_CONCAT(DISTINCT visit_source) as sources FROM consult_records WHERE hospital_id=? AND patient_name LIKE ? GROUP BY patient_name, chart_number ORDER BY last_visit DESC LIMIT 20`).bind(user.hospitalId, `%${q}%`).all()
   return c.json(rows.results)
 })
 
 consult.get('/patient-history', async (c) => {
-  const user = c.get('user')!; const name = c.req.query('name'); const chart = c.req.query('chart')
+  const user = c.get('user')!
+  const name = sanitizeString(c.req.query('name') || '', 100)
+  const chart = sanitizeString(c.req.query('chart') || '', 50)
   if (!name) return c.json({ error: '환자명을 입력하세요' }, 400)
   let sql = 'SELECT * FROM consult_records WHERE hospital_id=? AND patient_name=?'
   const params: any[] = [user.hospitalId, name]
   if (chart) { sql += ' AND chart_number=?'; params.push(chart) }
-  sql += ' ORDER BY record_date DESC'
+  sql += ' ORDER BY record_date DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 consult.get('/summary', async (c) => {
-  const user = c.get('user')!; const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const user = c.get('user')!
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
   const row = await c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN treatment_confirmed='X' THEN 1 ELSE 0 END) as rejected, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(planned_amount) as total_planned, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=? AND record_date LIKE ?`).bind(user.hospitalId, month + '%').first()
   return c.json(row)
 })
 
 consult.get('/visit-sources', async (c) => {
-  const user = c.get('user')!; const month = c.req.query('month'); const from = c.req.query('from'); const to = c.req.query('to')
+  const user = c.get('user')!
+  const month = sanitizeString(c.req.query('month') || '', 10)
+  const from = sanitizeString(c.req.query('from') || '', 10)
+  const to = sanitizeString(c.req.query('to') || '', 10)
   let sql = `SELECT visit_source, COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=?`
   const params: any[] = [user.hospitalId]
   if (month) { sql += ' AND record_date LIKE ?'; params.push(month + '%') }
@@ -149,12 +185,13 @@ consult.post('/bulk', async (c) => {
   if (user.role !== 'admin') return c.json({ error: '관리자만 가능합니다' }, 403)
   const { records } = await c.req.json()
   if (!Array.isArray(records) || records.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
+  if (records.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
   for (const r of records) {
     const id = 'cr-' + crypto.randomUUID().slice(0,8)
     try {
       await c.env.DB.prepare(`INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id, user.hospitalId, r.record_date||'', r.chart_number||'', r.patient_name||'', r.doctor_name||'', r.counselor_name||'', r.planned_amount||0, r.agreed_amount||0, r.discount_note||'', r.patient_type||'new', r.treatment_category||'general', r.treatment_confirmed||'', r.appointment_made||'', r.recall_done||'', r.kakao_registered||'', r.pdf_provided||'', r.visit_source||'', r.notes||'', user.id).run()
+        .bind(id, user.hospitalId, sanitizeString(r.record_date||'',10), sanitizeString(r.chart_number||'',50), sanitizeString(r.patient_name||'',100), sanitizeString(r.doctor_name||'',100), sanitizeString(r.counselor_name||'',100), sanitizeNumber(r.planned_amount,0,0,999999999), sanitizeNumber(r.agreed_amount,0,0,999999999), sanitizeString(r.discount_note||'',500), sanitizeString(r.patient_type||'new',20), sanitizeString(r.treatment_category||'general',100), sanitizeString(r.treatment_confirmed||'',5), sanitizeString(r.appointment_made||'',5), sanitizeString(r.recall_done||'',5), sanitizeString(r.kakao_registered||'',5), sanitizeString(r.pdf_provided||'',5), sanitizeString(r.visit_source||'',100), sanitizeString(r.notes||'',2000), user.id).run()
       inserted++
     } catch(e) {}
   }

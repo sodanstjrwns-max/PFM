@@ -1,25 +1,25 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole } from '../lib/middleware'
+import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 const patients = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 환자 데이터베이스 (Patient Registry) ═══ */
 
 // 환자 목록 (검색/필터)
-patients.get('/api/protected/patients', async (c) => {
+patients.get('/', async (c) => {
   const user = c.get('user')!
-  const search = c.req.query('search')
-  const type = c.req.query('type')
-  const source = c.req.query('source')
-  const doctor = c.req.query('doctor')
-  const counselor = c.req.query('counselor')
-  const area = c.req.query('area')
-  const status = c.req.query('status')
-  const from = c.req.query('from')
-  const to = c.req.query('to')
-  const sido = c.req.query('sido')
-  const limit = parseInt(c.req.query('limit') || '200')
-  const offset = parseInt(c.req.query('offset') || '0')
+  const search = sanitizeString(c.req.query('search') || '', 200)
+  const type = sanitizeString(c.req.query('type') || '', 20)
+  const source = sanitizeString(c.req.query('source') || '', 100)
+  const doctor = sanitizeString(c.req.query('doctor') || '', 100)
+  const counselor = sanitizeString(c.req.query('counselor') || '', 100)
+  const area = sanitizeString(c.req.query('area') || '', 100)
+  const status = sanitizeString(c.req.query('status') || '', 20)
+  const from = sanitizeString(c.req.query('from') || '', 10)
+  const to = sanitizeString(c.req.query('to') || '', 10)
+  const sido = sanitizeString(c.req.query('sido') || '', 30)
+  const limit = sanitizeNumber(c.req.query('limit'), 200, 1, 500)
+  const offset = sanitizeNumber(c.req.query('offset'), 0, 0, 99999)
 
   // Build shared WHERE clause (DRY - used for both data and count queries)
   let where = 'hospital_id=?'
@@ -46,7 +46,7 @@ patients.get('/api/protected/patients', async (c) => {
 // 환자 자동완성 (상담기록에서 사용) - :id 보다 먼저 선언해야 함
 patients.get('/search/autocomplete', async (c) => {
   const user = c.get('user')!
-  const q = c.req.query('q')
+  const q = sanitizeString(c.req.query('q') || '', 100)
   if (!q || q.length < 1) return c.json([])
   const rows = await c.env.DB.prepare(
     `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, desk_staff, addr_sido, addr_sigungu, first_visit_date, last_visit_date, visit_count
@@ -59,7 +59,7 @@ patients.get('/search/autocomplete', async (c) => {
 // 환자 통계 (대시보드용) - :id 보다 먼저 선언해야 함
 patients.get('/stats/summary', async (c) => {
   const user = c.get('user')!
-  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
   const [total, newThisMonth, bySource, byArea] = await Promise.all([
     c.env.DB.prepare("SELECT COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active'").bind(user.hospitalId).first(),
     c.env.DB.prepare("SELECT COUNT(*) as c FROM patients WHERE hospital_id=? AND status='active' AND first_visit_date LIKE ?").bind(user.hospitalId, month+'%').first(),
@@ -77,9 +77,9 @@ patients.get('/stats/summary', async (c) => {
 // 환자 상세 통계 (기간별: daily/weekly/monthly/yearly)
 patients.get('/stats/detailed', async (c) => {
   const user = c.get('user')!
-  const period = c.req.query('period') || 'monthly' // daily, weekly, monthly, yearly
-  const from = c.req.query('from') || ''
-  const to = c.req.query('to') || ''
+  const period = sanitizeString(c.req.query('period') || 'monthly', 10)
+  const from = sanitizeString(c.req.query('from') || '', 10)
+  const to = sanitizeString(c.req.query('to') || '', 10)
 
   // 기간 조건 빌드
   let dateFilter = ''
@@ -155,10 +155,20 @@ patients.get('/:id', async (c) => {
 })
 
 // 환자 등록
-patients.post('/api/protected/patients', async (c) => {
+patients.post('/', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
-  if (!body.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    chart_number: { type: 'string', max: 50 }, patient_name: { type: 'string', max: 100 },
+    phone: { type: 'string', max: 20 }, birth_date: { type: 'string', max: 10 }, gender: { type: 'string', max: 10 },
+    patient_type: { type: 'enum', values: ['new','existing'] },
+    visit_source: { type: 'string', max: 100 }, visit_source_detail: { type: 'string', max: 200 }, referrer_name: { type: 'string', max: 100 },
+    first_visit_date: { type: 'string', max: 10 }, last_visit_date: { type: 'string', max: 10 }, visit_count: { type: 'number', min: 0, max: 99999, default: 1 },
+    treatment_area: { type: 'string', max: 100 }, primary_doctor: { type: 'string', max: 100 }, assigned_counselor: { type: 'string', max: 100 }, desk_staff: { type: 'string', max: 100 },
+    visit_reason: { type: 'string', max: 500 }, address: { type: 'string', max: 500 }, addr_sido: { type: 'string', max: 30 }, addr_sigungu: { type: 'string', max: 30 }, addr_detail: { type: 'string', max: 200 },
+    memo: { type: 'string', max: 2000 }, status: { type: 'string', max: 20 }, kakao_registered: { type: 'string', max: 5 },
+  })
+  if (!b.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
   const id = 'pt-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`
     INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender,
@@ -168,16 +178,16 @@ patients.post('/api/protected/patients', async (c) => {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, user.hospitalId,
-    body.chart_number||'', body.patient_name, body.phone||'', body.birth_date||'', body.gender||'',
-    body.patient_type||'new',
-    body.visit_source||'', body.visit_source_detail||'', body.referrer_name||'',
-    body.first_visit_date || new Date().toISOString().slice(0,10),
-    body.last_visit_date || body.first_visit_date || new Date().toISOString().slice(0,10),
-    body.visit_count||1,
-    body.treatment_area||'', body.primary_doctor||'', body.assigned_counselor||'', body.desk_staff||'',
-    body.visit_reason||'', body.address||'', body.addr_sido||'', body.addr_sigungu||'', body.addr_detail||'',
-    body.memo||'',
-    body.status||'active', body.kakao_registered||'', user.id
+    b.chart_number||'', b.patient_name, b.phone||'', b.birth_date||'', b.gender||'',
+    b.patient_type||'new',
+    b.visit_source||'', b.visit_source_detail||'', b.referrer_name||'',
+    b.first_visit_date || new Date().toISOString().slice(0,10),
+    b.last_visit_date || b.first_visit_date || new Date().toISOString().slice(0,10),
+    b.visit_count||1,
+    b.treatment_area||'', b.primary_doctor||'', b.assigned_counselor||'', b.desk_staff||'',
+    b.visit_reason||'', b.address||'', b.addr_sido||'', b.addr_sigungu||'', b.addr_detail||'',
+    b.memo||'',
+    b.status||'active', b.kakao_registered||'', user.id
   ).run()
   return c.json({ success: true, id })
 })
@@ -185,15 +195,19 @@ patients.post('/api/protected/patients', async (c) => {
 // 환자 수정
 patients.put('/:id', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
+  const raw = await c.req.json()
   const id = c.req.param('id')
   const fields = ['chart_number','patient_name','phone','birth_date','gender','patient_type',
     'visit_source','visit_source_detail','referrer_name','first_visit_date','last_visit_date',
     'visit_count','treatment_area','primary_doctor','assigned_counselor','desk_staff',
     'visit_reason','address','addr_sido','addr_sigungu','addr_detail','memo','status','kakao_registered']
+  const numericFields = new Set(['visit_count'])
   const updates: string[] = []; const vals: any[] = []
   for (const f of fields) {
-    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
+    if (raw[f] !== undefined) {
+      const val = numericFields.has(f) ? sanitizeNumber(raw[f], 0, 0, 99999) : sanitizeString(String(raw[f]), f === 'memo' ? 2000 : f === 'address' ? 500 : 200)
+      updates.push(`${f}=?`); vals.push(val)
+    }
   }
   if (updates.length === 0) return c.json({ error: '수정할 내용이 없습니다' }, 400)
   updates.push('updated_at=?'); vals.push(new Date().toISOString())
@@ -214,18 +228,19 @@ patients.delete('/:id', async (c) => {
 // 환자 벌크 임포트
 patients.post('/bulk', requireRole('admin'), async (c) => {
   const user = c.get('user')!
-  const { patients } = await c.req.json()
-  if (!Array.isArray(patients) || patients.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
+  const { patients: patientList } = await c.req.json()
+  if (!Array.isArray(patientList) || patientList.length === 0) return c.json({ error: '데이터가 없습니다' }, 400)
+  if (patientList.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
-  for (const p of patients) {
+  for (const p of patientList) {
     const id = 'pt-' + crypto.randomUUID().slice(0,8)
     try {
       await c.env.DB.prepare(`INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, visit_source_detail, referrer_name, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, visit_reason, address, memo, status, kakao_registered, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id, user.hospitalId, p.chart_number||'', p.patient_name||'', p.phone||'', p.birth_date||'', p.gender||'', p.patient_type||'new', p.visit_source||'', p.visit_source_detail||'', p.referrer_name||'', p.first_visit_date||'', p.last_visit_date||'', p.visit_count||1, p.treatment_area||'', p.primary_doctor||'', p.assigned_counselor||'', p.visit_reason||'', p.address||'', p.memo||'', 'active', p.kakao_registered||'', user.id).run()
+        .bind(id, user.hospitalId, sanitizeString(p.chart_number||'',50), sanitizeString(p.patient_name||'',100), sanitizeString(p.phone||'',20), sanitizeString(p.birth_date||'',10), sanitizeString(p.gender||'',10), sanitizeString(p.patient_type||'new',20), sanitizeString(p.visit_source||'',100), sanitizeString(p.visit_source_detail||'',200), sanitizeString(p.referrer_name||'',100), sanitizeString(p.first_visit_date||'',10), sanitizeString(p.last_visit_date||'',10), sanitizeNumber(p.visit_count,1,0,99999), sanitizeString(p.treatment_area||'',100), sanitizeString(p.primary_doctor||'',100), sanitizeString(p.assigned_counselor||'',100), sanitizeString(p.visit_reason||'',500), sanitizeString(p.address||'',500), sanitizeString(p.memo||'',2000), 'active', sanitizeString(p.kakao_registered||'',5), user.id).run()
       inserted++
     } catch(e) {}
   }
-  return c.json({ success: true, inserted, total: patients.length })
+  return c.json({ success: true, inserted, total: patientList.length })
 })
 
 

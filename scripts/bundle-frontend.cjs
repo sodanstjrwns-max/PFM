@@ -17,18 +17,54 @@ const files = [
   'modules/parking.js', 'modules/settings.js',
 ];
 
-let bundle = '/* PFM Bundle - ' + new Date().toISOString().slice(0,10) + ' */\n';
+let bundle = '';
 let totalSize = 0;
 for (const file of files) {
   const content = fs.readFileSync(path.join(STATIC, file), 'utf8');
-  bundle += '\n/* === ' + file + ' === */\n' + content + '\n';
+  bundle += content + '\n';
   totalSize += content.length;
 }
 
 const outDir = path.join(STATIC, 'dist');
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, 'bundle.js'), bundle);
 
-console.log('Bundle: ' + files.length + ' files');
-console.log('Input: ' + (totalSize / 1024).toFixed(1) + ' KB');
-console.log('Output: ' + (bundle.length / 1024).toFixed(1) + ' KB');
+// Try to minify with terser
+async function build() {
+  let output = bundle;
+  let minified = false;
+  try {
+    const { minify } = require('terser');
+    const result = await minify(bundle, {
+      ecma: 2020,
+      compress: {
+        dead_code: true,
+        drop_console: false, // Keep console.error for debugging
+        passes: 2,
+      },
+      mangle: {
+        reserved: ['state', 'api', 'apiForm', 'toast', 'h', 'escapeHtml', 'ICONS', 'ICONS_HIRE'],
+      },
+      format: {
+        comments: false,
+      },
+    });
+    if (result.code) {
+      output = result.code;
+      minified = true;
+    }
+  } catch(e) {
+    console.warn('Terser minification failed, using unminified bundle:', e.message);
+  }
+
+  fs.writeFileSync(path.join(outDir, 'bundle.js'), output);
+
+  console.log('Bundle: ' + files.length + ' files');
+  console.log('Input: ' + (totalSize / 1024).toFixed(1) + ' KB');
+  console.log('Output: ' + (output.length / 1024).toFixed(1) + ' KB' + (minified ? ' (minified)' : ''));
+  if (minified) {
+    const ratio = ((1 - output.length / totalSize) * 100).toFixed(1);
+    console.log('Reduction: ' + ratio + '%');
+  }
+}
+
+build();

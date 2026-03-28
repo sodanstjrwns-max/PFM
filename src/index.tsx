@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Bindings, Variables } from './lib/types'
-import { authMiddleware } from './lib/middleware'
+import { authMiddleware, securityHeaders, sanitizeString, safeJsonParse } from './lib/middleware'
 
 // Route imports
 import auth from './routes/auth'
@@ -30,9 +30,12 @@ app.onError((err, c) => {
   console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message)
   return c.json({
     error: '서버 오류가 발생했습니다',
-    ...(c.env.JWT_SECRET ? {} : { detail: err.message }) // Show detail only in dev
+    ...(c.env.JWT_SECRET ? {} : { detail: err.message }) // Show detail only in dev (when JWT_SECRET not set)
   }, 500)
 })
+
+/* ═══ Security Headers ═══ */
+securityHeaders(app as any)
 
 /* ═══ CORS Configuration ═══ */
 app.use('/api/*', cors({
@@ -91,12 +94,13 @@ app.get('/api/protected/me', async (c) => {
 
 app.put('/api/protected/me', async (c) => {
   const user = (c as any).get('user')!
-  const body = await c.req.json()
+  const body = await safeJsonParse(c)
+  if (!body) return c.json({ error: '잘못된 요청 형식입니다' }, 400)
   const allowed = ['name','phone','work_schedule']
   const fields: string[] = []; const vals: any[] = []
   for (const k of allowed) {
     if (body[k] !== undefined) {
-      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : String(body[k]).trim().slice(0, 200)
+      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : sanitizeString(String(body[k]), 200)
       fields.push(`${k} = ?`); vals.push(v)
     }
   }

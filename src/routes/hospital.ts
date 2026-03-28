@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole } from '../lib/middleware'
+import { requireRole, sanitizeString, sanitizeBody } from '../lib/middleware'
 const hospital = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 hospital.get('/settings', async (c) => {
@@ -82,12 +82,17 @@ hospital.get('/info', async (c) => {
 // 병원 기본 정보 수정 (admin만)
 hospital.put('/info', requireRole('admin'), async (c) => {
   const user = c.get('user')!
-  const { name, phone, address } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    name: { type: 'string', max: 200 },
+    phone: { type: 'string', max: 20 },
+    address: { type: 'string', max: 500 },
+  })
   const sets: string[] = []
   const vals: any[] = []
-  if (name) { sets.push('name=?'); vals.push(name) }
-  if (phone !== undefined) { sets.push('phone=?'); vals.push(phone) }
-  if (address !== undefined) { sets.push('address=?'); vals.push(address) }
+  if (b.name) { sets.push('name=?'); vals.push(b.name) }
+  if (b.phone !== undefined) { sets.push('phone=?'); vals.push(b.phone || '') }
+  if (b.address !== undefined) { sets.push('address=?'); vals.push(b.address || '') }
   if (!sets.length) return c.json({ error: '변경 사항이 없습니다' }, 400)
   sets.push('updated_at=?'); vals.push(new Date().toISOString())
   vals.push(user.hospitalId)

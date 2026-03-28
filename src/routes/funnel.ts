@@ -1,28 +1,27 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 const funnel = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 환자 퍼널 (Patient Funnel) ═══ */
 
 const FUNNEL_STAGES = ['awareness','interest','appointment','visit','waiting','diagnosis','consultation','treatment','management','referral']
 
-// 퍼널 목록
-funnel.get('/api/protected/funnel', async (c) => {
+funnel.get('/', async (c) => {
   const user = c.get('user')!
-  const stage = c.req.query('stage')
-  const limit = parseInt(c.req.query('limit')||'50')
+  const stage = sanitizeString(c.req.query('stage') || '', 30)
+  const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 500)
   let sql = 'SELECT pf.*, u.name as doctor_name FROM patient_funnel pf LEFT JOIN users u ON pf.assigned_doctor=u.id WHERE pf.hospital_id=?'
   const params: any[] = [user.hospitalId]
-  if (stage) { sql += ' AND pf.current_stage=?'; params.push(stage) }
+  if (stage && FUNNEL_STAGES.includes(stage)) { sql += ' AND pf.current_stage=?'; params.push(stage) }
   sql += ' ORDER BY pf.updated_at DESC LIMIT ?'; params.push(limit)
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
-// 퍼널 통계
 funnel.get('/stats', async (c) => {
   const user = c.get('user')!
-  const period = c.req.query('period') || 'month'
+  const period = sanitizeString(c.req.query('period') || 'month', 10)
   let dateFilter = ''
   const now = new Date()
   if (period === 'month') dateFilter = now.toISOString().slice(0,7)
@@ -40,34 +39,53 @@ funnel.get('/stats', async (c) => {
   return c.json({ stages: stageMap, estimated: amounts?.est||0, agreed: amounts?.agreed||0, paid: amounts?.paid||0 })
 })
 
-// 퍼널 환자 등록
-funnel.post('/api/protected/funnel', async (c) => {
+funnel.post('/', async (c) => {
   const user = c.get('user')!
-  const { patient_name, phone, source, current_stage, treatment_type, assigned_doctor, estimated_amount, notes } = await c.req.json()
-  if (!patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    patient_name: { type: 'string', max: 100 },
+    phone: { type: 'string', max: 20 },
+    source: { type: 'string', max: 100 },
+    current_stage: { type: 'enum', values: FUNNEL_STAGES },
+    treatment_type: { type: 'string', max: 100 },
+    assigned_doctor: { type: 'string', max: 100 },
+    estimated_amount: { type: 'number', min: 0, max: 999999999, default: 0 },
+    notes: { type: 'string', max: 2000 },
+  })
+  if (!b.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
-  const stage = current_stage || 'awareness'
+  const stage = b.current_stage || 'awareness'
   const history = JSON.stringify([{ stage, at: new Date().toISOString(), by: user.id }])
   await c.env.DB.prepare(
     'INSERT INTO patient_funnel (id, hospital_id, patient_name, phone, source, current_stage, treatment_type, assigned_doctor, estimated_amount, notes, stage_history) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-  ).bind(id, user.hospitalId, patient_name, phone||'', source||'', stage, treatment_type||'', assigned_doctor||'', estimated_amount||0, notes||'', history).run()
-  return c.json({ id, patient_name, current_stage: stage })
+  ).bind(id, user.hospitalId, b.patient_name, b.phone||'', b.source||'', stage, b.treatment_type||'', b.assigned_doctor||'', b.estimated_amount||0, b.notes||'', history).run()
+  return c.json({ id, patient_name: b.patient_name, current_stage: stage })
 })
 
-// 퍼널 단계 변경
 funnel.put('/:id', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    patient_name: { type: 'string', max: 100 },
+    phone: { type: 'string', max: 20 },
+    source: { type: 'string', max: 100 },
+    current_stage: { type: 'enum', values: FUNNEL_STAGES },
+    treatment_type: { type: 'string', max: 100 },
+    assigned_doctor: { type: 'string', max: 100 },
+    estimated_amount: { type: 'number', min: 0, max: 999999999 },
+    agreed_amount: { type: 'number', min: 0, max: 999999999 },
+    paid_amount: { type: 'number', min: 0, max: 999999999 },
+    notes: { type: 'string', max: 2000 },
+  })
   const row: any = await c.env.DB.prepare('SELECT * FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
   if (!row) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
   const sets: string[] = []; const vals: any[] = []
   for (const key of ['patient_name','phone','source','current_stage','treatment_type','assigned_doctor','estimated_amount','agreed_amount','paid_amount','notes']) {
-    if (body[key] !== undefined) { sets.push(`${key}=?`); vals.push(body[key]) }
+    if (b[key] !== undefined && b[key] !== null) { sets.push(`${key}=?`); vals.push(b[key]) }
   }
-  // 단계 변경 시 히스토리 추가
-  if (body.current_stage && body.current_stage !== row.current_stage) {
+  if (b.current_stage && b.current_stage !== row.current_stage) {
     let history: any[] = []; try { history = JSON.parse(row.stage_history||'[]') } catch(e) {}
-    history.push({ stage: body.current_stage, from: row.current_stage, at: new Date().toISOString(), by: user.id })
+    history.push({ stage: b.current_stage, from: row.current_stage, at: new Date().toISOString(), by: user.id })
     sets.push('stage_history=?'); vals.push(JSON.stringify(history))
   }
   if (!sets.length) return c.json({ error: '변경 사항 없음' }, 400)
@@ -77,12 +95,10 @@ funnel.put('/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 퍼널 삭제
 funnel.delete('/:id', async (c) => {
   const user = c.get('user')!
   await c.env.DB.prepare('DELETE FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
-
 
 export default funnel

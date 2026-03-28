@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { hashPassword, verifyPassword, signJWT } from '../lib/crypto'
-import { checkRateLimit, recordLoginFailure, clearLoginAttempts, validateEmail, validateRequired, sanitizeString } from '../lib/middleware'
+import { checkRateLimit, recordLoginFailure, clearLoginAttempts, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -24,7 +24,7 @@ auth.post('/register', async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO users (id, hospital_id, email, password_hash, name, role, is_doctor, position, team, phone, hire_date, work_schedule) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(uid, hid, sanitizeString(email, 200), hash, sanitizeString(name, 100), 'admin', 1, 'doctor', 'clinical', sanitizeString(phone||'', 20), hireDate, defaultSchedule).run()
-  const secret = c.env.JWT_SECRET || 'pfm-secret-key-change-in-production'
+  const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' }, secret)
   return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName } })
 })
@@ -54,7 +54,7 @@ auth.post('/join', async (c) => {
   await c.env.DB.prepare('UPDATE staff_invites SET used_by=? WHERE id=?').bind(uid, invite.id).run()
   const hospital: any = await c.env.DB.prepare('SELECT name FROM hospitals WHERE id=?').bind(invite.hospital_id).first()
   const role = invite.role || 'staff'
-  const secret = c.env.JWT_SECRET || 'pfm-secret-key-change-in-production'
+  const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: invite.hospital_id, email, name, role }, secret)
   return c.json({ token, user: { id: uid, hospitalId: invite.hospital_id, email, name, role, hospitalName: hospital?.name } })
 })
@@ -92,7 +92,7 @@ auth.post('/login', async (c) => {
   }
 
   clearLoginAttempts(ip)
-  const secret = c.env.JWT_SECRET || 'pfm-secret-key-change-in-production'
+  const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
   return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name } })
 })

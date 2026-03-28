@@ -1,17 +1,57 @@
 import type { AppType } from './types'
 import { verifyJWT } from './crypto'
 
+/* ═══ Security Headers Middleware ═══ */
+export function securityHeaders(app: AppType) {
+  app.use('*', async (c, next) => {
+    await next()
+    // Prevent clickjacking
+    c.header('X-Frame-Options', 'DENY')
+    // Prevent MIME sniffing
+    c.header('X-Content-Type-Options', 'nosniff')
+    // Referrer policy
+    c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+    // Permissions policy (disable unused browser features)
+    c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    // XSS protection (legacy browsers)
+    c.header('X-XSS-Protection', '1; mode=block')
+    // HSTS (force HTTPS) - only on non-localhost
+    const host = c.req.header('Host') || ''
+    if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+      c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    }
+    // CSP - allow CDN resources used by frontend
+    c.header('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+      "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '))
+  })
+}
+
 /* ═══ Auth Middleware ═══ */
 export function authMiddleware(app: AppType) {
   app.use('/api/protected/*', async (c, next) => {
     const auth = c.req.header('Authorization')
     if (!auth?.startsWith('Bearer ')) return c.json({ error: '인증이 필요합니다' }, 401)
-    const secret = c.env.JWT_SECRET || 'pfm-secret-key-change-in-production'
+    const secret = getJwtSecret(c.env.JWT_SECRET)
     const payload = await verifyJWT(auth.slice(7), secret)
     if (!payload) return c.json({ error: '토큰이 만료되었거나 유효하지 않습니다' }, 401)
     c.set('user', payload as any)
     await next()
   })
+}
+
+/* ═══ JWT Secret Helper (fail-safe for production) ═══ */
+export function getJwtSecret(envSecret?: string): string {
+  if (envSecret) return envSecret
+  // In development, allow fallback; in production this should always be set
+  console.warn('[SECURITY] JWT_SECRET not configured! Using dev fallback.')
+  return 'pfm-dev-only-secret-key-not-for-production'
 }
 
 /* ═══ Permission Helpers ═══ */
@@ -122,6 +162,11 @@ export function validateRequired(fields: Record<string, any>, required: string[]
 export function sanitizeString(str: string, maxLength = 1000): string {
   if (typeof str !== 'string') return ''
   return str.trim().slice(0, maxLength)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
 }
 
 export function sanitizeNumber(val: any, defaultVal = 0, min?: number, max?: number): number {
@@ -130,4 +175,42 @@ export function sanitizeNumber(val: any, defaultVal = 0, min?: number, max?: num
   if (min !== undefined && n < min) return min
   if (max !== undefined && n > max) return max
   return n
+}
+
+/* ═══ Bulk Body Sanitizer ═══ */
+type FieldSpec = { type: 'string'; max?: number } | { type: 'number'; min?: number; max?: number; default?: number } | { type: 'boolean' } | { type: 'json' } | { type: 'enum'; values: string[] }
+
+export function sanitizeBody(body: Record<string, any>, schema: Record<string, FieldSpec>): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, spec] of Object.entries(schema)) {
+    const val = body[key]
+    if (val === undefined || val === null) { result[key] = val; continue }
+    switch (spec.type) {
+      case 'string':
+        result[key] = sanitizeString(val, spec.max || 1000)
+        break
+      case 'number':
+        result[key] = sanitizeNumber(val, spec.default ?? 0, spec.min, spec.max)
+        break
+      case 'boolean':
+        result[key] = val === true || val === 1 || val === 'true' || val === '1'
+        break
+      case 'json':
+        result[key] = typeof val === 'object' ? val : null
+        break
+      case 'enum':
+        result[key] = spec.values.includes(String(val)) ? String(val) : null
+        break
+    }
+  }
+  return result
+}
+
+/* ═══ Safe JSON Body Parser ═══ */
+export async function safeJsonParse(c: any): Promise<Record<string, any> | null> {
+  try {
+    return await c.req.json()
+  } catch {
+    return null
+  }
 }

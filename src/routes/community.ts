@@ -1,26 +1,42 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 
 const community = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── Community Posts ─── */
 community.get('/posts', async (c) => {
   const user = c.get('user')!
-  const board = c.req.query('board') || ''
+  const board = sanitizeString(c.req.query('board') || '', 50)
+  const page = sanitizeNumber(c.req.query('page'), 1, 1, 1000)
+  const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
+  const offset = (page - 1) * limit
   let sql = 'SELECT p.*, u.name as author_name FROM posts p JOIN users u ON p.author_id=u.id WHERE p.hospital_id=?'
   const params: any[] = [user.hospitalId]
   if (board) { sql += ' AND p.board_type=?'; params.push(board) }
-  sql += ' ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT 100'
-  const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
+  sql += ' ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?'
+  params.push(limit, offset)
+  const [rows, countResult] = await Promise.all([
+    c.env.DB.prepare(sql).bind(...params).all(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE hospital_id=?' + (board ? ' AND board_type=?' : '')).bind(...(board ? [user.hospitalId, board] : [user.hospitalId])).first<{c:number}>(),
+  ])
+  return c.json({ data: rows.results, total: countResult?.c || 0, page, limit })
 })
 
 community.post('/posts', async (c) => {
   const user = c.get('user')!
-  const { board_type, title, content, target_name, is_anonymous, is_pinned } = await c.req.json()
-  if (!board_type || !title) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    board_type: { type: 'string', max: 50 },
+    title: { type: 'string', max: 200 },
+    content: { type: 'string', max: 10000 },
+    target_name: { type: 'string', max: 100 },
+    is_anonymous: { type: 'boolean' },
+    is_pinned: { type: 'boolean' },
+  })
+  if (!b.board_type || !b.title) return c.json({ error: '게시판과 제목은 필수입니다' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name, is_anonymous, is_pinned) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, board_type, user.id, title, content||'', target_name||'', is_anonymous?1:0, is_pinned?1:0).run()
+  await c.env.DB.prepare('INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name, is_anonymous, is_pinned) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.board_type, user.id, b.title, b.content||'', b.target_name||'', b.is_anonymous?1:0, b.is_pinned?1:0).run()
   return c.json({ id })
 })
 
@@ -32,13 +48,14 @@ community.delete('/posts/:id', async (c) => {
 })
 
 community.get('/posts/:id/comments', async (c) => {
-  const rows = await c.env.DB.prepare('SELECT cm.*, u.name as author_name FROM comments cm JOIN users u ON cm.author_id=u.id WHERE cm.post_id=? ORDER BY cm.created_at').bind(c.req.param('id')).all()
+  const rows = await c.env.DB.prepare('SELECT cm.*, u.name as author_name FROM comments cm JOIN users u ON cm.author_id=u.id WHERE cm.post_id=? ORDER BY cm.created_at LIMIT 200').bind(c.req.param('id')).all()
   return c.json(rows.results)
 })
 
 community.post('/posts/:id/comments', async (c) => {
   const user = c.get('user')!
-  const { content } = await c.req.json()
+  const raw = await c.req.json()
+  const content = sanitizeString(raw.content || '', 5000)
   if (!content) return c.json({ error: '내용을 입력하세요' }, 400)
   const id = crypto.randomUUID()
   await c.env.DB.prepare('INSERT INTO comments (id, post_id, author_id, content) VALUES (?,?,?,?)').bind(id, c.req.param('id'), user.id, content).run()
@@ -63,8 +80,8 @@ community.post('/posts/:id/like', async (c) => {
 /* ─── Kanban ─── */
 community.get('/kanban/:boardType', async (c) => {
   const user = c.get('user')!
-  const boardType = c.req.param('boardType')
-  const department = c.req.query('department') || ''
+  const boardType = sanitizeString(c.req.param('boardType'), 50)
+  const department = sanitizeString(c.req.query('department') || '', 50)
   let board: any = await c.env.DB.prepare('SELECT * FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
   if (!board) {
     const id = crypto.randomUUID()
@@ -75,28 +92,40 @@ community.get('/kanban/:boardType', async (c) => {
   let sql = 'SELECT kc.*, u.name as requested_by_name FROM kanban_cards kc JOIN users u ON kc.requested_by=u.id WHERE kc.board_id=?'
   const params: any[] = [board.id]
   if (department) { sql += ' AND kc.department=?'; params.push(department) }
-  sql += " ORDER BY CASE kc.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, kc.created_at DESC"
+  sql += " ORDER BY CASE kc.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, kc.created_at DESC LIMIT 200"
   const cards = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json({ board, cards: cards.results })
 })
 
 community.post('/kanban/:boardType/cards', async (c) => {
   const user = c.get('user')!
-  const boardType = c.req.param('boardType')
+  const boardType = sanitizeString(c.req.param('boardType'), 50)
   const board: any = await c.env.DB.prepare('SELECT id FROM kanban_boards WHERE hospital_id=? AND board_type=?').bind(user.hospitalId, boardType).first()
   if (!board) return c.json({ error: '보드를 찾을 수 없습니다' }, 404)
-  const { title, description, priority, estimated_cost, due_date, department } = await c.req.json()
-  if (!title) return c.json({ error: '제목을 입력하세요' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    title: { type: 'string', max: 200 },
+    description: { type: 'string', max: 5000 },
+    priority: { type: 'enum', values: ['urgent','high','normal','low'] },
+    estimated_cost: { type: 'number', min: 0, max: 999999999 },
+    due_date: { type: 'string', max: 20 },
+    department: { type: 'string', max: 50 },
+  })
+  if (!b.title) return c.json({ error: '제목을 입력하세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO kanban_cards (id, board_id, hospital_id, title, description, priority, department, requested_by, estimated_cost, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id, board.id, user.hospitalId, title, description||'', priority||'normal', department||'general', user.id, estimated_cost||null, due_date||null).run()
+  await c.env.DB.prepare('INSERT INTO kanban_cards (id, board_id, hospital_id, title, description, priority, department, requested_by, estimated_cost, due_date) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id, board.id, user.hospitalId, b.title, b.description||'', b.priority||'normal', b.department||'general', user.id, b.estimated_cost||null, b.due_date||null).run()
   return c.json({ id })
 })
 
 community.put('/kanban/cards/:id', async (c) => {
   const user = c.get('user')!
-  const { status, actual_cost } = await c.req.json()
-  const completed = status === 'completed' ? new Date().toISOString() : null
-  await c.env.DB.prepare('UPDATE kanban_cards SET status=?, actual_cost=COALESCE(?,actual_cost), completed_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?').bind(status, actual_cost||null, completed, c.req.param('id'), user.hospitalId).run()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    status: { type: 'enum', values: ['todo','in_progress','review','completed'] },
+    actual_cost: { type: 'number', min: 0, max: 999999999 },
+  })
+  const completed = b.status === 'completed' ? new Date().toISOString() : null
+  await c.env.DB.prepare('UPDATE kanban_cards SET status=?, actual_cost=COALESCE(?,actual_cost), completed_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?').bind(b.status, b.actual_cost||null, completed, c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
 
@@ -109,38 +138,51 @@ community.delete('/kanban/cards/:id', async (c) => {
 /* ─── Staff Supplies ─── */
 community.get('/staff-supplies', async (c) => {
   const user = c.get('user')!
-  const status = c.req.query('status') || ''
-  const item_type = c.req.query('item_type') || ''
+  const status = sanitizeString(c.req.query('status') || '', 30)
+  const item_type = sanitizeString(c.req.query('item_type') || '', 50)
   let sql = `SELECT ss.*, u.name as user_name, u2.name as requested_by_name, u3.name as approved_by_name FROM staff_supplies ss JOIN users u ON ss.user_id=u.id JOIN users u2 ON ss.requested_by=u2.id LEFT JOIN users u3 ON ss.approved_by=u3.id WHERE ss.hospital_id=?`
   const params: any[] = [user.hospitalId]
   if (status) { sql += ' AND ss.status=?'; params.push(status) }
   if (item_type) { sql += ' AND ss.item_type=?'; params.push(item_type) }
-  sql += ' ORDER BY ss.created_at DESC'
+  sql += ' ORDER BY ss.created_at DESC LIMIT 200'
   const results = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(results.results)
 })
 
 community.post('/staff-supplies', async (c) => {
   const user = c.get('user')!
-  const { user_id, item_type, item_name, size, color, quantity, notes } = await c.req.json()
-  if (!item_type || !item_name) return c.json({ error: '필수 항목 누락' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    user_id: { type: 'string', max: 100 },
+    item_type: { type: 'string', max: 50 },
+    item_name: { type: 'string', max: 200 },
+    size: { type: 'string', max: 20 },
+    color: { type: 'string', max: 30 },
+    quantity: { type: 'number', min: 1, max: 9999, default: 1 },
+    notes: { type: 'string', max: 1000 },
+  })
+  if (!b.item_type || !b.item_name) return c.json({ error: '품목 유형과 이름은 필수입니다' }, 400)
   const id = 'ss-' + crypto.randomUUID().slice(0,8)
-  const targetUser = user_id || user.id
-  await c.env.DB.prepare(`INSERT INTO staff_supplies (id, hospital_id, user_id, item_type, item_name, size, color, quantity, notes, requested_by) VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, targetUser, item_type, item_name, size||'', color||'', quantity||1, notes||'', user.id).run()
+  const targetUser = b.user_id || user.id
+  await c.env.DB.prepare(`INSERT INTO staff_supplies (id, hospital_id, user_id, item_type, item_name, size, color, quantity, notes, requested_by) VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, targetUser, b.item_type, b.item_name, b.size||'', b.color||'', b.quantity||1, b.notes||'', user.id).run()
   return c.json({ id })
 })
 
 community.put('/staff-supplies/:id', async (c) => {
   const user = c.get('user')!
   const id = c.req.param('id')
-  const body = await c.req.json()
+  const raw = await c.req.json()
+  const allowed = ['status','size','color','quantity','notes','order_date','delivery_date']
   const fields: string[] = []; const vals: any[] = []
-  for (const k of ['status','size','color','quantity','notes','order_date','delivery_date']) {
-    if (body[k] !== undefined) { fields.push(`${k} = ?`); vals.push(body[k]) }
+  for (const k of allowed) {
+    if (raw[k] !== undefined) {
+      const val = (k === 'quantity') ? sanitizeNumber(raw[k], 1, 1, 9999) : sanitizeString(String(raw[k]), 200)
+      fields.push(`${k} = ?`); vals.push(val)
+    }
   }
-  if (body.status === 'approved' || body.status === 'ordered') { fields.push('approved_by = ?'); vals.push(user.id) }
-  if (body.status === 'ordered' && !body.order_date) { fields.push('order_date = ?'); vals.push(new Date().toISOString().slice(0,10)) }
-  if (body.status === 'delivered' && !body.delivery_date) { fields.push('delivery_date = ?'); vals.push(new Date().toISOString().slice(0,10)) }
+  if (raw.status === 'approved' || raw.status === 'ordered') { fields.push('approved_by = ?'); vals.push(user.id) }
+  if (raw.status === 'ordered' && !raw.order_date) { fields.push('order_date = ?'); vals.push(new Date().toISOString().slice(0,10)) }
+  if (raw.status === 'delivered' && !raw.delivery_date) { fields.push('delivery_date = ?'); vals.push(new Date().toISOString().slice(0,10)) }
   if (fields.length > 0) {
     fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(id, user.hospitalId)
     await c.env.DB.prepare(`UPDATE staff_supplies SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
@@ -157,26 +199,28 @@ community.delete('/staff-supplies/:id', async (c) => {
 /* ─── Marketing ─── */
 community.get('/marketing/channels', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM marketing_channels WHERE hospital_id=? ORDER BY created_at').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT * FROM marketing_channels WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
   return c.json(rows.results)
 })
 
 community.post('/marketing/channels', async (c) => {
   const user = c.get('user')!
   if (user.role === 'staff') return c.json({ error: '마케팅 채널 관리 권한이 없습니다' }, 403)
-  const { name, monthly_cost } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, { name: { type: 'string', max: 100 }, monthly_cost: { type: 'number', min: 0, max: 999999999 } })
+  if (!b.name) return c.json({ error: '채널 이름은 필수입니다' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO marketing_channels (id, hospital_id, name, monthly_cost) VALUES (?,?,?,?)').bind(id, user.hospitalId, name, monthly_cost||0).run()
+  await c.env.DB.prepare('INSERT INTO marketing_channels (id, hospital_id, name, monthly_cost) VALUES (?,?,?,?)').bind(id, user.hospitalId, b.name, b.monthly_cost||0).run()
   return c.json({ id })
 })
 
 community.get('/marketing/records', async (c) => {
   const user = c.get('user')!
-  const month = c.req.query('month')
+  const month = sanitizeString(c.req.query('month') || '', 10)
   let sql = 'SELECT r.*, ch.name as channel_name FROM marketing_records r JOIN marketing_channels ch ON r.channel_id=ch.id WHERE r.hospital_id=?'
   const params: any[] = [user.hospitalId]
   if (month) { sql += ' AND r.record_month=?'; params.push(month) }
-  sql += ' ORDER BY r.record_month DESC'
+  sql += ' ORDER BY r.record_month DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
@@ -184,48 +228,78 @@ community.get('/marketing/records', async (c) => {
 community.post('/marketing/records', async (c) => {
   const user = c.get('user')!
   if (user.role === 'staff') return c.json({ error: '마케팅 기록 관리 권한이 없습니다' }, 403)
-  const { channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    channel_id: { type: 'string', max: 100 },
+    record_month: { type: 'string', max: 10 },
+    new_patients: { type: 'number', min: 0, max: 99999 },
+    revisit_patients: { type: 'number', min: 0, max: 99999 },
+    ad_spend: { type: 'number', min: 0, max: 999999999 },
+    revenue: { type: 'number', min: 0, max: 999999999 },
+  })
+  if (!b.channel_id || !b.record_month) return c.json({ error: '채널과 월은 필수입니다' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO marketing_records (id, hospital_id, channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, channel_id, record_month, new_patients||0, revisit_patients||0, ad_spend||0, revenue||0).run()
+  await c.env.DB.prepare('INSERT INTO marketing_records (id, hospital_id, channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.channel_id, b.record_month, b.new_patients||0, b.revisit_patients||0, b.ad_spend||0, b.revenue||0).run()
   return c.json({ id })
 })
 
 /* ─── Reviews ─── */
 community.get('/reviews', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM reviews WHERE hospital_id=? ORDER BY review_date DESC, created_at DESC LIMIT 100').bind(user.hospitalId).all()
-  return c.json(rows.results)
+  const page = sanitizeNumber(c.req.query('page'), 1, 1, 1000)
+  const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
+  const offset = (page - 1) * limit
+  const rows = await c.env.DB.prepare('SELECT * FROM reviews WHERE hospital_id=? ORDER BY review_date DESC, created_at DESC LIMIT ? OFFSET ?').bind(user.hospitalId, limit, offset).all()
+  return c.json({ data: rows.results, page, limit })
 })
 
 community.post('/reviews', async (c) => {
   const user = c.get('user')!
-  const { platform, reviewer_name, rating, content, reply, review_date } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    platform: { type: 'string', max: 50 },
+    reviewer_name: { type: 'string', max: 100 },
+    rating: { type: 'number', min: 1, max: 5, default: 5 },
+    content: { type: 'string', max: 5000 },
+    reply: { type: 'string', max: 5000 },
+    review_date: { type: 'string', max: 20 },
+  })
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO reviews (id, hospital_id, platform, reviewer_name, rating, content, reply, review_date) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, platform||'manual', reviewer_name||'', rating||5, content||'', reply||'', review_date||new Date().toISOString().split('T')[0]).run()
+  await c.env.DB.prepare('INSERT INTO reviews (id, hospital_id, platform, reviewer_name, rating, content, reply, review_date) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.platform||'manual', b.reviewer_name||'', b.rating||5, b.content||'', b.reply||'', b.review_date||new Date().toISOString().split('T')[0]).run()
   return c.json({ id })
 })
 
 /* ─── Checklists ─── */
 community.get('/checklists', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT * FROM checklists WHERE hospital_id=? ORDER BY created_at').bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT * FROM checklists WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
   return c.json(rows.results)
 })
 
 community.post('/checklists', async (c) => {
   const user = c.get('user')!
-  const { title, checklist_type, items } = await c.req.json()
-  if (!title || !items) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    title: { type: 'string', max: 200 },
+    checklist_type: { type: 'string', max: 50 },
+    items: { type: 'json' },
+  })
+  if (!b.title || !b.items) return c.json({ error: '제목과 항목은 필수입니다' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO checklists (id, hospital_id, title, checklist_type, items) VALUES (?,?,?,?,?)').bind(id, user.hospitalId, title, checklist_type||'custom', JSON.stringify(items)).run()
+  await c.env.DB.prepare('INSERT INTO checklists (id, hospital_id, title, checklist_type, items) VALUES (?,?,?,?,?)').bind(id, user.hospitalId, b.title, b.checklist_type||'custom', JSON.stringify(b.items)).run()
   return c.json({ id })
 })
 
 community.post('/checklists/:id/complete', async (c) => {
   const user = c.get('user')!
-  const { completed_items, notes, log_date } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    completed_items: { type: 'json' },
+    notes: { type: 'string', max: 2000 },
+    log_date: { type: 'string', max: 20 },
+  })
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO checklist_logs (id, checklist_id, completed_by, completed_items, log_date, notes) VALUES (?,?,?,?,?,?)').bind(id, c.req.param('id'), user.id, JSON.stringify(completed_items), log_date||new Date().toISOString().split('T')[0], notes||'').run()
+  await c.env.DB.prepare('INSERT INTO checklist_logs (id, checklist_id, completed_by, completed_items, log_date, notes) VALUES (?,?,?,?,?,?)').bind(id, c.req.param('id'), user.id, JSON.stringify(b.completed_items), b.log_date||new Date().toISOString().split('T')[0], b.notes||'').run()
   return c.json({ id })
 })
 
@@ -237,21 +311,30 @@ community.get('/checklists/:id/logs', async (c) => {
 /* ─── Events (Calendar) ─── */
 community.get('/events', async (c) => {
   const user = c.get('user')!
-  const month = c.req.query('month')
+  const month = sanitizeString(c.req.query('month') || '', 10)
   let sql = 'SELECT e.*, u.name as created_by_name FROM events e JOIN users u ON e.created_by=u.id WHERE e.hospital_id=?'
   const params: any[] = [user.hospitalId]
   if (month) { sql += ' AND e.start_date LIKE ?'; params.push(month + '%') }
-  sql += ' ORDER BY e.start_date'
+  sql += ' ORDER BY e.start_date LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json(rows.results)
 })
 
 community.post('/events', async (c) => {
   const user = c.get('user')!
-  const { title, description, event_type, start_date, end_date, all_day, color } = await c.req.json()
-  if (!title || !start_date) return c.json({ error: '필수 항목' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    title: { type: 'string', max: 200 },
+    description: { type: 'string', max: 5000 },
+    event_type: { type: 'enum', values: ['meeting','holiday','training','other'] },
+    start_date: { type: 'string', max: 30 },
+    end_date: { type: 'string', max: 30 },
+    all_day: { type: 'boolean' },
+    color: { type: 'string', max: 20 },
+  })
+  if (!b.title || !b.start_date) return c.json({ error: '제목과 시작일은 필수입니다' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO events (id, hospital_id, title, description, event_type, start_date, end_date, all_day, color, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, title, description||'', event_type||'meeting', start_date, end_date||start_date, all_day??1, color||'#0f766e', user.id).run()
+  await c.env.DB.prepare('INSERT INTO events (id, hospital_id, title, description, event_type, start_date, end_date, all_day, color, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.title, b.description||'', b.event_type||'meeting', b.start_date, b.end_date||b.start_date, b.all_day!==false?1:0, b.color||'#0f766e', user.id).run()
   return c.json({ id })
 })
 

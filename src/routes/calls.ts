@@ -1,18 +1,19 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+
 const calls = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 콜 기록 (Call Records) ═══ */
 
-// 콜 기록 목록 (월별, 타입별)
-calls.get('/api/protected/calls', async (c) => {
+calls.get('/', async (c) => {
   const user = c.get('user')!
-  const callType = c.req.query('type') || 'inbound'
-  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
-  const staff = c.req.query('staff')
-  const purpose = c.req.query('purpose')
-  const reservationStatus = c.req.query('reservation')
-  const search = c.req.query('search')
+  const callType = sanitizeString(c.req.query('type') || 'inbound', 20)
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
+  const staff = sanitizeString(c.req.query('staff') || '', 100)
+  const purpose = sanitizeString(c.req.query('purpose') || '', 50)
+  const reservationStatus = sanitizeString(c.req.query('reservation') || '', 30)
+  const search = sanitizeString(c.req.query('search') || '', 200)
 
   let sql = 'SELECT * FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?'
   const params: any[] = [user.hospitalId, callType, month+'%']
@@ -20,16 +21,15 @@ calls.get('/api/protected/calls', async (c) => {
   if (purpose) { sql += ' AND call_purpose=?'; params.push(purpose) }
   if (reservationStatus) { sql += ' AND reservation_status=?'; params.push(reservationStatus) }
   if (search) { sql += ' AND (patient_name LIKE ? OR phone LIKE ? OR comment LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`) }
-  sql += ' ORDER BY call_date DESC, created_at DESC'
+  sql += ' ORDER BY call_date DESC, created_at DESC LIMIT 500'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
   return c.json({ records: rows.results })
 })
 
-// 콜 기록 통계
 calls.get('/stats', async (c) => {
   const user = c.get('user')!
-  const callType = c.req.query('type') || 'inbound'
-  const month = c.req.query('month') || new Date().toISOString().slice(0,7)
+  const callType = sanitizeString(c.req.query('type') || 'inbound', 20)
+  const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
   const [total, byStaff, byReservation, byTreatment, byPatientType, byPurpose] = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?').bind(user.hospitalId, callType, month+'%').first(),
     c.env.DB.prepare('SELECT staff_name, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND staff_name != "" GROUP BY staff_name ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
@@ -40,19 +40,31 @@ calls.get('/stats', async (c) => {
   ])
   return c.json({
     total: (total as any)?.c || 0,
-    byStaff: byStaff.results,
-    byReservation: byReservation.results,
-    byTreatment: byTreatment.results,
-    byPatientType: byPatientType.results,
-    byPurpose: byPurpose.results,
+    byStaff: byStaff.results, byReservation: byReservation.results,
+    byTreatment: byTreatment.results, byPatientType: byPatientType.results, byPurpose: byPurpose.results,
   })
 })
 
-// 콜 기록 등록
-calls.post('/api/protected/calls', async (c) => {
+calls.post('/', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
-  if (!body.call_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    call_type: { type: 'enum', values: ['inbound','outbound'] },
+    call_date: { type: 'string', max: 20 },
+    patient_name: { type: 'string', max: 100 },
+    phone: { type: 'string', max: 20 },
+    patient_type: { type: 'string', max: 30 },
+    staff_name: { type: 'string', max: 100 },
+    treatment_interest: { type: 'string', max: 200 },
+    recognition_path: { type: 'string', max: 200 },
+    call_purpose: { type: 'string', max: 100 },
+    reservation_status: { type: 'string', max: 30 },
+    reservation_date: { type: 'string', max: 20 },
+    reservation_fulfilled: { type: 'string', max: 20 },
+    follow_up: { type: 'string', max: 500 },
+    comment: { type: 'string', max: 2000 },
+  })
+  if (!b.call_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
   const id = 'call-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`
     INSERT INTO call_records (id, hospital_id, call_type, call_date, patient_name, phone, patient_type,
@@ -60,29 +72,26 @@ calls.post('/api/protected/calls', async (c) => {
       reservation_date, reservation_fulfilled, follow_up, comment, created_by)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
-    id, user.hospitalId,
-    body.call_type || 'inbound',
-    body.call_date,
-    body.patient_name || '', body.phone || '', body.patient_type || '',
-    body.staff_name || '', body.treatment_interest || '', body.recognition_path || '',
-    body.call_purpose || '', body.reservation_status || '',
-    body.reservation_date || '', body.reservation_fulfilled || '',
-    body.follow_up || '', body.comment || '', user.id
+    id, user.hospitalId, b.call_type || 'inbound', b.call_date,
+    b.patient_name || '', b.phone || '', b.patient_type || '',
+    b.staff_name || '', b.treatment_interest || '', b.recognition_path || '',
+    b.call_purpose || '', b.reservation_status || '',
+    b.reservation_date || '', b.reservation_fulfilled || '',
+    b.follow_up || '', b.comment || '', user.id
   ).run()
   return c.json({ success: true, id })
 })
 
-// 콜 기록 수정
 calls.put('/:id', async (c) => {
   const user = c.get('user')!
-  const body = await c.req.json()
+  const raw = await c.req.json()
   const id = c.req.param('id')
-  const fields = ['call_date','patient_name','phone','patient_type','staff_name',
+  const allowedFields = ['call_date','patient_name','phone','patient_type','staff_name',
     'treatment_interest','recognition_path','call_purpose','reservation_status',
     'reservation_date','reservation_fulfilled','follow_up','comment']
   const updates: string[] = []; const vals: any[] = []
-  for (const f of fields) {
-    if (body[f] !== undefined) { updates.push(`${f}=?`); vals.push(body[f]) }
+  for (const f of allowedFields) {
+    if (raw[f] !== undefined) { updates.push(`${f}=?`); vals.push(sanitizeString(String(raw[f]), f === 'comment' ? 2000 : 200)) }
   }
   if (updates.length === 0) return c.json({ error: '수정할 내용이 없습니다' }, 400)
   updates.push('updated_at=?'); vals.push(new Date().toISOString())
@@ -91,12 +100,10 @@ calls.put('/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 콜 기록 삭제
 calls.delete('/:id', async (c) => {
   const user = c.get('user')!
   await c.env.DB.prepare('DELETE FROM call_records WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
-
 
 export default calls

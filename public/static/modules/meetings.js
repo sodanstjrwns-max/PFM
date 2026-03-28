@@ -178,7 +178,7 @@ async function renderMeetings(body, actions) {
     showModal();
 
     window.updateAttendance = async function(mId, uId, val) {
-      await api('/api/protected/meetings/' + mId + '/participants', { method: 'PUT', json: { user_id: uId, attendance: val }) };
+      await api('/api/protected/meetings/' + mId + '/participants', { method: 'PUT', json: { user_id: uId, attendance: val } });
       toast('출석 변경!', 'success');
     };
 
@@ -191,7 +191,7 @@ async function renderMeetings(body, actions) {
     }
     if (document.getElementById('completeMeetingBtn')) {
       document.getElementById('completeMeetingBtn').onclick = async () => {
-        await api('/api/protected/meetings/' + meetingId, { method: 'PUT', json: { status: 'completed' }) };
+        await api('/api/protected/meetings/' + meetingId, { method: 'PUT', json: { status: 'completed' } });
         toast('회의 완료 처리!', 'success'); closeModal(); loadList();
       };
     }

@@ -1,13 +1,13 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString } from '../lib/middleware'
+import { requireRole, sanitizeString, sanitizeBody } from '../lib/middleware'
 
 const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 // HR 대시보드
 hr.get('/dashboard', async (c) => {
   const user = c.get('user')!
-  const today = c.req.query('date') || new Date().toISOString().slice(0,10)
+  const today = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0,10), 10)
   const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
   const dayOfWeek = dayNames[new Date(today + 'T00:00:00').getDay()]
   const staffRows = await c.env.DB.prepare(
@@ -95,7 +95,7 @@ hr.put('/staff/:id', async (c) => {
   const fields: string[] = []; const vals: any[] = []
   for (const k of ['position','team','phone','hire_date','work_schedule','work_status','is_active','role','name']) {
     if (body[k] !== undefined) {
-      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]
+      const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : sanitizeString(String(body[k]), k === 'name' ? 100 : 200)
       fields.push(`${k} = ?`); vals.push(v)
     }
   }
@@ -109,11 +109,16 @@ hr.put('/staff/:id', async (c) => {
 hr.post('/invite', async (c) => {
   const user = c.get('user')!
   if (user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
-  const { role, position, team } = await c.req.json()
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    role: { type: 'enum', values: ['admin','manager','staff'] },
+    position: { type: 'string', max: 100 },
+    team: { type: 'string', max: 100 },
+  })
   const id = 'inv-' + crypto.randomUUID().slice(0,8)
   const code = Math.random().toString(36).slice(2,8).toUpperCase()
   const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString()
-  await c.env.DB.prepare('INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, code, role||'staff', position||'', team||'', user.id, expiresAt).run()
+  await c.env.DB.prepare('INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, code, b.role||'staff', b.position||'', b.team||'', user.id, expiresAt).run()
   return c.json({ invite_code: code, expires_at: expiresAt })
 })
 
@@ -144,7 +149,7 @@ hr.post('/attendance/check', async (c) => {
 // 출근 현황
 hr.get('/attendance', async (c) => {
   const user = c.get('user')!
-  const date = c.req.query('date') || new Date().toISOString().slice(0,10)
+  const date = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0,10), 10)
   const rows = await c.env.DB.prepare(`SELECT a.*, u.name as user_name, u.position, u.team FROM attendance a JOIN users u ON a.user_id=u.id WHERE a.hospital_id=? AND a.date=? ORDER BY a.check_in`).bind(user.hospitalId, date).all()
   return c.json(rows.results)
 })

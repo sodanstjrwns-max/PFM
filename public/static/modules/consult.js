@@ -659,10 +659,10 @@ function openRecordForm(record, staffData, onSave) {
     }
     try {
       if (isEdit) {
-        await api(`/api/protected/consult-records/${r.id}`, { method: 'PUT', json: data) };
+        await api(`/api/protected/consult-records/${r.id}`, { method: 'PUT', json: data }) ;
         toast('✅ 수정 완료');
       } else {
-        await api('/api/protected/consult-records', { method: 'POST', json: data) };
+        await api('/api/protected/consult-records', { method: 'POST', json: data }) ;
         toast('✅ 기록 저장 완료');
       }
       closeModal();
