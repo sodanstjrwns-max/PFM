@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody, validateFile } from '../lib/middleware'
 
 const hire = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -126,9 +126,9 @@ hire.post('/applicants/:id/resume', async (c) => {
   const form = await c.req.formData()
   const file = form.get('file') as File
   if (!file) return c.json({ error: '파일을 선택해주세요' }, 400)
-  if (file.size > 10 * 1024 * 1024) return c.json({ error: '파일 크기는 10MB 이하여야 합니다' }, 400)
-  const ext = sanitizeString(file.name.split('.').pop() || 'pdf', 10).replace(/[^a-zA-Z0-9]/g, '')
-  const key = `resumes/${user.hospitalId}/${appId}.${ext}`
+  const fv = validateFile(file, 10)
+  if (!fv.valid) return c.json({ error: fv.error }, 400)
+  const key = `resumes/${user.hospitalId}/${appId}.${fv.ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const resumeUrl = `/api/protected/files/${key}`
   await c.env.DB.prepare('UPDATE applicants SET resume_url=? WHERE id=? AND hospital_id=?').bind(resumeUrl, appId, user.hospitalId).run()

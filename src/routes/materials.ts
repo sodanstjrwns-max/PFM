@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody, validateFile } from '../lib/middleware'
 
 const materials = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -34,13 +34,13 @@ materials.post('/materials', async (c) => {
   const description = sanitizeString(form.get('description') as string || '', 2000)
   const file = form.get('file') as File
   if (!title || !categoryId || !file) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
-  if (file.size > 50 * 1024 * 1024) return c.json({ error: '파일 크기는 50MB 이하여야 합니다' }, 400)
+  const fv = validateFile(file, 50)
+  if (!fv.valid) return c.json({ error: fv.error }, 400)
   const id = crypto.randomUUID()
-  const ext = sanitizeString(file.name.split('.').pop() || 'jpg', 10).replace(/[^a-zA-Z0-9]/g, '')
-  const key = `materials/${user.hospitalId}/${id}.${ext}`
+  const key = `materials/${user.hospitalId}/${id}.${fv.ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const fileUrl = `/api/protected/files/${key}`
-  const fileType = file.type.startsWith('video') ? 'video' : file.type === 'application/pdf' ? 'pdf' : 'image'
+  const fileType = fv.safeType === 'video' ? 'video' : fv.safeType === 'document' ? 'pdf' : 'image'
   await c.env.DB.prepare('INSERT INTO materials (id, hospital_id, category_id, title, description, file_url, file_type) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, categoryId, title, description, fileUrl, fileType).run()
   return c.json({ id, title, file_url: fileUrl, file_type: fileType })
 })
@@ -155,10 +155,10 @@ materials.post('/cases/:id/images', async (c) => {
   const imageType = sanitizeString((form.get('image_type') as string) || 'during', 20)
   const caption = sanitizeString((form.get('caption') as string) || '', 500)
   if (!file) return c.json({ error: '파일을 선택해주세요' }, 400)
-  if (file.size > 20 * 1024 * 1024) return c.json({ error: '이미지 크기는 20MB 이하여야 합니다' }, 400)
+  const fv = validateFile(file, 20)
+  if (!fv.valid) return c.json({ error: fv.error }, 400)
   const imgId = crypto.randomUUID()
-  const ext = sanitizeString(file.name.split('.').pop() || 'jpg', 10).replace(/[^a-zA-Z0-9]/g, '')
-  const key = `cases/${user.hospitalId}/${caseId}/${imgId}.${ext}`
+  const key = `cases/${user.hospitalId}/${caseId}/${imgId}.${fv.ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const imageUrl = `/api/protected/files/${key}`
   await c.env.DB.prepare('INSERT INTO case_images (id, case_id, image_url, image_type, caption) VALUES (?,?,?,?,?)').bind(imgId, caseId, imageUrl, imageType, caption).run()

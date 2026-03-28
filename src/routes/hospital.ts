@@ -53,19 +53,30 @@ hospital.get('/settings', async (c) => {
 hospital.put('/settings', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')!
   const body = await c.req.json()
-  // 기존 설정 로드 후 깊은 머지 (location_terms 등 중첩 객체 보존)
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: '잘못된 요청 형식입니다' }, 400)
+  // 허용된 설정 키만 저장
+  const allowedKeys = ['location_terms','location_presets','operating_hours','floor_map','core_treatments','core_regions','custom_fields','notification_settings']
+  const filtered: Record<string,any> = {}
+  for (const key of Object.keys(body)) {
+    if (allowedKeys.includes(key)) filtered[key] = body[key]
+  }
+  if (Object.keys(filtered).length === 0) return c.json({ error: '변경 사항이 없습니다' }, 400)
+  // 기존 설정 로드 후 깊은 머지
   const row: any = await c.env.DB.prepare('SELECT settings FROM hospitals WHERE id=?').bind(user.hospitalId).first()
   let existing: any = {}
   try { existing = JSON.parse(row?.settings || '{}') } catch(e) {}
   const updated = { ...existing }
-  for (const key of Object.keys(body)) {
-    if (typeof body[key] === 'object' && !Array.isArray(body[key]) && body[key] !== null && typeof existing[key] === 'object' && !Array.isArray(existing[key])) {
-      updated[key] = { ...existing[key], ...body[key] }
+  for (const key of Object.keys(filtered)) {
+    if (typeof filtered[key] === 'object' && !Array.isArray(filtered[key]) && filtered[key] !== null && typeof existing[key] === 'object' && !Array.isArray(existing[key])) {
+      updated[key] = { ...existing[key], ...filtered[key] }
     } else {
-      updated[key] = body[key]
+      updated[key] = filtered[key]
     }
   }
-  await c.env.DB.prepare('UPDATE hospitals SET settings=?, updated_at=? WHERE id=?').bind(JSON.stringify(updated), new Date().toISOString(), user.hospitalId).run()
+  // 설정 크기 제한 (100KB)
+  const settingsStr = JSON.stringify(updated)
+  if (settingsStr.length > 102400) return c.json({ error: '설정 데이터가 너무 큽니다 (최대 100KB)' }, 400)
+  await c.env.DB.prepare('UPDATE hospitals SET settings=?, updated_at=? WHERE id=?').bind(settingsStr, new Date().toISOString(), user.hospitalId).run()
   return c.json({ success: true, settings: updated })
 })
 

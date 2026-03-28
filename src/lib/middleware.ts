@@ -87,17 +87,27 @@ function filterSensitiveFields(item: any): any {
 
 /* ═══ Rate Limiter (IP-based, in-memory for Workers) ═══ */
 const loginAttempts = new Map<string, { count: number; firstAttempt: number; lockedUntil: number }>()
+const MAX_RATE_LIMIT_ENTRIES = 5000
+const RATE_LIMIT_TTL = 600000 // 10분
+
+function cleanRateLimitMap() {
+  if (loginAttempts.size <= MAX_RATE_LIMIT_ENTRIES) return
+  const now = Date.now()
+  for (const [key, val] of loginAttempts) {
+    if (now - val.firstAttempt > RATE_LIMIT_TTL) loginAttempts.delete(key)
+  }
+  // 그래도 크면 가장 오래된 절반 제거
+  if (loginAttempts.size > MAX_RATE_LIMIT_ENTRIES) {
+    const entries = [...loginAttempts.entries()].sort((a, b) => a[1].firstAttempt - b[1].firstAttempt)
+    const toRemove = entries.slice(0, Math.floor(entries.length / 2))
+    for (const [key] of toRemove) loginAttempts.delete(key)
+  }
+}
 
 export function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now()
+  cleanRateLimitMap()
   const entry = loginAttempts.get(ip)
-
-  // Clean old entries periodically
-  if (loginAttempts.size > 10000) {
-    for (const [key, val] of loginAttempts) {
-      if (now - val.firstAttempt > 900000) loginAttempts.delete(key) // 15분 지난 것 정리
-    }
-  }
 
   if (!entry) return { allowed: true }
 
@@ -213,4 +223,26 @@ export async function safeJsonParse(c: any): Promise<Record<string, any> | null>
   } catch {
     return null
   }
+}
+
+/* ═══ File Upload Validation ═══ */
+const ALLOWED_FILE_TYPES: Record<string, string[]> = {
+  image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime'],
+}
+const ALLOWED_EXTENSIONS = new Set(['jpg','jpeg','png','gif','webp','svg','pdf','doc','docx','xls','xlsx','ppt','pptx','mp4','webm','mov'])
+const DANGEROUS_EXTENSIONS = new Set(['exe','bat','cmd','sh','ps1','vbs','js','msi','dll','scr','com','pif','hta','cpl','inf','reg'])
+
+export function validateFile(file: File, maxSizeMB: number = 50): { valid: boolean; error?: string; ext: string; safeType: string } {
+  if (!file || !file.name) return { valid: false, error: '파일이 없습니다', ext: '', safeType: '' }
+  if (file.size > maxSizeMB * 1024 * 1024) return { valid: false, error: `파일 크기는 ${maxSizeMB}MB 이하여야 합니다`, ext: '', safeType: '' }
+  if (file.size === 0) return { valid: false, error: '빈 파일은 업로드할 수 없습니다', ext: '', safeType: '' }
+  const ext = (file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (DANGEROUS_EXTENSIONS.has(ext)) return { valid: false, error: '해당 파일 형식은 업로드할 수 없습니다', ext, safeType: '' }
+  if (!ALLOWED_EXTENSIONS.has(ext)) return { valid: false, error: `지원하지 않는 파일 형식입니다 (${ext})`, ext, safeType: '' }
+  const safeType = ALLOWED_FILE_TYPES.image.includes(file.type) ? 'image'
+    : ALLOWED_FILE_TYPES.video.includes(file.type) ? 'video'
+    : ALLOWED_FILE_TYPES.document.includes(file.type) ? 'document' : 'other'
+  return { valid: true, ext, safeType }
 }

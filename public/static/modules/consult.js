@@ -745,10 +745,14 @@ function openRecordForm(record, staffData, onSave) {
       else if (e.key === 'Escape') { suggestBox.style.display = 'none'; }
     });
     
-    // 바깥 클릭 시 닫기
+    // 바깥 클릭 시 닫기 (AbortController로 클린업)
+    const ac = new AbortController();
     document.addEventListener('click', (e) => {
       if (!suggestBox.contains(e.target) && e.target !== patientInput) suggestBox.style.display = 'none';
-    }, { once: false });
+    }, { signal: ac.signal });
+    // 모듈 언로드 시 정리 (페이지 전환 시 container 교체로 자동 호출)
+    const obs = new MutationObserver(() => { if (!document.contains(suggestBox)) { ac.abort(); obs.disconnect(); } });
+    obs.observe(document.body, { childList: true, subtree: true });
   }
   
   function highlightAc() {

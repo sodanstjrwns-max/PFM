@@ -151,12 +151,15 @@ async function renderLeaveManagement(body, actions) {
       });
     });
     
-    // Close day detail on outside click
+    // Close day detail on outside click (with cleanup)
+    const leaveClickAc = new AbortController();
     document.addEventListener('click', function(e) {
       if (!e.target.closest('.leave-day-detail')) {
         document.querySelectorAll('.leave-day-detail').forEach(el => el.remove());
       }
-    });
+    }, { signal: leaveClickAc.signal });
+    const leaveObs = new MutationObserver(() => { if (!document.getElementById('leaveCalendar')) { leaveClickAc.abort(); leaveObs.disconnect(); } });
+    leaveObs.observe(document.body, { childList: true, subtree: true });
   }
 
   async function loadList(filterStatus) {

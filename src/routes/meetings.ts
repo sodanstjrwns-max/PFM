@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody, validateFile } from '../lib/middleware'
 const meetings = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 meetings.get('/', async (c) => {
@@ -132,9 +132,9 @@ meetings.post('/:id/minutes/upload', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
   const formData = await c.req.formData(); const file = formData.get('file') as File
   if (!file) return c.json({ error: '파일이 없습니다' }, 400)
-  if (file.size > 20 * 1024 * 1024) return c.json({ error: '파일 크기는 20MB 이하여야 합니다' }, 400)
-  const ext = sanitizeString(file.name.split('.').pop() || 'pdf', 10).replace(/[^a-zA-Z0-9]/g, '')
-  const key = `minutes/${user.hospitalId}/${crypto.randomUUID()}.${ext}`
+  const fv = validateFile(file, 20)
+  if (!fv.valid) return c.json({ error: fv.error }, 400)
+  const key = `minutes/${user.hospitalId}/${crypto.randomUUID()}.${fv.ext}`
   await c.env.R2.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } })
   const existing = await c.env.DB.prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
   if (existing) { await c.env.DB.prepare('UPDATE meeting_minutes SET file_url = ?, file_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(key, sanitizeString(file.name, 200), existing.id).run() }
