@@ -379,6 +379,7 @@ function getNavConfig() {
       id: 'patient_group', label: '👥 환자 관리', icon: ICONS.users,
       children: [
         { id: 'patients', label: '환자 DB', icon: ICONS.users },
+        { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
@@ -708,6 +709,7 @@ function renderPage() {
     fee_schedule: ['💰 수가표', ICONS.pricing],
     funnel: ['🔄 Patient Funnel', ICONS.chart],
     patients: ['👥 환자 DB', ICONS.users],
+    patients_stats: ['📊 환자 통계', ICONS.chart],
     calls_inbound: ['📞 인바운드 콜', ICONS.phone || ICONS.message],
     calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
@@ -754,6 +756,7 @@ function renderPage() {
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
+    case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;

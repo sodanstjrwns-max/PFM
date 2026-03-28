@@ -2736,6 +2736,75 @@ app.get('/api/protected/patients/stats/summary', async (c) => {
   })
 })
 
+// 환자 상세 통계 (기간별: daily/weekly/monthly/yearly)
+app.get('/api/protected/patients/stats/detailed', async (c) => {
+  const user = c.get('user')!
+  const period = c.req.query('period') || 'monthly' // daily, weekly, monthly, yearly
+  const from = c.req.query('from') || ''
+  const to = c.req.query('to') || ''
+
+  // 기간 조건 빌드
+  let dateFilter = ''
+  const params: any[] = [user.hospitalId]
+  if (from && to) {
+    dateFilter = ' AND first_visit_date >= ? AND first_visit_date <= ?'
+    params.push(from, to)
+  } else if (from) {
+    dateFilter = ' AND first_visit_date >= ?'
+    params.push(from)
+  } else if (to) {
+    dateFilter = ' AND first_visit_date <= ?'
+    params.push(to)
+  }
+
+  const baseWhere = "hospital_id=? AND status='active'" + dateFilter
+
+  // 기간별 그룹 키
+  let dateGroupExpr = ''
+  if (period === 'daily') dateGroupExpr = 'first_visit_date'
+  else if (period === 'weekly') dateGroupExpr = "strftime('%Y-W%W', first_visit_date)"
+  else if (period === 'monthly') dateGroupExpr = "substr(first_visit_date, 1, 7)"
+  else dateGroupExpr = "substr(first_visit_date, 1, 4)"
+
+  const queries = [
+    // 0) 전체 카운트
+    c.env.DB.prepare(`SELECT COUNT(*) as c FROM patients WHERE ${baseWhere}`).bind(...params).first(),
+    // 1) 신환/구환
+    c.env.DB.prepare(`SELECT patient_type, COUNT(*) as c FROM patients WHERE ${baseWhere} AND patient_type != '' GROUP BY patient_type ORDER BY c DESC`).bind(...params).all(),
+    // 2) 내원경로별
+    c.env.DB.prepare(`SELECT visit_source, COUNT(*) as c FROM patients WHERE ${baseWhere} AND visit_source != '' GROUP BY visit_source ORDER BY c DESC`).bind(...params).all(),
+    // 3) 진료과목별
+    c.env.DB.prepare(`SELECT treatment_area, COUNT(*) as c FROM patients WHERE ${baseWhere} AND treatment_area != '' GROUP BY treatment_area ORDER BY c DESC`).bind(...params).all(),
+    // 4) 지역별 (시/도)
+    c.env.DB.prepare(`SELECT addr_sido, COUNT(*) as c FROM patients WHERE ${baseWhere} AND addr_sido != '' GROUP BY addr_sido ORDER BY c DESC`).bind(...params).all(),
+    // 5) 지역별 (시/군/구) - 상위 20
+    c.env.DB.prepare(`SELECT addr_sido, addr_sigungu, COUNT(*) as c FROM patients WHERE ${baseWhere} AND addr_sido != '' AND addr_sigungu != '' GROUP BY addr_sido, addr_sigungu ORDER BY c DESC LIMIT 20`).bind(...params).all(),
+    // 6) 담당 원장별
+    c.env.DB.prepare(`SELECT primary_doctor, COUNT(*) as c FROM patients WHERE ${baseWhere} AND primary_doctor != '' GROUP BY primary_doctor ORDER BY c DESC`).bind(...params).all(),
+    // 7) 담당 상담사별
+    c.env.DB.prepare(`SELECT assigned_counselor, COUNT(*) as c FROM patients WHERE ${baseWhere} AND assigned_counselor != '' GROUP BY assigned_counselor ORDER BY c DESC`).bind(...params).all(),
+    // 8) 기간별 트렌드
+    c.env.DB.prepare(`SELECT ${dateGroupExpr} as period_key, COUNT(*) as c, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_count, SUM(CASE WHEN patient_type='existing' THEN 1 ELSE 0 END) as existing_count FROM patients WHERE ${baseWhere} AND first_visit_date != '' GROUP BY period_key ORDER BY period_key`).bind(...params).all(),
+    // 9) 성별
+    c.env.DB.prepare(`SELECT gender, COUNT(*) as c FROM patients WHERE ${baseWhere} AND gender != '' GROUP BY gender ORDER BY c DESC`).bind(...params).all(),
+  ]
+
+  const results = await Promise.all(queries)
+  return c.json({
+    total: (results[0] as any)?.c || 0,
+    byPatientType: results[1].results,
+    bySource: results[2].results,
+    byTreatmentArea: results[3].results,
+    bySido: results[4].results,
+    bySigungu: results[5].results,
+    byDoctor: results[6].results,
+    byCounselor: results[7].results,
+    trend: results[8].results,
+    byGender: results[9].results,
+    period, from, to,
+  })
+})
+
 // 환자 상세 (상담 이력 포함)
 app.get('/api/protected/patients/:id', async (c) => {
   const user = c.get('user')!
@@ -2854,6 +2923,7 @@ function getHTML(): string {
 <script src="/static/modules/clinical.js"><` + `/script>
 <script src="/static/modules/consult.js"><` + `/script>
 <script src="/static/modules/patients.js"><` + `/script>
+<script src="/static/modules/patients-stats.js"><` + `/script>
 <script src="/static/modules/calls-inbound.js"><` + `/script>
 <script src="/static/modules/calls-outbound.js"><` + `/script>
 <script src="/static/modules/calls-stats.js"><` + `/script>

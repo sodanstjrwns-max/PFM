@@ -131,7 +131,6 @@ async function renderPatients(body, actions) {
   
   actions.innerHTML = `
     ${isManager ? '<button class="btn btn-primary btn-sm" id="addPatientBtn">➕ 환자 등록</button>' : ''}
-    <button class="btn btn-sm" id="patientStatsBtn" style="margin-left:6px">📊 통계</button>
   `;
   
   body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
@@ -442,11 +441,6 @@ async function renderPatients(body, actions) {
   // 환자 등록 버튼
   document.getElementById('addPatientBtn')?.addEventListener('click', () => {
     openPatientForm(null, staffData, loadPatients);
-  });
-  
-  // 통계 버튼
-  document.getElementById('patientStatsBtn')?.addEventListener('click', () => {
-    openPatientStats();
   });
 }
 
@@ -776,74 +770,6 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
     
   } catch(e) {
     mc.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">환자 정보를 불러올 수 없습니다</div>`;
-  }
-}
-
-// ═══ 환자 통계 팝업 ═══
-async function openPatientStats() {
-  showModal();
-  const mc = document.getElementById('modalContent');
-  mc.style.maxWidth = '500px';
-  mc.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
-  
-  try {
-    const stats = await api('/api/protected/patients/stats/summary');
-    
-    mc.innerHTML = `
-      <div style="padding:4px 2px">
-        <h3 style="margin:0 0 20px;font-size:18px;font-weight:900">📊 환자 통계</h3>
-        
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
-          <div style="background:var(--bg);border-radius:12px;padding:16px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">전체 활성 환자</div>
-            <div style="font-size:28px;font-weight:900;color:var(--primary)">${stats.totalActive.toLocaleString()}</div>
-          </div>
-          <div style="background:var(--bg);border-radius:12px;padding:16px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">이번달 신환</div>
-            <div style="font-size:28px;font-weight:900;color:#3b82f6">${stats.newThisMonth.toLocaleString()}</div>
-          </div>
-        </div>
-        
-        ${stats.bySource.length > 0 ? `
-        <div style="margin-bottom:16px">
-          <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">내원 경로별</h4>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            ${stats.bySource.slice(0,8).map(s => {
-              const label = VISIT_SOURCES[s.visit_source] || s.visit_source || '미입력';
-              const pct = stats.totalActive > 0 ? Math.round(s.c / stats.totalActive * 100) : 0;
-              const group = SOURCE_GROUPS[s.visit_source] || '미입력';
-              const color = SOURCE_GROUP_COLORS[group] || '#cbd5e1';
-              return `<div style="display:flex;align-items:center;gap:8px;font-size:12px">
-                <span style="width:4px;height:20px;border-radius:2px;background:${color}"></span>
-                <span style="flex:1">${esc(label)}</span>
-                <strong>${s.c}명</strong>
-                <span style="color:var(--text-muted);width:40px;text-align:right">${pct}%</span>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>` : ''}
-        
-        ${stats.byArea.length > 0 ? `
-        <div>
-          <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">진료 영역별</h4>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            ${stats.byArea.slice(0,8).map(a => {
-              const label = TREATMENT_AREAS[a.treatment_area] || a.treatment_area || '미입력';
-              const color = AREA_COLORS[a.treatment_area] || '#94a3b8';
-              return `<div style="display:flex;align-items:center;gap:8px;font-size:12px">
-                <span style="width:4px;height:20px;border-radius:2px;background:${color}"></span>
-                <span style="flex:1">${esc(label)}</span>
-                <strong>${a.c}명</strong>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>` : ''}
-        
-        <button onclick="PFM.closeModal()" class="btn" style="width:100%;padding:12px;border-radius:12px;margin-top:16px">닫기</button>
-      </div>
-    `;
-  } catch(e) {
-    mc.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444">통계를 불러올 수 없습니다</div>';
   }
 }
 
