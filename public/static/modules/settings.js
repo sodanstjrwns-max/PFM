@@ -176,6 +176,7 @@ function renderMyProfile(profile) {
 
     <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light)">
       <button class="btn btn-primary" id="myProfileSaveBtn">💾 내 정보 저장</button>
+      <button class="btn btn-outline" id="changePasswordBtn" data-action="change-password">🔑 비밀번호 변경</button>
       <span id="myProfileSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
     </div>`;
 
@@ -216,6 +217,56 @@ function renderMyProfile(profile) {
       setTimeout(() => { const s = document.getElementById('myProfileSaveStatus'); if(s) s.textContent=''; }, 3000);
     } catch(e) { toast(e.message, 'error'); }
     btn.disabled = false;
+  });
+
+  // 비밀번호 변경
+  document.getElementById('changePasswordBtn').addEventListener('click', () => {
+    showModal(`
+      <h3 style="margin-bottom:20px;font-size:18px;font-weight:700">🔑 비밀번호 변경</h3>
+      <div class="form-group">
+        <label>현재 비밀번호</label>
+        <input class="form-input" type="password" id="pwCurrent" placeholder="현재 비밀번호 입력" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label>새 비밀번호</label>
+        <input class="form-input" type="password" id="pwNew" placeholder="6자 이상" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>새 비밀번호 확인</label>
+        <input class="form-input" type="password" id="pwConfirm" placeholder="새 비밀번호 다시 입력" autocomplete="new-password">
+      </div>
+      <div id="pwError" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-outline" id="pwCancelBtn">취소</button>
+        <button class="btn btn-primary" id="pwSubmitBtn">변경하기</button>
+      </div>
+    `);
+    document.getElementById('pwCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('pwSubmitBtn').addEventListener('click', async () => {
+      const cur = document.getElementById('pwCurrent').value;
+      const nw = document.getElementById('pwNew').value;
+      const cf = document.getElementById('pwConfirm').value;
+      const errEl = document.getElementById('pwError');
+      errEl.style.display = 'none';
+      if (!cur || !nw || !cf) { errEl.textContent = '모든 항목을 입력해주세요'; errEl.style.display = ''; return; }
+      if (nw.length < 6) { errEl.textContent = '새 비밀번호는 6자 이상이어야 합니다'; errEl.style.display = ''; return; }
+      if (nw !== cf) { errEl.textContent = '새 비밀번호가 일치하지 않습니다'; errEl.style.display = ''; return; }
+      const submitBtn = document.getElementById('pwSubmitBtn');
+      submitBtn.disabled = true; submitBtn.textContent = '변경 중...';
+      try {
+        await api('/api/protected/me/password', { method: 'PUT', json: { currentPassword: cur, newPassword: nw }});
+        closeModal();
+        toast('비밀번호가 변경되었습니다! 🎉', 'success');
+      } catch(e) {
+        errEl.textContent = e.message; errEl.style.display = '';
+        submitBtn.disabled = false; submitBtn.textContent = '변경하기';
+      }
+    });
+    ['pwCurrent','pwNew','pwConfirm'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') document.getElementById('pwSubmitBtn').click();
+      });
+    });
   });
 }
 

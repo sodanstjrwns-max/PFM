@@ -168,19 +168,25 @@ function renderAuth() {
           <label>병원명 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regHospital" placeholder="예: 서울비디치과">
         </div>
-        <div id="regHospitalInfoField" style="display:none" class="form-grid">
-          <div class="form-group">
-            <label>병원 전화번호</label>
-            <input class="form-input" type="tel" id="regHospitalPhone" placeholder="02-000-0000">
-          </div>
-          <div class="form-group">
-            <label>원장 연락처</label>
-            <input class="form-input" type="tel" id="regPhone" placeholder="010-0000-0000">
-          </div>
+        <div class="form-group" id="regBusinessField" style="display:none">
+          <label>사업자등록번호</label>
+          <input class="form-input" type="text" id="regBusinessNumber" placeholder="000-00-00000" maxlength="12">
+        </div>
+        <div class="form-group" id="regHospitalPhoneField" style="display:none">
+          <label>병원 전화번호</label>
+          <input class="form-input" type="tel" id="regHospitalPhone" placeholder="02-000-0000">
         </div>
         <div class="form-group" id="regAddressField" style="display:none">
           <label>병원 주소</label>
           <input class="form-input" type="text" id="regAddress" placeholder="예: 서울시 강남구 테헤란로 123">
+        </div>
+        <div class="form-group" id="regNameField" style="display:none">
+          <label>이름 <span style="color:var(--danger)">*</span></label>
+          <input class="form-input" type="text" id="regName" placeholder="대표원장 성함">
+        </div>
+        <div class="form-group" id="regPhoneField" style="display:none">
+          <label>원장 연락처</label>
+          <input class="form-input" type="tel" id="regPhone" placeholder="010-0000-0000">
         </div>
         <div class="form-group" id="inviteCodeField" style="display:none">
           <label>초대 코드</label>
@@ -301,10 +307,12 @@ function renderAuth() {
       mode = tab.dataset.tab;
       tabs.forEach(t => t.classList.toggle('active', t === tab));
       document.getElementById('regHospitalField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regHospitalInfoField').style.display = mode === 'register' ? '' : 'none';
+      document.getElementById('regBusinessField').style.display = mode === 'register' ? '' : 'none';
+      document.getElementById('regHospitalPhoneField').style.display = mode === 'register' ? '' : 'none';
       document.getElementById('regAddressField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('inviteCodeField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('regNameField').style.display = mode !== 'login' ? '' : 'none';
+      document.getElementById('regPhoneField').style.display = mode === 'register' ? '' : 'none';
+      document.getElementById('inviteCodeField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinPhoneField').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinPositionTeam').style.display = mode === 'join' ? '' : 'none';
       document.getElementById('joinScheduleField').style.display = mode === 'join' ? '' : 'none';
@@ -312,6 +320,14 @@ function renderAuth() {
       document.getElementById('authError').classList.remove('show');
       if (mode === 'join') buildScheduleGrid();
     });
+  });
+
+  // 사업자등록번호 자동 포맷 (000-00-00000)
+  document.getElementById('regBusinessNumber')?.addEventListener('input', (e) => {
+    let v = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+    if (v.length > 5) v = v.slice(0,3) + '-' + v.slice(3,5) + '-' + v.slice(5);
+    else if (v.length > 3) v = v.slice(0,3) + '-' + v.slice(3);
+    e.target.value = v;
   });
 
   // Invite code validation
@@ -382,6 +398,7 @@ function renderAuth() {
           phone: document.getElementById('regPhone').value,
           hospitalPhone: document.getElementById('regHospitalPhone').value,
           hospitalAddress: document.getElementById('regAddress').value,
+          businessNumber: document.getElementById('regBusinessNumber').value.trim(),
         }});
         saveAuth(data.token, data.user);
       }
@@ -509,14 +526,26 @@ function renderApp() {
         </div>
       </div>
       <nav class="sidebar-nav" id="sidebarNav"></nav>
-      <div class="sidebar-footer">
-        <div class="sidebar-user" id="sidebarUser">
+      <div class="sidebar-footer" style="position:relative">
+        <div class="sidebar-user" id="sidebarUser" style="cursor:pointer">
           <div class="sidebar-user-avatar">${(state.user.name || 'U')[0]}</div>
           <div class="sidebar-user-info">
             <div class="sidebar-user-name">${state.user.name || '사용자'}</div>
             <div class="sidebar-user-role">${state.user.role === 'admin' ? '관리자' : state.user.role === 'manager' ? '실장' : '스태프'}</div>
           </div>
-          <span style="color:var(--text-muted);cursor:pointer" id="logoutBtn">${ICONS.logout}</span>
+          <span style="color:var(--text-muted)" id="userMenuChevron">${ICONS.chevronDown}</span>
+        </div>
+        <div class="user-popup-menu" id="userPopupMenu">
+          <button class="user-popup-item" id="menuProfile">
+            ${ICONS.users}<span>내 정보 수정</span>
+          </button>
+          <button class="user-popup-item" id="menuPassword">
+            ${ICONS.shield}<span>비밀번호 변경</span>
+          </button>
+          <div class="user-popup-divider"></div>
+          <button class="user-popup-item user-popup-danger" id="menuLogout">
+            ${ICONS.logout}<span>로그아웃</span>
+          </button>
         </div>
       </div>
     </aside>
@@ -537,7 +566,22 @@ function renderApp() {
   renderSidebar(nav);
   renderPage();
 
-  document.getElementById('logoutBtn').addEventListener('click', logout);
+  // User popup menu
+  const userEl = document.getElementById('sidebarUser');
+  const popupMenu = document.getElementById('userPopupMenu');
+  userEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    popupMenu.classList.toggle('open');
+    document.getElementById('userMenuChevron').style.transform = popupMenu.classList.contains('open') ? 'rotate(180deg)' : '';
+  });
+  document.addEventListener('click', () => {
+    popupMenu.classList.remove('open');
+    document.getElementById('userMenuChevron').style.transform = '';
+  });
+  popupMenu.addEventListener('click', (e) => e.stopPropagation());
+  document.getElementById('menuProfile').addEventListener('click', () => { popupMenu.classList.remove('open'); navigate('settings'); });
+  document.getElementById('menuPassword').addEventListener('click', () => { popupMenu.classList.remove('open'); navigate('settings'); setTimeout(() => { const pwBtn = document.querySelector('[data-action="change-password"]'); if (pwBtn) pwBtn.click(); }, 300); });
+  document.getElementById('menuLogout').addEventListener('click', logout);
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeModal();
   });

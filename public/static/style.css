@@ -371,6 +371,70 @@ html, body {
   font-size: 11px;
   color: var(--text-muted);
 }
+#userMenuChevron {
+  transition: transform 0.2s ease;
+}
+#userMenuChevron svg { width: 16px; height: 16px; }
+
+/* ─── User Popup Menu ─── */
+.user-menu-chevron,
+#userMenuChevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+#userMenuChevron svg { width: 16px; height: 16px; }
+.user-popup-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  right: 10px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+  padding: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  z-index: 999;
+}
+.user-popup-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.user-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: background 0.15s;
+}
+.user-popup-item:hover {
+  background: var(--bg-hover);
+}
+.user-popup-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.user-popup-danger { color: var(--danger); }
+.user-popup-danger svg { color: var(--danger); }
+.user-popup-danger:hover { background: rgba(239, 68, 68, 0.08); }
+.user-popup-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 8px;
+}
 
 /* ─── Main Content ─── */
 .main-content {

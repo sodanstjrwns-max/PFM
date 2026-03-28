@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Bindings, Variables } from './lib/types'
 import { authMiddleware, securityHeaders, sanitizeString, safeJsonParse } from './lib/middleware'
+import { hashPassword, verifyPassword } from './lib/crypto'
 
 // Route imports
 import auth from './routes/auth'
@@ -119,6 +120,23 @@ app.put('/api/protected/me', async (c) => {
   fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(user.id)
   await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=?`).bind(...vals).run()
   return c.json({ success: true })
+})
+
+app.put('/api/protected/me/password', async (c) => {
+  const user = (c as any).get('user')!
+  const body = await safeJsonParse(c)
+  if (!body) return c.json({ error: '잘못된 요청 형식입니다' }, 400)
+  const { currentPassword, newPassword } = body
+  if (!currentPassword || !newPassword) return c.json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요' }, 400)
+  if (newPassword.length < 6) return c.json({ error: '새 비밀번호는 6자 이상이어야 합니다' }, 400)
+  if (currentPassword === newPassword) return c.json({ error: '현재 비밀번호와 동일합니다' }, 400)
+  const row: any = await c.env.DB.prepare('SELECT password_hash FROM users WHERE id=?').bind(user.id).first()
+  if (!row) return c.json({ error: '사용자를 찾을 수 없습니다' }, 404)
+  const valid = await verifyPassword(currentPassword, row.password_hash)
+  if (!valid) return c.json({ error: '현재 비밀번호가 올바르지 않습니다' }, 401)
+  const newHash = await hashPassword(newPassword)
+  await c.env.DB.prepare('UPDATE users SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(newHash, user.id).run()
+  return c.json({ success: true, message: '비밀번호가 변경되었습니다' })
 })
 
 /* ═══ 공개 설문 API (인증 불필요) ═══ */

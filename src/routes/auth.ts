@@ -7,7 +7,7 @@ const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── Hospital Registration ─── */
 auth.post('/register', async (c) => {
-  const { hospitalName, email, password, name, phone, hospitalPhone, hospitalAddress } = await c.req.json()
+  const { hospitalName, email, password, name, phone, hospitalPhone, hospitalAddress, businessNumber } = await c.req.json()
   const missing = validateRequired({ hospitalName, email, password, name }, ['hospitalName', 'email', 'password', 'name'])
   if (missing) return c.json({ error: '모든 필드를 입력해주세요' }, 400)
   if (!validateEmail(email)) return c.json({ error: '올바른 이메일 형식이 아닙니다' }, 400)
@@ -18,7 +18,7 @@ auth.post('/register', async (c) => {
   const hid = crypto.randomUUID()
   const uid = crypto.randomUUID()
   const hash = await hashPassword(password)
-  await c.env.DB.prepare('INSERT INTO hospitals (id, name, phone, address) VALUES (?,?,?,?)').bind(hid, sanitizeString(hospitalName, 200), sanitizeString(hospitalPhone||'', 20), sanitizeString(hospitalAddress||'', 500)).run()
+  await c.env.DB.prepare('INSERT INTO hospitals (id, name, phone, address, business_number) VALUES (?,?,?,?,?)').bind(hid, sanitizeString(hospitalName, 200), sanitizeString(hospitalPhone||'', 20), sanitizeString(hospitalAddress||'', 500), sanitizeString(businessNumber||'', 20)).run()
   const defaultSchedule = JSON.stringify({mon:{start:'09:00',end:'19:00'},tue:{start:'09:00',end:'19:00'},wed:{start:'09:00',end:'19:00'},thu:{start:'09:00',end:'19:00'},fri:{start:'09:00',end:'19:00'},sat:{start:'09:00',end:'14:00'},sun:null})
   const hireDate = new Date().toISOString().slice(0,10)
   await c.env.DB.prepare(
