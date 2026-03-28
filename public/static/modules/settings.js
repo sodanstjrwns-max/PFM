@@ -559,7 +559,7 @@ function renderFloorMap(settings) {
         if (!sp) return;
         floors[fi].spaces.splice(si, 1);
         renderFloorList();
-        toast(`${sp.name} 삭제됨 (저장 버튼을 눌러주세요)`, 'info');
+        toast(`${h(sp.name)} 삭제됨 (저장 버튼을 눌러주세요)`, 'info');
       });
     });
 

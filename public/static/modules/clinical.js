@@ -68,7 +68,7 @@ async function renderTreatmentBoard(body, actions) {
               const cfg = statusConfig[d.status] || statusConfig.scheduled;
               const patientCount = items.filter(i => i.assigned_doctor === d.id && !['completed','cancelled','no_show'].includes(i.status)).length;
               const scheduleStr = d.today_schedule ? d.today_schedule.start + '~' + d.today_schedule.end : '';
-              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:${cfg.bg};border:1.5px solid ${cfg.border};min-width:140px;transition:all 0.2s" title="${d.name} ${d.role==='admin'?'원장':'선생'} · ${cfg.label}${scheduleStr?' · '+scheduleStr:''}">
+              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:${cfg.bg};border:1.5px solid ${cfg.border};min-width:140px;transition:all 0.2s" title="${h(d.name)} ${d.role==='admin'?'원장':'선생'} · ${cfg.label}${scheduleStr?' · '+scheduleStr:''}">
                 <div style="width:36px;height:36px;border-radius:50%;background:${cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:${cfg.color};border:2px solid ${cfg.color}44">
                   ${d.name.charAt(0)}
                 </div>

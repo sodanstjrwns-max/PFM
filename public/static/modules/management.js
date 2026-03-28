@@ -35,7 +35,7 @@ async function renderMaterials(body, actions) {
       container.innerHTML = `<div class="cards-grid">${materials.map(m => `
         <div class="content-card" data-id="${m.id}">
           <div class="content-card-img">${m.file_type === 'image'
-            ? `<img src="${m.file_url}" alt="${m.title}" loading="lazy">`
+            ? `<img src="${m.file_url}" alt="${h(m.title)}" loading="lazy">`
             : m.file_type === 'video' ? '🎬' : '📄'}</div>
           <div class="content-card-body">
             <div class="content-card-title">${esc(m.title)}</div>
@@ -77,7 +77,7 @@ function openAddMaterialModal(cats, onSuccess) {
           <label>카테고리</label>
           <select class="form-input" id="matCat">
             <option value="">카테고리 선택</option>
-            ${cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+            ${cats.map(c => `<option value="${c.id}">${c.icon} ${h(c.name)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -212,7 +212,7 @@ function openAddPricingModal(cats, onSuccess) {
             <label>카테고리</label>
             <select class="form-input" id="prcCat">
               <option value="">카테고리 선택</option>
-              ${cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+              ${cats.map(c => `<option value="${c.id}">${c.icon} ${h(c.name)}</option>`).join('')}
             </select>
           </div>
           <div class="form-group full">
@@ -323,7 +323,7 @@ function openAddCaseModal(cats, onSuccess) {
             <label>카테고리</label>
             <select class="form-input" id="caseCat">
               <option value="">선택</option>
-              ${cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+              ${cats.map(c => `<option value="${c.id}">${c.icon} ${h(c.name)}</option>`).join('')}
             </select>
           </div>
           <div class="form-group full">

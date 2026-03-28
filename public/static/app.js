@@ -5,6 +5,18 @@
 (function() {
 'use strict';
 
+/* ═══ XSS Defense: HTML Escape Utility ═══ */
+const _escMap = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => _escMap[c]);
+}
+// Alias for template use
+const h = escapeHtml;
+// Make globally available for modules
+window.escapeHtml = escapeHtml;
+window.h = h;
+
 /* ─── Icons (SVG inline) ─── */
 const ICONS = {
   logo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
@@ -609,7 +621,7 @@ function renderCatTabs(containerId, cats, selectedId, onSelect) {
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = `<button class="category-tab ${!selectedId ? 'active' : ''}" data-cat="">전체</button>
-    ${cats.map(c => `<button class="category-tab ${c.id === selectedId ? 'active' : ''}" data-cat="${c.id}">${c.icon} ${c.name}</button>`).join('')}`;
+    ${cats.map(c => `<button class="category-tab ${c.id === selectedId ? 'active' : ''}" data-cat="${c.id}">${c.icon} ${h(c.name)}</button>`).join('')}`;
   el.querySelectorAll('.category-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       el.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));

@@ -51,7 +51,7 @@ async function renderScripts(body, actions) {
     modal.innerHTML = `
       <div class="modal-header"><h3>🎯 상담 스크립트 추가</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
       <div class="modal-body"><form class="auth-form">
-        <div class="form-group"><label>카테고리</label><select class="form-input" id="scrCat"><option value="">선택</option>${cats.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select></div>
+        <div class="form-group"><label>카테고리</label><select class="form-input" id="scrCat"><option value="">선택</option>${cats.map(c=>`<option value="${c.id}">${c.icon} ${h(c.name)}</option>`).join('')}</select></div>
         <div class="form-group"><label>제목</label><input class="form-input" id="scrTitle" required placeholder="예: 임플란트 비용 상담"></div>
         <div class="form-group"><label>상황 설명</label><input class="form-input" id="scrSituation" placeholder="어떤 상황에서 사용?"></div>
         <div class="form-group"><label>상담 멘트</label><textarea class="form-input" id="scrText" rows="4" placeholder="실제 사용할 상담 멘트"></textarea></div>

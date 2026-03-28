@@ -140,7 +140,7 @@ function renderDashboardContent(body, s) {
       ${quickLinks.map(q => `
         <div class="quick-link-card" data-goto="${q.id}">
           <div class="quick-link-icon" style="background:${q.bg}">${q.icon}</div>
-          <div class="quick-link-text"><h3>${q.title}</h3><p>${q.desc}</p></div>
+          <div class="quick-link-text"><h3>${h(q.title)}</h3><p>${q.desc}</p></div>
         </div>
       `).join('')}
     </div>`;
@@ -196,7 +196,7 @@ function renderDashboardContent(body, s) {
           ].map(s => `
             <div class="onboard-step" data-goto="${s.goto}" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow=''">
               <div style="width:44px;height:44px;border-radius:12px;background:${s.bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.icon}</div>
-              <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${s.title}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
+              <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${h(s.title)}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
               <span style="font-size:20px">→</span>
             </div>
           `).join('')}

@@ -197,7 +197,7 @@ async function renderMarketing(body, actions) {
       <div class="modal-header"><h3>📊 월별 실적 입력</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
       <div class="modal-body"><form class="auth-form">
         <div class="form-grid">
-          <div class="form-group"><label>채널</label><select class="form-input" id="recChannel">${channels.map(ch=>`<option value="${ch.id}">${ch.name}</option>`).join('')}</select></div>
+          <div class="form-group"><label>채널</label><select class="form-input" id="recChannel">${channels.map(ch=>`<option value="${ch.id}">${h(ch.name)}</option>`).join('')}</select></div>
           <div class="form-group"><label>월</label><input class="form-input" type="month" id="recMonth"></div>
           <div class="form-group"><label>신환 수</label><input class="form-input" type="number" id="recNew" placeholder="0"></div>
           <div class="form-group"><label>재진 수</label><input class="form-input" type="number" id="recRevisit" placeholder="0"></div>
@@ -475,7 +475,7 @@ async function renderStaffSupplies(body, actions) {
           <div class="form-group">
             <label>대상 직원 *</label>
             <select name="user_id" class="form-input">
-              ${users.map(u => `<option value="${u.id}" ${u.id===state.user.id?'selected':''}>${u.name} (${u.role==='admin'?'원장':u.role==='manager'?'실장':'스태프'})</option>`).join('')}
+              ${users.map(u => `<option value="${u.id}" ${u.id===state.user.id?'selected':''}>${h(u.name)} (${u.role==='admin'?'원장':u.role==='manager'?'실장':'스태프'})</option>`).join('')}
             </select>
           </div>
           <div class="form-grid">

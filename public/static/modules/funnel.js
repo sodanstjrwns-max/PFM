@@ -201,7 +201,7 @@ async function openAddPatient(body, actions) {
     </div>
     <div class="form-grid">
       <div class="form-group"><label>담당 원장</label>
-        <select class="form-input" id="fpDoctor"><option value="">미지정</option>${doctors.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}</select>
+        <select class="form-input" id="fpDoctor"><option value="">미지정</option>${doctors.map(d => `<option value="${d.id}">${h(d.name)}</option>`).join('')}</select>
       </div>
       <div class="form-group"><label>예상 금액</label>
         <input class="form-input" type="number" id="fpAmount" placeholder="0">
@@ -286,7 +286,7 @@ async function openPatientDetail(patientId, patients, body, actions) {
   });
 
   document.getElementById('pdDelete').addEventListener('click', async () => {
-    if (!confirm(`"${p.patient_name}" 환자를 퍼널에서 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${h(p.patient_name)}" 환자를 퍼널에서 삭제하시겠습니까?`)) return;
     try {
       await api('/api/protected/funnel/' + patientId, { method: 'DELETE' });
       toast('삭제되었습니다', 'success');

@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "bundle:client": "node scripts/bundle-frontend.cjs",
+    "build": "node scripts/bundle-frontend.cjs && vite build",
     "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
-    "deploy": "npm run build && wrangler pages deploy dist"
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "dev:sandbox": "wrangler pages dev dist --d1=pfm-production --local --ip 0.0.0.0 --port 3000"
   },
   "dependencies": {
     "hono": "^4.7.0"
@@ -15,8 +17,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250313.0",
     "@hono/vite-cloudflare-pages": "^0.4.2",
+    "terser": "^5.46.1",
+    "typescript": "^5.7.0",
     "vite": "^6.2.0",
-    "wrangler": "^3.114.0",
-    "typescript": "^5.7.0"
+    "wrangler": "^3.114.0"
   }
 }
