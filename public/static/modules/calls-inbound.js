@@ -167,9 +167,9 @@ async function renderCallsInbound(body, actions) {
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
         ${Object.entries(purposeCounts).sort((a,b) => b[1]-a[1]).map(([key, cnt]) => {
           const p = getCallPurposeIn(key);
-          return \`<span style="background:\${p.color}10;border:1px solid \${p.color}30;border-radius:20px;padding:4px 10px;font-size:11px;display:inline-flex;align-items:center;gap:4px">
-            \${p.icon} \${esc(p.label)} <strong style="color:\${p.color}">\${cnt}</strong>
-          </span>\`;
+          return '<span style="background:' + p.color + '10;border:1px solid ' + p.color + '30;border-radius:20px;padding:4px 10px;font-size:11px;display:inline-flex;align-items:center;gap:4px">' +
+            p.icon + ' ' + esc(p.label) + ' <strong style="color:' + p.color + '">' + cnt + '</strong>' +
+          '</span>';
         }).join('')}
       </div>` : ''}
       
@@ -543,11 +543,11 @@ async function openCallStats(callType, month) {
           <div style="display:flex;flex-direction:column;gap:4px">
             ${stats.byPurpose.map(p => {
               const purp = isInbound ? (CALL_PURPOSES_INBOUND.find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' }) : ((PFM._callShared?.CALL_PURPOSES || []).find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' });
-              return \`<div style="display:flex;align-items:center;gap:8px;font-size:12px">
-                <span style="width:4px;height:18px;border-radius:2px;background:\${purp.color}"></span>
-                <span style="flex:1">\${purp.icon} \${esc(purp.label)}</span>
-                <strong>\${p.c}건</strong>
-              </div>\`;
+              return '<div style="display:flex;align-items:center;gap:8px;font-size:12px">' +
+                '<span style="width:4px;height:18px;border-radius:2px;background:' + purp.color + '"></span>' +
+                '<span style="flex:1">' + purp.icon + ' ' + esc(purp.label) + '</span>' +
+                '<strong>' + p.c + '건</strong>' +
+              '</div>';
             }).join('')}
           </div>
         </div>` : ''}
