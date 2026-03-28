@@ -383,6 +383,8 @@ function getNavConfig() {
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
+        { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
+        { id: 'complaints_stats', label: '컴플레인 통계', icon: ICONS.chart },
       ]
     },
     {
@@ -711,6 +713,8 @@ function renderPage() {
     funnel: ['🔄 Patient Funnel', ICONS.chart],
     patients: ['👥 환자 DB', ICONS.users],
     patients_stats: ['📊 환자 통계', ICONS.chart],
+    complaints: ['⚠️ 컴플레인 기록', ICONS.edit],
+    complaints_stats: ['📊 컴플레인 통계', ICONS.chart],
     calls_inbound: ['📞 인바운드 콜', ICONS.phone || ICONS.message],
     calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
@@ -759,6 +763,8 @@ function renderPage() {
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
+    case 'complaints': M.complaints.renderComplaints(body, actions); break;
+    case 'complaints_stats': M.complaints.renderComplaintsStats(body, actions); break;
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
