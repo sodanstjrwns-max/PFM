@@ -37,7 +37,7 @@ patients.get('/', async (c) => {
   if (to) { where += ' AND first_visit_date<=?'; filterParams.push(to) }
 
   const [rows, cnt] = await Promise.all([
-    c.env.DB.prepare(`SELECT * FROM patients WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...filterParams, limit, offset).all(),
+    c.env.DB.prepare(`SELECT id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, desk_staff, addr_sido, addr_sigungu, status, kakao_registered, created_at FROM patients WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...filterParams, limit, offset).all(),
     c.env.DB.prepare(`SELECT COUNT(*) as c FROM patients WHERE ${where}`).bind(...filterParams).first() as Promise<any>,
   ])
   return c.json({ patients: rows.results, total: cnt?.c || 0 })

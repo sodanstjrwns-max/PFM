@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString, sanitizeBody } from '../lib/middleware'
+import { requireRole, sanitizeBody } from '../lib/middleware'
 const hospital = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 hospital.get('/settings', async (c) => {

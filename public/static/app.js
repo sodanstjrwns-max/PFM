@@ -74,18 +74,34 @@ async function api(path, opts = {}) {
   const headers = {};
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
   if (opts.json) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.json); delete opts.json; }
-  const res = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers } });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '오류가 발생했습니다');
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers } });
+  } catch(e) {
+    throw new Error('네트워크 오류: 서버에 연결할 수 없습니다');
+  }
+  if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.'); }
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답 파싱 오류'); }
+  if (!res.ok) throw new Error(data?.error || `오류 (${res.status})`);
   return data;
 }
 
 async function apiForm(path, formData) {
   const headers = {};
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
-  const res = await fetch(path, { method: 'POST', headers, body: formData });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '오류가 발생했습니다');
+  let res;
+  try {
+    res = await fetch(path, { method: 'POST', headers, body: formData });
+  } catch(e) {
+    throw new Error('네트워크 오류: 서버에 연결할 수 없습니다');
+  }
+  if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.'); }
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답 파싱 오류'); }
+  if (!res.ok) throw new Error(data?.error || `오류 (${res.status})`);
   return data;
 }
 
@@ -645,12 +661,8 @@ function formatPrice(min, max) {
   return '상담 후 결정';
 }
 
-function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+// esc → escapeHtml alias (DOM 방식 제거, 순수 문자열 방식 사용)
+function esc(s) { return escapeHtml(s); }
 
 function debounce(fn, ms) {
   let timer;

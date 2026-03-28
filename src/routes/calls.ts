@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody } from '../lib/middleware'
 
 const calls = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -15,7 +15,7 @@ calls.get('/', async (c) => {
   const reservationStatus = sanitizeString(c.req.query('reservation') || '', 30)
   const search = sanitizeString(c.req.query('search') || '', 200)
 
-  let sql = 'SELECT * FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?'
+  let sql = 'SELECT id, call_date, call_type, patient_name, phone, patient_type, staff_name, treatment_interest, recognition_path, call_purpose, reservation_status, reservation_date, follow_up, comment, created_at FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?'
   const params: any[] = [user.hospitalId, callType, month+'%']
   if (staff) { sql += ' AND staff_name=?'; params.push(staff) }
   if (purpose) { sql += ' AND call_purpose=?'; params.push(purpose) }

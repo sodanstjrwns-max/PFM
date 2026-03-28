@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody } from '../lib/middleware'
 const leave = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 leave.get('/users', async (c) => {

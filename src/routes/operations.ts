@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody } from '../lib/middleware'
 const operations = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── 예약 관리 API ─── */

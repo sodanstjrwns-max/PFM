@@ -27,11 +27,22 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ Global Error Handler ═══ */
 app.onError((err, c) => {
-  console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message)
+  const isDbError = err.message?.includes('D1_ERROR') || err.message?.includes('SQLITE')
+  const status = isDbError ? 503 : 500
+  const label = isDbError ? 'DB_ERROR' : 'SERVER_ERROR'
+  console.error(`[${label}] ${c.req.method} ${c.req.path}:`, err.message)
   return c.json({
-    error: '서버 오류가 발생했습니다',
-    ...(c.env.JWT_SECRET ? {} : { detail: err.message }) // Show detail only in dev (when JWT_SECRET not set)
-  }, 500)
+    error: isDbError ? '데이터베이스 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' : '서버 오류가 발생했습니다',
+    ...(c.env.JWT_SECRET ? {} : { detail: err.message })
+  }, status)
+})
+
+/* ═══ 404 Handler ═══ */
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ error: '요청하신 API를 찾을 수 없습니다', path: c.req.path }, 404)
+  }
+  return c.html(getHTML())
 })
 
 /* ═══ Security Headers ═══ */
@@ -40,18 +51,16 @@ securityHeaders(app as any)
 /* ═══ CORS Configuration ═══ */
 app.use('/api/*', cors({
   origin: (origin) => {
-    // Allow local development
-    if (!origin) return '*'
+    if (!origin) return origin // Server-to-server requests (no CORS needed)
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin
-    // Allow Cloudflare Pages domains
-    if (origin.includes('.pages.dev') || origin.includes('.workers.dev')) return origin
-    // Allow custom production domains (add your domain here)
+    if (origin.endsWith('.pages.dev') || origin.endsWith('.workers.dev')) return origin
     if (origin.includes('patient-funnel-manager')) return origin
-    return origin // In production, restrict to specific domains
+    return origin
   },
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   maxAge: 86400,
+  credentials: true,
 }))
 
 /* ═══ Auth Middleware ═══ */
@@ -112,6 +121,10 @@ app.put('/api/protected/me', async (c) => {
 
 /* ═══ SPA Fallback ═══ */
 app.get('*', (c) => {
+  // API 경로는 SPA 폴백하지 않음 (notFound 핸들러가 처리)
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ error: '요청하신 API를 찾을 수 없습니다', path: c.req.path }, 404)
+  }
   return c.html(getHTML())
 })
 

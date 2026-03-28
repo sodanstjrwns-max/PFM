@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody } from '../lib/middleware'
 
 const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 

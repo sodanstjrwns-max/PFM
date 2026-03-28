@@ -12,7 +12,7 @@ consult.get('/', async (c) => {
   const category = sanitizeString(c.req.query('category') || '', 50)
   const confirmed = sanitizeString(c.req.query('confirmed') || '', 5)
   const patientType = sanitizeString(c.req.query('patient_type') || '', 20)
-  let sql = 'SELECT * FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
+  let sql = 'SELECT id, record_date, chart_number, patient_name, patient_type, visit_source, doctor_name, counselor_name, desk_name, treatment_category, treatment_confirmed, planned_amount, agreed_amount, paid_amount, next_visit_date, status, notes, created_at FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
   const params: any[] = [user.hospitalId, month + '%']
   if (counselor) { sql += ' AND counselor_name = ?'; params.push(counselor) }
   if (doctor) { sql += ' AND doctor_name = ?'; params.push(doctor) }
