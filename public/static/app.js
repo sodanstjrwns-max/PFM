@@ -451,7 +451,7 @@ function getNavConfig() {
       children: [
         { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
         { id: 'reviews', label: '후기 관리', icon: ICONS.star },
-        ...e ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : [],
+        ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
       ]
     },
     {
