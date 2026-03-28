@@ -10,7 +10,12 @@ var DAY_COLORS = { mon:'#3b82f6', tue:'#22c55e', wed:'#f59e0b', thu:'#8b5cf6', f
 
 // ═══ 숫자 포맷 ═══
 function fmt(n) { return n != null ? Number(n).toLocaleString() : '-'; }
-function fmtM(n) { return n != null ? (Number(n)/10000).toFixed(0) + '만' : '-'; }
+function fmtM(n) {
+  if (n == null) return '-';
+  var v = Number(n);
+  if (v >= 10000) return (v/10000).toFixed(1).replace(/\.0$/,'') + '억';
+  return Math.round(v).toLocaleString() + '만';
+}
 function fmtPct(a, b) { return b > 0 ? Math.round(a / b * 100) + '%' : '-'; }
 
 // ═══ 바 차트 헬퍼 ═══
