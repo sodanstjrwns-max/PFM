@@ -131,12 +131,12 @@ async function renderWaitTimes(body, actions) {
       obj.total_wait_minutes = parseFloat(obj.total_wait_minutes)||0;
       obj.avg_wait_minutes = parseFloat(obj.avg_wait_minutes)||0;
       try{
-        if(isEdit)await api('/api/protected/wait-times/'+id,{method:'PUT',body:JSON.stringify(obj)});
-        else await api('/api/protected/wait-times',{method:'POST',body:JSON.stringify(obj)});
-        PFM.showToast(isEdit?'수정 완료':'등록 완료','success');load();
-      }catch(err){PFM.showToast('저장 실패','error');}
+        if(isEdit)await api('/api/protected/wait-times/'+id,{method:'PUT',json:obj});
+        else await api('/api/protected/wait-times',{method:'POST',json:obj});
+        PFM.toast(isEdit?'수정 완료':'등록 완료','success');load();
+      }catch(err){PFM.toast('저장 실패','error');}
     };
-    if(isEdit) document.getElementById('wtDel').onclick=async function(){if(!confirm('삭제?'))return;await api('/api/protected/wait-times/'+id,{method:'DELETE'});PFM.showToast('삭제','success');load();};
+    if(isEdit) document.getElementById('wtDel').onclick=async function(){if(!confirm('삭제?'))return;await api('/api/protected/wait-times/'+id,{method:'DELETE'});PFM.toast('삭제','success');load();};
   }
 
   await load();

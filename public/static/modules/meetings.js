@@ -178,7 +178,7 @@ async function renderMeetings(body, actions) {
     showModal();
 
     window.updateAttendance = async function(mId, uId, val) {
-      await api('/api/protected/meetings/' + mId + '/participants', { method: 'PUT', body: JSON.stringify({ user_id: uId, attendance: val }) });
+      await api('/api/protected/meetings/' + mId + '/participants', { method: 'PUT', json: { user_id: uId, attendance: val }) };
       toast('출석 변경!', 'success');
     };
 
@@ -191,7 +191,7 @@ async function renderMeetings(body, actions) {
     }
     if (document.getElementById('completeMeetingBtn')) {
       document.getElementById('completeMeetingBtn').onclick = async () => {
-        await api('/api/protected/meetings/' + meetingId, { method: 'PUT', body: JSON.stringify({ status: 'completed' }) });
+        await api('/api/protected/meetings/' + meetingId, { method: 'PUT', json: { status: 'completed' }) };
         toast('회의 완료 처리!', 'success'); closeModal(); loadList();
       };
     }
@@ -238,11 +238,11 @@ async function renderMeetings(body, actions) {
       const form = e.target;
       const res = await api('/api/protected/meetings/' + meetingId + '/minutes', {
         method: 'POST',
-        body: JSON.stringify({
+        json: {
           content: form.content.value,
           decisions: form.decisions.value,
           action_items: form.action_items.value,
-        })
+        }
       });
       if (res.error) { toast(res.error, 'error'); return; }
       toast(res.updated ? '회의록 수정 완료!' : '회의록 저장 완료!', 'success');
@@ -347,7 +347,7 @@ async function renderMeetings(body, actions) {
       const checked = Array.from(form.querySelectorAll('input[name="participants"]:checked')).map(c => ({ user_id: c.value }));
       const res = await api('/api/protected/meetings', {
         method: 'POST',
-        body: JSON.stringify({
+        json: {
           title: form.title.value,
           description: form.description.value,
           meeting_date: form.meeting_date.value,
@@ -356,7 +356,7 @@ async function renderMeetings(body, actions) {
           location: form.location.value,
           visibility: form.visibility.value,
           participants: checked,
-        })
+        }
       });
       if (res.error) { toast(res.error, 'error'); return; }
       toast('회의 등록 완료!', 'success');

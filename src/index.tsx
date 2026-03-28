@@ -1472,73 +1472,58 @@ app.get('/api/protected/consult-records/dashboard', async (c) => {
   ).bind(hid, month + '%').all()
   const rows = all.results as any[]
   
+  // Single-pass aggregation (5 forEach → 1 loop)
   const total = rows.length
-  const confirmed = rows.filter(r => r.treatment_confirmed === 'O').length
-  const rejected = rows.filter(r => r.treatment_confirmed === 'X').length
-  const pending = rows.filter(r => r.treatment_confirmed !== 'O' && r.treatment_confirmed !== 'X').length
-  const newPatients = rows.filter(r => r.patient_type === 'new').length
-  const existingPatients = rows.filter(r => r.patient_type === 'existing').length
-  const totalPlanned = rows.reduce((s,r:any) => s + (r.planned_amount||0), 0)
-  const totalAgreed = rows.reduce((s,r:any) => s + (r.agreed_amount||0), 0)
-  
-  // 상담사별 통계
+  let confirmed = 0, rejected = 0, newPatients = 0, existingPatients = 0, totalPlanned = 0, totalAgreed = 0
   const byCounselor: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
-  rows.forEach((r:any) => {
-    const name = r.counselor_name || '미지정'
-    if (!byCounselor[name]) byCounselor[name] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
-    byCounselor[name].total++
-    if (r.treatment_confirmed === 'O') byCounselor[name].confirmed++
-    if (r.treatment_confirmed === 'X') byCounselor[name].rejected++
-    byCounselor[name].planned += (r.planned_amount||0)
-    byCounselor[name].agreed += (r.agreed_amount||0)
-  })
-  
-  // 상담의별 통계
   const byDoctor: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
-  rows.forEach((r:any) => {
-    const name = r.doctor_name || '미지정'
-    if (!byDoctor[name]) byDoctor[name] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
-    byDoctor[name].total++
-    if (r.treatment_confirmed === 'O') byDoctor[name].confirmed++
-    if (r.treatment_confirmed === 'X') byDoctor[name].rejected++
-    byDoctor[name].planned += (r.planned_amount||0)
-    byDoctor[name].agreed += (r.agreed_amount||0)
-  })
-  
-  // 카테고리별 통계
   const byCategory: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
-  rows.forEach((r:any) => {
-    const cat = r.treatment_category || 'general'
-    if (!byCategory[cat]) byCategory[cat] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
-    byCategory[cat].total++
-    if (r.treatment_confirmed === 'O') byCategory[cat].confirmed++
-    if (r.treatment_confirmed === 'X') byCategory[cat].rejected++
-    byCategory[cat].planned += (r.planned_amount||0)
-    byCategory[cat].agreed += (r.agreed_amount||0)
-  })
-  
-  // 일별 건수
   const byDate: Record<string, {total:number,confirmed:number,planned:number,agreed:number}> = {}
-  rows.forEach((r:any) => {
+  const byVisitSource: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
+  const initGroup = () => ({total:0,confirmed:0,rejected:0,planned:0,agreed:0})
+  
+  for (const r of rows as any[]) {
+    const isO = r.treatment_confirmed === 'O'
+    const isX = r.treatment_confirmed === 'X'
+    const planned = r.planned_amount || 0
+    const agreed = r.agreed_amount || 0
+    if (isO) confirmed++
+    if (isX) rejected++
+    if (r.patient_type === 'new') newPatients++
+    else if (r.patient_type === 'existing') existingPatients++
+    totalPlanned += planned; totalAgreed += agreed
+    
+    // 상담사별
+    const cName = r.counselor_name || '미지정'
+    if (!byCounselor[cName]) byCounselor[cName] = initGroup()
+    byCounselor[cName].total++; if (isO) byCounselor[cName].confirmed++; if (isX) byCounselor[cName].rejected++
+    byCounselor[cName].planned += planned; byCounselor[cName].agreed += agreed
+    
+    // 상담의별
+    const dName = r.doctor_name || '미지정'
+    if (!byDoctor[dName]) byDoctor[dName] = initGroup()
+    byDoctor[dName].total++; if (isO) byDoctor[dName].confirmed++; if (isX) byDoctor[dName].rejected++
+    byDoctor[dName].planned += planned; byDoctor[dName].agreed += agreed
+    
+    // 카테고리별
+    const cat = r.treatment_category || 'general'
+    if (!byCategory[cat]) byCategory[cat] = initGroup()
+    byCategory[cat].total++; if (isO) byCategory[cat].confirmed++; if (isX) byCategory[cat].rejected++
+    byCategory[cat].planned += planned; byCategory[cat].agreed += agreed
+    
+    // 일별
     const d = r.record_date
     if (!byDate[d]) byDate[d] = {total:0,confirmed:0,planned:0,agreed:0}
-    byDate[d].total++
-    if (r.treatment_confirmed === 'O') byDate[d].confirmed++
-    byDate[d].planned += (r.planned_amount||0)
-    byDate[d].agreed += (r.agreed_amount||0)
-  })
-  
-  // 내원 경로별 통계
-  const byVisitSource: Record<string, {total:number,confirmed:number,rejected:number,planned:number,agreed:number}> = {}
-  rows.forEach((r:any) => {
+    byDate[d].total++; if (isO) byDate[d].confirmed++
+    byDate[d].planned += planned; byDate[d].agreed += agreed
+    
+    // 내원 경로별
     const src = r.visit_source || '미기록'
-    if (!byVisitSource[src]) byVisitSource[src] = {total:0,confirmed:0,rejected:0,planned:0,agreed:0}
-    byVisitSource[src].total++
-    if (r.treatment_confirmed === 'O') byVisitSource[src].confirmed++
-    if (r.treatment_confirmed === 'X') byVisitSource[src].rejected++
-    byVisitSource[src].planned += (r.planned_amount||0)
-    byVisitSource[src].agreed += (r.agreed_amount||0)
-  })
+    if (!byVisitSource[src]) byVisitSource[src] = initGroup()
+    byVisitSource[src].total++; if (isO) byVisitSource[src].confirmed++; if (isX) byVisitSource[src].rejected++
+    byVisitSource[src].planned += planned; byVisitSource[src].agreed += agreed
+  }
+  const pending = total - confirmed - rejected
   
   const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
   
@@ -2764,36 +2749,25 @@ app.get('/api/protected/patients', async (c) => {
   const limit = parseInt(c.req.query('limit') || '200')
   const offset = parseInt(c.req.query('offset') || '0')
 
-  let sql = 'SELECT * FROM patients WHERE hospital_id=?'
-  const params: any[] = [user.hospitalId]
-  if (search) { sql += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
-  if (type) { sql += ' AND patient_type=?'; params.push(type) }
-  if (source) { sql += ' AND visit_source=?'; params.push(source) }
-  if (doctor) { sql += ' AND primary_doctor=?'; params.push(doctor) }
-  if (counselor) { sql += ' AND assigned_counselor=?'; params.push(counselor) }
-  if (area) { sql += ' AND treatment_area=?'; params.push(area) }
-  if (sido) { sql += ' AND addr_sido=?'; params.push(sido) }
-  if (status) { sql += ' AND status=?'; params.push(status) }
-  else { sql += " AND status='active'" }
-  if (from) { sql += ' AND first_visit_date>=?'; params.push(from) }
-  if (to) { sql += ' AND first_visit_date<=?'; params.push(to) }
-  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset)
-  const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  // 전체 건수
-  let countSql = 'SELECT COUNT(*) as c FROM patients WHERE hospital_id=?'
-  const countParams: any[] = [user.hospitalId]
-  if (search) { countSql += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; countParams.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
-  if (type) { countSql += ' AND patient_type=?'; countParams.push(type) }
-  if (source) { countSql += ' AND visit_source=?'; countParams.push(source) }
-  if (doctor) { countSql += ' AND primary_doctor=?'; countParams.push(doctor) }
-  if (counselor) { countSql += ' AND assigned_counselor=?'; countParams.push(counselor) }
-  if (area) { countSql += ' AND treatment_area=?'; countParams.push(area) }
-  if (sido) { countSql += ' AND addr_sido=?'; countParams.push(sido) }
-  if (status) { countSql += ' AND status=?'; countParams.push(status) }
-  else { countSql += " AND status='active'" }
-  if (from) { countSql += ' AND first_visit_date>=?'; countParams.push(from) }
-  if (to) { countSql += ' AND first_visit_date<=?'; countParams.push(to) }
-  const cnt: any = await c.env.DB.prepare(countSql).bind(...countParams).first()
+  // Build shared WHERE clause (DRY - used for both data and count queries)
+  let where = 'hospital_id=?'
+  const filterParams: any[] = [user.hospitalId]
+  if (search) { where += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; filterParams.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
+  if (type) { where += ' AND patient_type=?'; filterParams.push(type) }
+  if (source) { where += ' AND visit_source=?'; filterParams.push(source) }
+  if (doctor) { where += ' AND primary_doctor=?'; filterParams.push(doctor) }
+  if (counselor) { where += ' AND assigned_counselor=?'; filterParams.push(counselor) }
+  if (area) { where += ' AND treatment_area=?'; filterParams.push(area) }
+  if (sido) { where += ' AND addr_sido=?'; filterParams.push(sido) }
+  if (status) { where += ' AND status=?'; filterParams.push(status) }
+  else { where += " AND status='active'" }
+  if (from) { where += ' AND first_visit_date>=?'; filterParams.push(from) }
+  if (to) { where += ' AND first_visit_date<=?'; filterParams.push(to) }
+
+  const [rows, cnt] = await Promise.all([
+    c.env.DB.prepare(`SELECT * FROM patients WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...filterParams, limit, offset).all(),
+    c.env.DB.prepare(`SELECT COUNT(*) as c FROM patients WHERE ${where}`).bind(...filterParams).first() as Promise<any>,
+  ])
   return c.json({ patients: rows.results, total: cnt?.c || 0 })
 })
 
@@ -3267,11 +3241,7 @@ app.delete('/api/protected/parking/:id', async (c) => {
 })
 
 /* ─── Main Page (SPA) ─── */
-app.get('*', async (c) => {
-  // Serve static files from R2 first, then SPA
-  if (c.req.path.startsWith('/static/')) {
-    // handled by Cloudflare Pages automatically
-  }
+app.get('*', (c) => {
   return c.html(getHTML())
 })
 

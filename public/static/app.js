@@ -803,7 +803,7 @@ function canSeeFinancials() { return canManage(); }
 /* ─── PFM Global Namespace (모듈 간 공유) ─── */
 window.PFM = {
   // State & Core
-  state, api, apiForm, toast, navigate, logout,
+  state, api, apiForm, toast, showToast: toast, navigate, logout,
   // Icons
   ICONS, ICONS_HIRE,
   // UI Helpers

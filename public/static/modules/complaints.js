@@ -413,20 +413,20 @@ async function renderComplaints(body, actions) {
       fd.forEach(function(v,k) { obj[k] = v; });
       try {
         if (isEdit) {
-          await api('/api/protected/complaints/'+id, { method: 'PUT', body: JSON.stringify(obj) });
-          PFM.showToast('수정 완료', 'success');
+          await api('/api/protected/complaints/'+id, { method: 'PUT', json: obj });
+          PFM.toast('수정 완료', 'success');
         } else {
-          await api('/api/protected/complaints', { method: 'POST', body: JSON.stringify(obj) });
-          PFM.showToast('등록 완료', 'success');
+          await api('/api/protected/complaints', { method: 'POST', json: obj });
+          PFM.toast('등록 완료', 'success');
         }
         loadList();
-      } catch(err) { PFM.showToast('저장 실패', 'error'); }
+      } catch(err) { PFM.toast('저장 실패', 'error'); }
     };
     if (isEdit) {
       document.getElementById('cmpDelete').onclick = async function() {
         if (!confirm('정말 삭제하시겠습니까?')) return;
         await api('/api/protected/complaints/'+id, { method: 'DELETE' });
-        PFM.showToast('삭제 완료', 'success');
+        PFM.toast('삭제 완료', 'success');
         loadList();
       };
     }

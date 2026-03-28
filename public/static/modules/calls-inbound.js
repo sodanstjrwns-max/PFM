@@ -459,10 +459,10 @@ function openCallForm(callType, record, onSave) {
     
     try {
       if (isEdit) {
-        await api(`/api/protected/calls/${r.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await api(`/api/protected/calls/${r.id}`, { method: 'PUT', json: data) };
         toast('✅ 콜 기록 수정 완료');
       } else {
-        await api('/api/protected/calls', { method: 'POST', body: JSON.stringify(data) });
+        await api('/api/protected/calls', { method: 'POST', json: data) };
         toast('✅ 콜 기록 저장 완료');
       }
       closeModal();

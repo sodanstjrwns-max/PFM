@@ -128,12 +128,12 @@ async function renderParking(body, actions) {
       obj.day_of_week=getDow(obj.record_date);
       obj.ticket_count=parseInt(obj.ticket_count)||0;
       try{
-        if(isEdit)await api('/api/protected/parking/'+id,{method:'PUT',body:JSON.stringify(obj)});
-        else await api('/api/protected/parking',{method:'POST',body:JSON.stringify(obj)});
-        PFM.showToast(isEdit?'수정 완료':'등록 완료','success');load();
-      }catch(err){PFM.showToast('저장 실패','error');}
+        if(isEdit)await api('/api/protected/parking/'+id,{method:'PUT',json:obj});
+        else await api('/api/protected/parking',{method:'POST',json:obj});
+        PFM.toast(isEdit?'수정 완료':'등록 완료','success');load();
+      }catch(err){PFM.toast('저장 실패','error');}
     };
-    if(isEdit) document.getElementById('pkDel').onclick=async function(){if(!confirm('삭제?'))return;await api('/api/protected/parking/'+id,{method:'DELETE'});PFM.showToast('삭제','success');load();};
+    if(isEdit) document.getElementById('pkDel').onclick=async function(){if(!confirm('삭제?'))return;await api('/api/protected/parking/'+id,{method:'DELETE'});PFM.toast('삭제','success');load();};
   }
 
   await load();

@@ -657,10 +657,10 @@ function openPatientForm(patient, staffData, onSave) {
     
     try {
       if (isEdit) {
-        await api(`/api/protected/patients/${p.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await api(`/api/protected/patients/${p.id}`, { method: 'PUT', json: data) };
         toast('✅ 환자 정보 수정 완료');
       } else {
-        await api('/api/protected/patients', { method: 'POST', body: JSON.stringify(data) });
+        await api('/api/protected/patients', { method: 'POST', json: data) };
         toast('✅ 환자 등록 완료');
       }
       closeModal();

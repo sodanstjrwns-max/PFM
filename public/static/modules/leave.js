@@ -196,14 +196,14 @@ async function renderLeaveManagement(body, actions) {
   // Approve
   window.approveLeave = async function(id) {
     if (!confirm('승인하시겠습니까?')) return;
-    const res = await api('/api/protected/leave/requests/' + id, { method: 'PUT', body: JSON.stringify({ status: 'approved' }) });
+    const res = await api('/api/protected/leave/requests/' + id, { method: 'PUT', json: { status: 'approved' }) };
     if (res.success) { toast('승인 완료! ✅', 'success'); loadAll(); }
     else toast(res.error || '오류 발생', 'error');
   };
   window.rejectLeave = async function(id) {
     const reason = prompt('반려 사유를 입력하세요:');
     if (reason === null) return;
-    const res = await api('/api/protected/leave/requests/' + id, { method: 'PUT', body: JSON.stringify({ status: 'rejected', reject_reason: reason }) });
+    const res = await api('/api/protected/leave/requests/' + id, { method: 'PUT', json: { status: 'rejected', reject_reason: reason }) };
     if (res.success) { toast('반려 처리되었습니다', 'info'); loadAll(); }
     else toast(res.error || '오류 발생', 'error');
   };
@@ -370,7 +370,7 @@ async function renderLeaveManagement(body, actions) {
         end_date: form.end_date.value || form.start_date.value,
         reason: form.reason.value,
       };
-      const res = await api('/api/protected/leave/requests', { method: 'POST', body: JSON.stringify(data) });
+      const res = await api('/api/protected/leave/requests', { method: 'POST', json: data) };
       if (res.error) { toast(res.error, 'error'); return; }
       toast(`연차 신청 완료! (${res.days}일)`, 'success');
       closeModal();
@@ -426,7 +426,7 @@ async function renderLeaveManagement(body, actions) {
       showModal();
 
       window.saveBalance = async function(userId, leaveType, totalDays) {
-        await api('/api/protected/leave/balances', { method: 'POST', body: JSON.stringify({ user_id: userId, year: currentYear, leave_type: leaveType, total_days: parseFloat(totalDays) }) });
+        await api('/api/protected/leave/balances', { method: 'POST', json: { user_id: userId, year: currentYear, leave_type: leaveType, total_days: parseFloat(totalDays) }) };
         toast('저장 완료!', 'success');
       };
     };

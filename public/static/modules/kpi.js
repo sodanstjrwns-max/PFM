@@ -505,7 +505,7 @@ function renderDailyForm(body, record, cfg, date, reload, isManager) {
       data[k] = v === '' || v === 'x' ? 0 : parseFloat(v) || 0;
     }
     try {
-      await api('/api/protected/kpi/daily', { method:'POST', body: JSON.stringify(data) });
+      await api('/api/protected/kpi/daily', { method:'POST', json: data) };
       toast(record ? '✅ 기록이 수정되었습니다' : '✅ 기록이 저장되었습니다');
       reload(selectedDate);
     } catch(e) { toast('❌ 저장 실패: ' + e.message, 'error'); }
@@ -730,7 +730,7 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
     const data = {};
     for (const [k,v] of fd.entries()) data[k] = k === 'year_month' || k === 'notes' ? v : (parseFloat(v) || 0);
     try {
-      await api('/api/protected/kpi/targets', { method:'POST', body: JSON.stringify(data) });
+      await api('/api/protected/kpi/targets', { method:'POST', json: data) };
       toast('✅ 목표가 저장되었습니다');
       reload(data.year_month);
     } catch(e) { toast('❌ 저장 실패: ' + e.message, 'error'); }
