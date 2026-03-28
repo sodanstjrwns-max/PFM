@@ -375,29 +375,25 @@ function getNavConfig() {
   const nav = [
     { id: 'dashboard', label: '대시보드', icon: ICONS.dashboard },
     { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
-  ];
-  if (isManager) {
-    nav.push({ id: 'funnel', label: '🔄 환자 퍼널', icon: ICONS.chart });
-    nav.push({ id: 'patients', label: '👥 환자 DB', icon: ICONS.users });
-    nav.push({
-      id: 'consult_group', label: '상담관리', icon: ICONS.message,
+    {
+      id: 'patient_group', label: '👥 환자 관리', icon: ICONS.users,
       children: [
+        { id: 'patients', label: '환자 DB', icon: ICONS.users },
+        { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
       ]
-    });
-    nav.push({
+    },
+    {
       id: 'calls_group', label: '📞 콜 관리', icon: ICONS.phone || ICONS.message,
       children: [
-        { id: 'calls_inbound', label: '📞 인바운드', icon: ICONS.phone || ICONS.message },
-        { id: 'calls_outbound', label: '📱 아웃바운드', icon: ICONS.phone || ICONS.message },
-        { id: 'calls_stats', label: '📊 콜 통계', icon: ICONS.chart },
+        { id: 'calls_inbound', label: '인바운드', icon: ICONS.phone || ICONS.message },
+        { id: 'calls_outbound', label: '아웃바운드', icon: ICONS.phone || ICONS.message },
+        { id: 'calls_stats', label: '콜 통계', icon: ICONS.chart },
       ]
-    });
-  }
-  nav.push(
+    },
     {
-      id: 'management', label: '진료 관리', icon: ICONS.folder,
+      id: 'management', label: '🏥 진료 관리', icon: ICONS.folder,
       children: [
         ...(isManager ? [{ id: 'fee_schedule', label: '수가표', icon: ICONS.pricing }] : []),
         { id: 'materials', label: '설명자료', icon: ICONS.materials },
@@ -407,59 +403,53 @@ function getNavConfig() {
       ]
     },
     {
-      id: 'community', label: '커뮤니티', icon: ICONS.users,
-      children: [
-        { id: 'notice', label: '공지사항', icon: ICONS.folder },
-        { id: 'free', label: '자유게시판', icon: ICONS.edit },
-        { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
-        { id: 'mistake', label: '실수노트', icon: ICONS.shield },
-      ]
-    },
-    {
-      id: 'operations', label: '병원 운영', icon: ICONS.settings,
-      children: [
-        { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
-        { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
-        { id: 'staff_supplies', label: '직원용품 주문', icon: ICONS.users },
-        { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
-        { id: 'calendar', label: '일정 관리', icon: ICONS.calendar },
-        { id: 'meetings', label: '회의록', icon: ICONS.edit },
-      ]
-    },
-    {
-      id: 'kpi_group', label: '📊 KPI', icon: ICONS.chart,
+      id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
       children: [
         { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
       ]
     },
-    { id: 'settings', label: '설정', icon: ICONS.settings },
-  );
-  if (isManager) {
-    // HR과 마케팅은 관리자만
-    nav.splice(nav.length - 1, 0,
-      {
-        id: 'hr', label: 'HR', icon: ICONS_HIRE.briefcase,
-        children: [
-          { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
-          { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
-          { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
-          { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
-          { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
-          { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
-          { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
-        ]
-      },
-      {
-        id: 'marketing_group', label: '마케팅', icon: ICONS.chart,
-        children: [
-          { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
-          { id: 'reviews', label: '후기 관리', icon: ICONS.star },
-        ]
-      },
-    );
-  }
+    {
+      id: 'marketing_group', label: '📈 마케팅', icon: ICONS.chart,
+      children: [
+        { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
+        { id: 'reviews', label: '후기 관리', icon: ICONS.star },
+      ]
+    },
+    {
+      id: 'hr', label: '💼 HR', icon: ICONS_HIRE.briefcase,
+      children: [
+        { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
+        { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
+        { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
+        { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
+        { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
+        { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
+        { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
+      ]
+    },
+    {
+      id: 'operations', label: '🏢 병원 운영', icon: ICONS.settings,
+      children: [
+        { id: 'notice', label: '공지사항', icon: ICONS.folder },
+        { id: 'calendar', label: '일정 관리', icon: ICONS.calendar },
+        { id: 'meetings', label: '회의록', icon: ICONS.edit },
+        { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
+        { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
+        { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
+      ]
+    },
+    {
+      id: 'community', label: '💬 커뮤니티', icon: ICONS.users,
+      children: [
+        { id: 'free', label: '자유게시판', icon: ICONS.edit },
+        { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
+        { id: 'mistake', label: '실수노트', icon: ICONS.shield },
+      ]
+    },
+    { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
+  ];
   return nav;
 }
 
