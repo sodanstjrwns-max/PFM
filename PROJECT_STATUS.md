@@ -1,638 +1,224 @@
-# Patient Funnel Manager - Project Status Document
-# 프로젝트 상태 보존 문서
-> 작성일: 2026-03-26 | 버전: v2.2 | 최종 커밋: 236b1cc
+# Patient Funnel Manager - 디버그 & 최적화 보고서 + 개선안
+**작성일**: 2026-03-29
+**작성자**: AI 개발 어시스턴트
 
 ---
 
-## 1. 프로젝트 개요
+## 1. 디버그 결과 요약
 
-| 항목 | 내용 |
+### API 엔드포인트 테스트 (50개 테스트)
+| 결과 | 수량 | 상세 |
+|------|------|------|
+| ✅ 정상 | 49개 | 전체 프론트엔드 연동 API 정상 작동 |
+| ⚠️ 루트 없음 | 1개 | `/api/protected/leave` (하위 경로만 존재, 정상 동작) |
+| ❌ 에러 | 0개 | DB 쿼리 오류 없음 |
+
+### 수정한 버그
+| 항목 | 문제 | 해결 |
+|------|------|------|
+| API 경로 불일치 | 신규 모듈 4개(heatmap, briefing, gamification, reviews)에서 `/protected/...` 사용 | `/api/protected/...`로 전체 수정 (18개 라우트) |
+| showModal 함수 | 기존 `showModal()`은 인자 미지원, 신규 모듈 + fee-schedule + funnel + settings에서 `showModal(title, content)` 호출 | showModal 함수 확장하여 (title, content) 파라미터 지원 |
+| modal CSS | modal-close-btn 스타일 없음 | 스타일 추가 |
+
+### DB 무결성 검증
+- 57개 테이블 전체 마이그레이션 적용 완료
+- 18개 마이그레이션 파일 순차 적용 확인
+- 모든 복합 쿼리(JOIN, 집계, 서브쿼리) 정상 동작
+
+### 프론트엔드 검증
+- 31개 JS 모듈 번들링 정상
+- 브라우저 콘솔 JS 에러 없음 (DOM autocomplete 경고만 존재)
+- 모든 페이지 렌더링 정상
+
+---
+
+## 2. 최적화 결과
+
+### 번들 크기
+| 항목 | 크기 |
 |------|------|
-| **프로젝트명** | Patient Funnel Manager (PFM) |
-| **경로** | `/home/user/webapp/` |
-| **목적** | 병의원 통합 관리 플랫폼 (진료보드, 상담관리, 채용, 커뮤니티, 운영, 마케팅) |
-| **대상** | 치과 원장 및 스태프 (서울비디치과 기반) |
-| **기술스택** | Hono (TypeScript) + Cloudflare Workers/Pages + D1 (SQLite) + R2 |
-| **프론트엔드** | Vanilla JS + CSS SPA (CDN 미사용, 경량) |
-| **인증** | JWT (PBKDF2 + Web Crypto API, 7일 만료) |
-| **코드 총량** | 5,894줄 (index.tsx 965 + app.js 3,177 + style.css 1,121 + schema 446 + seed 185) |
+| 소스 파일 (31개) | 803 KB |
+| Minified 번들 | 665 KB (-17.2%) |
+| Gzip 압축 후 | **136 KB** |
+| SSR Worker | 229 KB |
+
+### 아키텍처 현황
+- **Backend**: 22개 라우트 파일, 4,364줄
+- **Frontend**: 31개 모듈, 14,277줄
+- **DB**: 18개 마이그레이션, 57개 테이블
+- **보안**: JWT + Rate Limiting + CSRF + XSS 방지 + IDOR 방지 + CSP
 
 ---
 
-## 2. 설정 파일 현황
+## 3. 서비스적 개선안 (비즈니스 관점)
 
-### package.json
-```json
-{
-  "name": "patient-funnel-manager",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
-    "deploy": "npm run build && wrangler pages deploy dist"
-  },
-  "dependencies": { "hono": "^4.7.0" },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250313.0",
-    "@hono/vite-cloudflare-pages": "^0.4.2",
-    "vite": "^6.2.0",
-    "wrangler": "^3.114.0",
-    "typescript": "^5.7.0"
-  }
-}
-```
+### 🥇 P0 - 즉시 적용 권장 (매출 직결)
 
-### wrangler.jsonc
-```jsonc
-{
-  "name": "patient-funnel-manager",
-  "compatibility_date": "2024-01-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "pages_build_output_dir": "./dist",
-  "d1_databases": [{ "binding": "DB", "database_name": "pfm-production", "database_id": "local-dev" }],
-  "r2_buckets": [{ "binding": "R2", "bucket_name": "pfm-assets" }]
-}
-```
+#### 3-1. 환자 리콜 자동화 시스템
+**현재**: 환자 DB에 데이터만 저장, 리콜은 수동 관리
+**개선**: 
+- 치료 후 자동 리콜 스케줄 생성 (예: 스케일링 6개월 후, 임플란트 3개월 체크)
+- 리콜 대상자 리스트 자동 생성 + 담당 직원 할당
+- 리콜 이행률 대시보드 (이것만으로도 월 매출 15-20% 증가 가능)
+**ROI**: 리콜 이행률 10%→50% 달성 시 연 5000만원+ 추가 매출 기대
 
-### ecosystem.config.cjs (PM2)
-```javascript
-module.exports = {
-  apps: [{
-    name: 'pfm',
-    script: 'npx',
-    args: 'wrangler pages dev dist --d1=pfm-production --r2=pfm-assets --local --ip 0.0.0.0 --port 3000',
-    env: { NODE_ENV: 'development' },
-    watch: false, instances: 1, exec_mode: 'fork'
-  }]
-}
-```
+#### 3-2. 상담 전환율 실시간 추적 + 코칭 시스템
+**현재**: 상담 기록은 있지만 전환율 분석이 기본적
+**개선**:
+- 상담사별 실시간 전환율 대시보드 (일/주/월)
+- 진료과목별 전환율 벤치마크 (골든 스탠다드 vs 실제)
+- 전환율 하락 시 자동 알림 + 코칭 포인트 추천
+- 녹음 메모/태그 기능으로 우수 상담 사례 라이브러리
 
-### vite.config.ts
-```typescript
-import { defineConfig } from 'vite'
-import pages from '@hono/vite-cloudflare-pages'
-export default defineConfig({ plugins: [pages()], build: { outDir: 'dist' } })
-```
+#### 3-3. 환자 여정 퍼널 시각화 (Patient Funnel)
+**현재**: 퍼널 등록은 가능하지만 전체 여정 시각화 부족
+**개선**:
+- 10단계 Patient Funnel 시각화 (인지→검색→예약→내원→접수→대기→진료→상담→수납→소개)
+- 각 단계별 이탈률 분석
+- 단계별 개선 액션 자동 추천
+- 소개 환자 추적 (팬 마케팅 효과 측정)
 
----
+### 🥈 P1 - 1개월 내 적용 권장
 
-## 3. 파일 구조
+#### 3-4. 직원 교육(LMS) 활성화
+**현재**: DB 구조만 존재 (courses, course_progress 테이블)
+**개선**:
+- 상담 스크립트를 기반으로 한 교육 코스 자동 생성
+- 신입 직원 필수 교육 과정 + 테스트
+- 교육 이수율 → 게이미피케이션 포인트 연동
+- 우수 사례 공유 라이브러리
 
-```
-/home/user/webapp/
-├── src/
-│   └── index.tsx              # 백엔드 메인 (965줄) - Hono 라우트 전체
-├── public/
-│   └── static/
-│       ├── app.js             # 프론트엔드 메인 (3,177줄) - SPA 전체
-│       └── style.css          # CSS (1,121줄) - 디자인 시스템 전체
-├── migrations/
-│   └── 0001_schema.sql        # DB 스키마 (446줄) - 33개 테이블
-├── seed.sql                   # 시드 데이터 (185줄) - 데모 데이터
-├── dist/                      # Vite 빌드 결과물
-├── .wrangler/                 # 로컬 D1/R2 데이터
-├── ecosystem.config.cjs       # PM2 설정
-├── wrangler.jsonc             # Cloudflare 설정
-├── vite.config.ts             # Vite 설정
-├── tsconfig.json              # TypeScript 설정
-├── package.json               # 의존성
-├── package-lock.json          # 잠금 파일
-├── README.md                  # 프로젝트 문서
-└── PROJECT_STATUS.md          # 이 문서
-```
+#### 3-5. 스마트 알림 시스템 (Push/카카오알림톡)
+**현재**: 알림 기능 없음
+**개선**:
+- 관리자: 일일 브리핑 자동 발송 (카카오톡 or 앱 푸시)
+- 직원: 미완료 칸반, 체크리스트 리마인더
+- 환자: 예약 확인, 리콜 알림 (알림톡 연동)
+- 컴플레인 발생 시 즉시 관리자 알림
+
+#### 3-6. 병원 벤치마킹 서비스
+**현재**: 자기 병원 데이터만 확인
+**개선**:
+- 익명화된 동일 규모 병원 평균 KPI 제공
+- 상위 10% 병원의 운영 패턴 인사이트
+- 지역별/진료과목별 벤치마크 데이터
+- (장기) 페이션트 퍼널 수강생 병원 간 비교 기능
+
+### 🥉 P2 - 3개월 내 적용 권장
+
+#### 3-7. 모바일 최적화 (PWA)
+**현재**: 반응형 디자인은 있으나 모바일 전용 UX 부족
+**개선**:
+- PWA 매니페스트 + 서비스 워커 추가
+- 모바일 전용 퀵 액션 (일간 기록 입력, 체크리스트, 진료보드)
+- 오프라인 캐싱 (기본 데이터)
+- 홈화면 추가 안내
+
+#### 3-8. 데이터 내보내기/가져오기
+**현재**: 엑셀 가져오기만 일부 지원 (KPI bulk-import)
+**개선**:
+- 전체 데이터 엑셀 다운로드 (환자DB, KPI, 상담기록, 콜기록)
+- PDF 리포트 자동 생성 (월간 경영보고서)
+- 기존 병원 소프트웨어(덴트웹, 이지덴트 등)에서 CSV 가져오기
 
 ---
 
-## 4. Git 커밋 히스토리 (전체)
+## 4. 기능적 개선안 (기술 관점)
 
-```
-236b1cc refactor: 진료보드 원장별 컬럼 구조로 전면 재설계        ← 최신
-9debb23 feat: 진료보드 + 상담관리 모듈 완성
-4c28fb8 fix: 칸반보드 CSS 추가 + HR 지원자 관리 칸반 스타일 적용
-2913794 v2.0: PF Hire 채용 모듈 통합 완료
-d533d4e feat: 전체 모듈 확장 - 커뮤니티, 칸반보드, 상담스크립트, 마케팅, 체크리스트, 일정관리
-c0f75b6 feat: Patient Funnel Manager v1.0 MVP - 병의원 통합 관리 플랫폼
-fc320c0 fix: String.raw 에서 script 닫는 태그 이슈 수정 - 버튼 클릭 작동 복구
-95d3c13 docs: README v2.1 고도화 업데이트 내용 추가
-83e2f2d v2.1: 서비스 전체 고도화 - 대시보드/모달/상세뷰 UI/UX 업그레이드
-8a4e4d5 Patient Hire 완성: 모든 개선사항 반영
-d3e9d9e Initial commit: Patient Hire - 병의원 전용 채용 관리 웹앱
-```
+### 🔴 P0 - 기술 부채 해결
 
----
+#### 4-1. 프론트엔드 코드 분할 (Code Splitting)
+**현재**: 모든 JS를 하나의 bundle.js(665KB)로 로드
+**개선**:
+- 라우트 기반 동적 임포트 (ES Module dynamic import)
+- 초기 로딩: app.js + dashboard.js만 (~100KB)
+- 나머지 모듈은 메뉴 클릭 시 lazy load
+- First Contentful Paint 3초→1초 개선 예상
 
-## 5. DB 스키마 (33개 테이블)
+#### 4-2. 인라인 스타일 → CSS 클래스 마이그레이션
+**현재**: 프론트엔드 모듈에 인라인 스타일 과다 사용
+**개선**:
+- 공통 유틸리티 CSS 클래스 정의 (card, grid, flex, badge 등)
+- TailwindCSS 유사한 커스텀 유틸리티 시스템
+- 번들 크기 20-30% 추가 절감 가능
 
-### 5-1. 테이블 목록
+#### 4-3. API 응답 캐싱 전략
+**현재**: 매 API 호출마다 DB 쿼리 실행
+**개선**:
+- KV 기반 캐싱 (병원 설정, 카테고리 등 변경 빈도 낮은 데이터)
+- stale-while-revalidate 패턴
+- 대시보드/브리핑 데이터 5분 캐시
+- 예상 DB 부하 40-50% 감소
 
-| # | 영역 | 테이블명 | 설명 | 주요 컬럼 |
-|---|------|----------|------|-----------|
-| 1 | Core | `hospitals` | 병원 | id, name, phone, address, logo_url |
-| 2 | Core | `users` | 사용자 | id, hospital_id, email, password_hash, name, role, **is_doctor**, is_active |
-| 3 | Common | `categories` | 공통 카테고리 | id, hospital_id, module, name, icon, sort_order |
-| 4 | 진료관리 | `materials` | 설명자료 | id, hospital_id, category_id, title, file_url, file_type |
-| 5 | 진료관리 | `pricing` | 비용 안내 | id, hospital_id, category_id, name, price_min, price_max |
-| 6 | 진료관리 | `cases` | 케이스 | id, hospital_id, category_id, patient_name, diagnosis |
-| 7 | 진료관리 | `case_images` | 케이스 사진 | id, case_id, image_url, phase (before/during/after) |
-| 8 | 진료관리 | `scripts` | 상담 스크립트 | id, hospital_id, category_id, title, situation, script, objection, response |
-| 9 | 커뮤니티 | `posts` | 게시글 | id, hospital_id, board_type, title, content, is_anonymous, is_pinned |
-| 10 | 커뮤니티 | `comments` | 댓글 | id, post_id, author_id, content |
-| 11 | 커뮤니티 | `post_likes` | 좋아요 | id, post_id, user_id |
-| 12 | 운영 | `kanban_boards` | 칸반 보드 | id, hospital_id, board_type (purchase/repair) |
-| 13 | 운영 | `kanban_cards` | 칸반 카드 | id, board_id, title, description, status, priority, estimated_cost |
-| 14 | 운영 | `checklists` | 체크리스트 | id, hospital_id, name, category, items(JSON) |
-| 15 | 운영 | `checklist_logs` | 체크 기록 | id, checklist_id, user_id, log_date, completed_items(JSON) |
-| 16 | 운영 | `events` | 일정 | id, hospital_id, title, event_type, start_date, end_date |
-| 17 | 마케팅 | `marketing_channels` | 마케팅 채널 | id, hospital_id, name, channel_type |
-| 18 | 마케팅 | `marketing_records` | 마케팅 실적 | id, channel_id, record_month, new_patients, returning_patients, ad_cost, revenue |
-| 19 | 마케팅 | `reviews` | 후기 | id, hospital_id, platform, rating, content, reply |
-| 20 | HR | `job_postings` | 채용 공고 | id, hospital_id, title, department, employment_type, status |
-| 21 | HR | `applicants` | 지원자 | id, job_posting_id, name, email, phone, status, resume_url, rating |
-| 22 | HR | `interviews` | 인터뷰 | id, applicant_id, interview_type, scheduled_at, status, score, feedback |
-| 23 | HR | `evaluations` | 평가 | id, applicant_id, evaluator_id, scores(JSON), decision |
-| 24 | HR | `onboarding_tasks` | 온보딩 | id, hospital_id, applicant_id, task_name, category, status |
-| 25 | 진료보드 | `chairs` | 진료 의자 | id, hospital_id, chair_number, floor, room_name, is_active, sort_order |
-| 26 | 진료보드 | `treatment_board` | 진료보드 | id, hospital_id, chair_id, board_date, patient_name, **assigned_doctor**, status, **sort_order** |
-| 27 | 상담 | `consultations` | 상담 | id, hospital_id, patient_name, source_channel, treatment_type, status, estimated/agreed/paid_amount |
-| 28 | 상담 | `consultation_notes` | 상담 노트 | id, consultation_id, author_id, note_type, content |
-| 29 | LMS | `courses` | 교육 과정 | id, hospital_id, title, description (미구현) |
-| 30 | LMS | `course_progress` | 수강 진행 | id, course_id, user_id, progress (미구현) |
+### 🟡 P1 - 품질 향상
 
-### 5-2. 최근 스키마 변경 (v2.2)
+#### 4-4. 타입 안전성 강화
+**현재**: 프론트엔드 Vanilla JS (타입 없음)
+**개선**:
+- JSDoc 타입 주석 추가 (빌드 변경 없이 IDE 지원)
+- API 응답 타입 정의 (백엔드-프론트엔드 공유)
+- 런타임 유효성 검사 강화
 
-```sql
--- users 테이블에 is_doctor 추가
-is_doctor INTEGER DEFAULT 0    -- 1이면 원장/의사 (진료보드 컬럼으로 표시)
+#### 4-5. 에러 바운더리 및 사용자 경험
+**현재**: try-catch로 에러 처리, toast만 표시
+**개선**:
+- 페이지별 에러 바운더리 (빈 화면 대신 친절한 에러 UI)
+- 자동 재시도 로직 (네트워크 오류 시 3회까지)
+- 오프라인 감지 및 안내
+- 로딩 스켈레톤 UI (현재 "로딩 중..." 텍스트 → 뼈대 UI)
 
--- treatment_board에 sort_order 추가
-sort_order INTEGER DEFAULT 0   -- 원장 컬럼 내 카드 순서 (위=우선)
+#### 4-6. 접근성(a11y) 개선
+**현재**: 기본적인 시맨틱 HTML만 사용
+**개선**:
+- ARIA 라벨 추가 (스크린 리더 지원)
+- 키보드 내비게이션 완전 지원
+- 포커스 관리 (모달 열기/닫기 시)
+- 색상 대비 검증
 
--- treatment_board에 assigned_doctor 인덱스 추가
-CREATE INDEX idx_treatment_board_doctor ON treatment_board(assigned_doctor, board_date);
-```
+### 🟢 P2 - 확장성
 
----
+#### 4-7. 실시간 업데이트 (SSE)
+**현재**: 모든 데이터 갱신은 수동 새로고침
+**개선**:
+- Server-Sent Events로 실시간 알림
+- 진료보드 실시간 갱신 (여러 디바이스 동시 사용)
+- 칸반보드 실시간 동기화
 
-## 6. 백엔드 API 전체 목록 (src/index.tsx, 965줄)
+#### 4-8. 멀티 브랜치(분원) 지원
+**현재**: 단일 병원 = 단일 데이터
+**개선**:
+- 같은 법인 내 여러 분원 데이터 통합 조회
+- 분원별/통합 대시보드
+- 직원 분원 간 이동 관리
 
-### 6-1. 인증 (비보호)
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 80 | POST | `/api/auth/register` | 병원+사용자 등록, JWT 발급 |
-| 94 | POST | `/api/auth/login` | 로그인, JWT 발급 |
-
-### 6-2. 진료 관리
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 106 | GET | `/api/protected/categories/:module` | 카테고리 목록 (module별) |
-| 114 | GET | `/api/protected/materials` | 설명자료 목록 (?category, ?search) |
-| 127 | POST | `/api/protected/materials` | 설명자료 등록 (multipart, R2 업로드) |
-| 145 | DELETE | `/api/protected/materials/:id` | 설명자료 삭제 |
-| 153 | GET | `/api/protected/pricing` | 비용 항목 목록 |
-| 164 | POST | `/api/protected/pricing` | 비용 항목 등록 |
-| 173 | PUT | `/api/protected/pricing/:id` | 비용 항목 수정 |
-| 181 | DELETE | `/api/protected/pricing/:id` | 비용 항목 삭제 |
-| 188 | GET | `/api/protected/cases` | 케이스 목록 |
-| 199 | POST | `/api/protected/cases` | 케이스 등록 |
-| 208 | GET | `/api/protected/cases/:id` | 케이스 상세 (이미지 포함) |
-| 217 | DELETE | `/api/protected/cases/:id` | 케이스 삭제 |
-| 226 | POST | `/api/protected/cases/:id/images` | 케이스 이미지 업로드 (R2) |
-| 243 | DELETE | `/api/protected/case-images/:id` | 케이스 이미지 삭제 |
-| 249 | GET | `/api/protected/files/*` | R2 파일 서빙 |
-
-### 6-3. 상담 스크립트
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 357 | GET | `/api/protected/scripts` | 스크립트 목록 |
-| 368 | POST | `/api/protected/scripts` | 스크립트 등록 |
-| 377 | DELETE | `/api/protected/scripts/:id` | 스크립트 삭제 |
-
-### 6-4. 커뮤니티
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 259 | GET | `/api/protected/posts` | 게시글 목록 (?board_type) |
-| 270 | POST | `/api/protected/posts` | 게시글 등록 |
-| 279 | DELETE | `/api/protected/posts/:id` | 게시글 삭제 |
-| 286 | GET | `/api/protected/posts/:id/comments` | 댓글 목록 |
-| 291 | POST | `/api/protected/posts/:id/comments` | 댓글 등록 |
-| 300 | POST | `/api/protected/posts/:id/like` | 좋아요 토글 |
-
-### 6-5. 운영 (칸반/체크/일정)
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 316 | GET | `/api/protected/kanban/:boardType` | 칸반 보드 (purchase/repair) |
-| 330 | POST | `/api/protected/kanban/:boardType/cards` | 칸반 카드 등록 |
-| 342 | PUT | `/api/protected/kanban/cards/:id` | 칸반 카드 수정 |
-| 350 | DELETE | `/api/protected/kanban/cards/:id` | 칸반 카드 삭제 |
-| 432 | GET | `/api/protected/checklists` | 체크리스트 목록 |
-| 438 | POST | `/api/protected/checklists` | 체크리스트 등록 |
-| 447 | POST | `/api/protected/checklists/:id/complete` | 체크 완료 기록 |
-| 455 | GET | `/api/protected/checklists/:id/logs` | 체크 기록 조회 |
-| 461 | GET | `/api/protected/events` | 일정 목록 |
-| 472 | POST | `/api/protected/events` | 일정 등록 |
-| 481 | DELETE | `/api/protected/events/:id` | 일정 삭제 |
-
-### 6-6. 마케팅
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 384 | GET | `/api/protected/marketing/channels` | 마케팅 채널 목록 |
-| 390 | POST | `/api/protected/marketing/channels` | 마케팅 채널 등록 |
-| 398 | GET | `/api/protected/marketing/records` | 마케팅 실적 목록 |
-| 409 | POST | `/api/protected/marketing/records` | 마케팅 실적 등록 |
-| 417 | GET | `/api/protected/reviews` | 후기 목록 |
-| 423 | POST | `/api/protected/reviews` | 후기 등록 |
-
-### 6-7. 대시보드
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 488 | GET | `/api/protected/dashboard` | 전체 통계 (materials, pricing, cases, caseImages, posts, pendingTasks, openJobs, activeApplicants) |
-
-### 6-8. HR (PF Hire)
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 528 | GET | `/api/protected/hire/postings` | 채용 공고 목록 |
-| 539 | POST | `/api/protected/hire/postings` | 채용 공고 등록 |
-| 548 | PUT | `/api/protected/hire/postings/:id` | 채용 공고 수정 |
-| 565 | DELETE | `/api/protected/hire/postings/:id` | 채용 공고 삭제 |
-| 572 | GET | `/api/protected/hire/postings/:id/applicants` | 공고별 지원자 |
-| 579 | GET | `/api/protected/hire/applicants` | 지원자 전체 목록 |
-| 590 | POST | `/api/protected/hire/applicants` | 지원자 등록 |
-| 599 | PUT | `/api/protected/hire/applicants/:id` | 지원자 수정 |
-| 613 | DELETE | `/api/protected/hire/applicants/:id` | 지원자 삭제 |
-| 620 | POST | `/api/protected/hire/applicants/:id/resume` | 이력서 업로드 (R2) |
-| 635 | GET | `/api/protected/hire/applicants/:id/interviews` | 지원자 인터뷰 목록 |
-| 640 | POST | `/api/protected/hire/interviews` | 인터뷰 등록 |
-| 649 | PUT | `/api/protected/hire/interviews/:id` | 인터뷰 수정 |
-| 662 | GET | `/api/protected/hire/applicants/:id/evaluations` | 지원자 평가 목록 |
-| 667 | POST | `/api/protected/hire/evaluations` | 평가 등록 |
-| 677 | GET | `/api/protected/hire/onboarding` | 온보딩 태스크 목록 |
-| 688 | POST | `/api/protected/hire/onboarding` | 온보딩 태스크 등록 |
-| 697 | PUT | `/api/protected/hire/onboarding/:id` | 온보딩 상태 변경 |
-
-### 6-9. 진료보드
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 708 | GET | `/api/protected/chairs` | 진료실(의자) 목록 |
-| 714 | POST | `/api/protected/chairs` | 진료실 등록 |
-| 723 | DELETE | `/api/protected/chairs/:id` | 진료실 삭제 |
-| **730** | **GET** | **`/api/protected/doctors`** | **원장/의사 목록 (is_doctor=1)** |
-| 737 | GET | `/api/protected/treatment-board` | 진료보드 (?date, sort_order 포함) |
-| 753 | POST | `/api/protected/treatment-board` | 환자 등록 |
-| 770 | PUT | `/api/protected/treatment-board/:id` | 상태/원장/의자 변경 |
-| **790** | **PUT** | **`/api/protected/treatment-board-reorder`** | **카드 순서 일괄 변경 (배치)** |
-| 802 | DELETE | `/api/protected/treatment-board/:id` | 환자 삭제 |
-| 809 | GET | `/api/protected/treatment-board/stats` | 진료 통계 |
-
-### 6-10. 상담 관리
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 822 | GET | `/api/protected/consultations` | 상담 목록 |
-| 839 | POST | `/api/protected/consultations` | 상담 등록 |
-| 853 | PUT | `/api/protected/consultations/:id` | 상담 수정 |
-| 869 | DELETE | `/api/protected/consultations/:id` | 상담 삭제 |
-| 876 | GET | `/api/protected/consultations/:id/notes` | 상담 노트 목록 |
-| 887 | POST | `/api/protected/consultations/:id/notes` | 상담 노트 등록 |
-| 897 | GET | `/api/protected/consultations/stats/conversion` | 전환율 분석 통계 |
-
-### 6-11. Fallback
-| Line | Method | Path | 설명 |
-|------|--------|------|------|
-| 939 | GET | `*` | SPA fallback (HTML 반환) |
+#### 4-9. 감사 로그 (Audit Trail)
+**현재**: 데이터 변경 이력 없음
+**개선**:
+- 주요 CRUD 작업 감사 로그 기록
+- 누가 언제 무엇을 변경했는지 추적
+- 실수 복구 (소프트 삭제 강화)
+- 의료법 준수를 위한 접근 기록
 
 ---
 
-## 7. 프론트엔드 함수 전체 목록 (app.js, 3,177줄)
+## 5. 우선순위 정리
 
-### 7-1. 코어
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 52 | `api(path, opts)` | API 호출 (JWT 자동 첨부) |
-| 66 | `apiForm(path, formData)` | multipart 폼 API 호출 |
-| 78 | `toast(msg, type)` | 토스트 메시지 |
-| 89 | `navigate(page)` | SPA 라우팅 |
-| 95 | `getStoredAuth()` | 저장된 인증 정보 |
-| 104 | `saveAuth(token, user)` | 인증 정보 저장 |
-| 111 | `logout()` | 로그아웃 |
-| 120 | `renderAuth()` | 로그인/회원가입 UI |
-| 212 | `getNavConfig()` | 네비게이션 설정 |
-| 283 | `renderApp()` | 앱 전체 렌더링 |
-| 342 | `renderSidebar(nav)` | 사이드바 렌더링 |
-| 385 | `renderPage()` | 페이지 라우터 (switch) |
+### 즉시 (이번 주)
+1. ✅ showModal 버그 수정 (완료)
+2. ✅ API 경로 불일치 수정 (완료)
 
-### 7-2. 대시보드
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 445 | `renderDashboard(body)` | 대시보드 (통계카드 + 퀵메뉴) |
+### 단기 (1-2주)
+3. 환자 리콜 자동화 시스템 (P0 서비스)
+4. 프론트엔드 코드 분할 (P0 기술)
+5. 상담 전환율 실시간 추적 (P0 서비스)
 
-### 7-3. 진료 관리
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 565 | `renderMaterials(body, actions)` | 설명자료 목록 |
-| 629 | `openAddMaterialModal(cats, onSuccess)` | 설명자료 등록 모달 |
-| 706 | `renderPricing(body, actions)` | 비용 안내 |
-| 763 | `openAddPricingModal(cats, onSuccess)` | 비용 등록 모달 |
-| 823 | `renderCases(body, actions)` | 케이스 사진 |
-| 874 | `openAddCaseModal(cats, onSuccess)` | 케이스 등록 모달 |
-| 938 | `openCaseDetail(caseId)` | 케이스 상세 |
-| 1006 | `openAddCaseImageModal(caseId, onSuccess)` | 이미지 업로드 모달 |
+### 중기 (1개월)
+6. 스마트 알림 시스템 (P1 서비스)
+7. LMS 교육 활성화 (P1 서비스)
+8. API 응답 캐싱 (P1 기술)
 
-### 7-4. 커뮤니티
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 1070 | `renderCommunity(body, actions, boardType)` | 커뮤니티 게시판 |
-| 1145 | `openPostDetail(postId, boardType, reload)` | 게시글 상세 |
-
-### 7-5. 공통 칸반 엔진
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 1205 | `initKanbanDnD(container, onDrop)` | **드래그&드롭 엔진 (공용)** |
-| 1244 | `renderKanban(body, actions, boardType)` | 물품구매/수리 칸반보드 |
-| 1341 | `openKanbanCardModal(cardId, cards, boardType, reload)` | 칸반 카드 상세 |
-
-### 7-6. 스크립트/체크/캘린더/마케팅/후기
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 1377 | `renderScripts(body, actions)` | 상담 스크립트 |
-| 1455 | `renderChecklists(body, actions)` | 체크리스트 |
-| 1520 | `renderCalendar(body, actions)` | 일정 캘린더 |
-| 1600 | `renderMarketing(body, actions)` | 마케팅 유입 분석 |
-| 1678 | `renderReviews(body, actions)` | 후기 관리 |
-
-### 7-7. HR (PF Hire)
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 1743 | `renderHirePostings(body, actions)` | 채용 공고 |
-| 1858 | `openPostingDetail(postingId, postings, reload)` | 공고 상세 |
-| 1907 | `renderHireApplicants(body, actions)` | 지원자 관리 |
-| 2036 | `openApplicantDetail(applicantId, applicants, reload)` | 지원자 상세 |
-| 2109 | `renderHireInterviews(body, actions)` | 인터뷰 |
-| 2209 | `openInterviewDetail(iv, reload)` | 인터뷰 상세 |
-| 2247 | `renderHireOnboarding(body, actions)` | 온보딩 |
-
-### 7-8. 진료보드 (v2.2 재설계)
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| **2360** | **`renderTreatmentBoard(body, actions)`** | **원장별 컬럼 진료보드** |
-| 2382 | `loadBoard()` | 보드 데이터 로드 |
-| 2422 | `renderCard(item)` | 환자 카드 렌더링 |
-| **2616** | **`openTreatmentDetail(itemId, items, reload, doctors, chairs)`** | **환자 상세/원장 변경** |
-
-### 7-9. 상담 관리
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 2694 | `renderConsultationPipeline(body, actions)` | 상담 파이프라인 칸반 |
-| 2834 | `openConsultDetail(consultId, consultations, reload)` | 상담 상세 |
-| 2957 | `renderConsultationStats(body, actions)` | 전환율 분석 대시보드 |
-
-### 7-10. 설정/유틸
-| Line | 함수명 | 설명 |
-|------|--------|------|
-| 3056 | `renderSettings(body)` | 설정 페이지 |
-| 3086 | `openPresentation(urls, startIdx)` | 프레젠테이션 모드 |
-| 3116 | `renderCatTabs(containerId, cats, selectedId, onSelect)` | 카테고리 탭 |
-| 3130 | `showModal()` / `closeModal()` | 모달 열기/닫기 |
-| 3137 | `formatPrice(min, max)` | 가격 포맷팅 |
-| 3144 | `esc(s)` | HTML 이스케이프 |
-| 3151 | `debounce(fn, ms)` | 디바운스 |
-| 3156 | `timeAgo(dateStr)` | 상대 시간 |
-
----
-
-## 8. 진료보드 핵심 설계 (v2.2 재설계)
-
-### 8-1. 컬럼 구조 (Before → After)
-
-**Before (v2.1):** 상태 기반 6단계
-```
-대기 → 도착 → 자리안내 → 진료중 → 원장필요 → 완료
-```
-
-**After (v2.2):** 원장별 컬럼
-```
-[📋 진료실 대기] → [문석준 원장] → [김수현 원장] → [✅ 완료]
-   (미배정)         (sort_order순)    (sort_order순)   (sort=99)
-```
-
-### 8-2. 카드 순서 = 원장 이동 우선순위
-- `sort_order` 값이 작을수록 상단 (먼저 가야 함)
-- 상단: 🔔 원장호출 / 진료중 → 하단: 대기/도착
-- 완료된 카드: sort_order=99
-
-### 8-3. 드래그&드롭 동작
-- **컬럼 간 이동**: 원장 배정 변경 (assigned_doctor 업데이트)
-- **컬럼 내 순서**: 우선순위 변경 (sort_order 일괄 업데이트)
-- **API**: `PUT /api/protected/treatment-board-reorder` (배치)
-
-### 8-4. 현재 시드 데이터
-
-**문석준 원장 (u-admin):**
-| 순서 | 환자 | 상태 | 진료내용 |
-|------|------|------|----------|
-| 1 | 최유나 | 🔔 원장호출 | 신경치료 (응급) |
-| 2 | 박서준 | 🦷 진료중 | 임플란트 1차 |
-| 3 | 강민우 | 🚶 도착 | 라미네이트+브릿지 |
-| 4 | 김학권 | 🕐 대기 | 임플란트 상담 |
-| 99 | 윤명한 | ✅ 완료 | 정기검진 |
-
-**김수현 원장 (u-mgr):**
-| 순서 | 환자 | 상태 | 진료내용 |
-|------|------|------|----------|
-| 1 | 이동희 | 🦷 진료중 | 발치 |
-| 2 | 정윤서 | 🚶 도착 | 교정 점검 |
-| 3 | 이승민 | 🕐 대기 | 사랑니 발치 |
-
-**대기 (미배정):**
-| 순서 | 환자 | 상태 | 진료내용 |
-|------|------|------|----------|
-| 1 | 맹선영 | 💺 자리안내 | 교정 상담 (신환) |
-| 2 | 한지민 | 🕐 대기 | 크라운 인상 (소개) |
-| 3 | 오서진 | 🚶 도착 | 충치치료 |
-
----
-
-## 9. 상담 관리 설계
-
-### 9-1. 파이프라인 (8단계)
-```
-문의 → 예약 → 내원 → 상담중 → 동의 → 수납 → 진료 → 완료
-(inquiry) (reserved) (visited) (consulting) (agreed) (payment) (treatment) (completed)
-                                                              + 이탈(lost)
-```
-
-### 9-2. 유입 채널
-walk_in, phone, naver, instagram, youtube, referral, blog, kakao
-
-### 9-3. 현재 시드 데이터 (10건)
-- 전환율: 50% (동의/내원)
-- 수납률: 80% (수납/동의)
-- 총 예상금액: 5,650만원 / 동의금액: 2,760만원 / 수납금액: 1,460만원
-
-### 9-4. 전환율 분석 대시보드
-- 월별 선택기
-- 전체 통계 패널 (상담수, 동의수, 수납수, 이탈수, 전환율, 수납률)
-- 유입경로별 전환율 차트
-- 진료유형별 전환율 차트
-- 퍼널 시각화 (총 상담 → 내원 → 동의 → 수납 → 완료)
-
----
-
-## 10. 데이터 현황 (시드 기준)
-
-| 모듈 | 데이터 수 | 비고 |
-|------|-----------|------|
-| 병원 | 1 | 서울비디치과 |
-| 사용자 | 4 | 문석준(admin), 김수현(manager), 박지은/이하늘(staff) |
-| 카테고리 | ~40 | 설명자료10, 비용10, 케이스10, 스크립트5, 채용5 |
-| 스크립트 | 2 | 임플란트, 교정 |
-| 체크리스트 | 3 | 개원전, 마감, 감염관리 |
-| 마케팅 채널 | 6 | 네이버, 구글, 인스타, 유튜브, 카카오, 블로그 |
-| 채용 공고 | 2 | 치과위생사, 진료코디네이터 |
-| 지원자 | 4 | 각종 상태 |
-| 진료보드 | 11 | 문석준5, 김수현3, 대기3 |
-| 진료실(의자) | 7 | 2F 2개, 3F 3개, 4F 2개 |
-| 상담 | 10 | 다양한 상태/채널/유형 |
-| 상담 노트 | 6 | 상담별 메모/반론/치료계획 |
-| **데이터 없음** | - | materials, pricing, cases, events, reviews, posts, onboarding |
-
----
-
-## 11. CSS 디자인 시스템
-
-### 11-1. 색상 변수
-```css
---primary: #0f766e;        --primary-light: #14b8a6;    --primary-dark: #0d5f59;
---secondary: #6366f1;      --secondary-light: #818cf8;
---accent: #f59e0b;         --success: #22c55e;          --warning: #f59e0b;
---danger: #ef4444;         --info: #3b82f6;
---bg-main: #f8fafc;        --bg-card: #ffffff;
---bg-sidebar: #0f172a;     --bg-sidebar-hover: #1e293b;
---text-primary: #1e293b;   --text-secondary: #64748b;
-```
-
-### 11-2. 레이아웃
-```css
---sidebar-width: 260px;    --header-height: 60px;
---radius-sm: 6px;          --radius-md: 10px;          --radius-lg: 16px;
-```
-
-### 11-3. 반응형 (768px 이하)
-- 사이드바: 숨김 → 햄버거로 토글
-- 대시보드 그리드: 2컬럼
-- 폼: 1컬럼
-- 칸반 컬럼: min-width 200px
-
-### 11-4. 애니메이션
-- `@keyframes slideIn` - 모달 진입
-- `@keyframes spin` - 로딩 스피너
-- `@keyframes pulse` - 원장호출 깜빡임
-
----
-
-## 12. 접속 정보
-
-| 항목 | 값 |
-|------|------|
-| **샌드박스 URL** | https://3000-iuvrp0m93fbco7sqya61k-8f57ffe2.sandbox.novita.ai |
-| **포트** | 3000 |
-| **PM2 앱명** | pfm |
-| **데모 계정** | admin@seoulbd.com / admin123 |
-| **추가 계정** | manager@seoulbd.com / manager1 |
-| **스태프** | hygienist1@seoulbd.com / staff123 |
-| **스태프** | assistant1@seoulbd.com / staff123 |
-
----
-
-## 13. 실행 명령어 정리
-
-```bash
-# 빌드
-cd /home/user/webapp && npm run build
-
-# DB 초기화 (완전 리셋)
-cd /home/user/webapp && rm -rf .wrangler/state/v3/d1 && npm run build
-cd /home/user/webapp && npx wrangler d1 migrations apply pfm-production --local
-cd /home/user/webapp && npx wrangler d1 execute pfm-production --local --file=./seed.sql
-
-# 서버 시작
-cd /home/user/webapp && fuser -k 3000/tcp 2>/dev/null || true
-cd /home/user/webapp && pm2 delete all 2>/dev/null || true
-cd /home/user/webapp && pm2 start ecosystem.config.cjs
-
-# 테스트
-curl http://localhost:3000
-
-# 로그 확인
-pm2 logs pfm --nostream
-
-# Git
-cd /home/user/webapp && git add -A && git commit -m "메시지"
-```
-
----
-
-## 14. 진행 중이던 작업 (디버그/최적화 풀패키지)
-
-### 14-1. 완료된 항목
-- [x] 전체 API 헬스체크 (모든 엔드포인트 200 확인)
-- [x] 데이터 존재 여부 전수 확인
-- [x] CSS 클래스 사용 여부 검증
-- [x] 진료보드 원장별 컬럼 재설계 완료
-- [x] 드래그&드롭 원장 배정 + 순서 변경 동작 확인
-
-### 14-2. 진행 중 / 미완료 항목
-- [ ] **대시보드 고도화**: 진료보드/상담관리 요약 데이터 추가 (API 수정 시작됨)
-- [ ] **CSS 반응형 강화**: @media 쿼리 1개 → 다양한 브레이크포인트
-- [ ] **코드 최적화**: 중복 제거, 에러 핸들링 개선, UX 개선
-- [ ] **누락 CSS**: .check-item, .del-prc, .edit-prc 등 보완
-- [ ] **전체 UI 점검**: 각 페이지 실제 렌더링 스크린샷 확인
-- [ ] **성능 최적화**: 불필요한 API 호출 제거, 캐싱
-- [ ] **모바일 최적화**: 터치 이벤트, 모바일 칸반
-
-### 14-3. 향후 개발 예정
-- [ ] 환자 관리(CRM) - 환자 등록, 방문 이력
-- [ ] 직원 관리 - 스태프 계정 CRUD, 권한
-- [ ] LMS 교육 - 과정 등록, 진행률 (DB 준비 완료)
-- [ ] 프레젠테이션 도구 - 드로잉/펜
-- [ ] 알림 시스템 - 리마인더
-- [ ] 다크 모드
-- [ ] Cloudflare Pages 프로덕션 배포
-
----
-
-## 15. 네비게이션 구조 (app.js getNavConfig)
-
-```
-대시보드 (dashboard)
-├── 진료보드 (treatment_board)
-├── 상담
-│   ├── 상담 파이프라인 (consultation_pipeline)
-│   └── 전환율 분석 (consultation_stats)
-├── 진료 관리
-│   ├── 설명자료 (materials)
-│   ├── 비용 안내 (pricing)
-│   ├── 케이스 사진 (cases)
-│   └── 상담 스크립트 (scripts)
-├── 커뮤니티
-│   ├── 공지사항 (notice)
-│   ├── 자유게시판 (free)
-│   ├── 칭찬하기 (praise)
-│   └── 실수노트 (mistake)
-├── HR
-│   ├── 채용 공고 (hire_postings)
-│   ├── 지원자 관리 (hire_applicants)
-│   ├── 인터뷰 (hire_interviews)
-│   └── 온보딩 (hire_onboarding)
-├── 병원 운영
-│   ├── 물품 구매 (purchase_kanban)
-│   ├── 수리/정비 (repair_kanban)
-│   ├── 체크리스트 (checklists)
-│   └── 일정 관리 (calendar)
-└── 설정 (settings)
-```
-
----
-
-> **이 문서는 프로젝트 복원, 인수인계, 또는 작업 재개 시 컨텍스트 참조용입니다.**
-> **마지막 업데이트: 2026-03-26 | 커밋: 236b1cc**
+### 장기 (3개월)
+9. PWA + 모바일 최적화 (P2 서비스)
+10. 병원 벤치마킹 (P2 서비스)
+11. 실시간 업데이트 (P2 기술)
+12. 멀티 브랜치 (P2 기술)

@@ -695,7 +695,15 @@ function renderCatTabs(containerId, cats, selectedId, onSelect) {
   });
 }
 
-function showModal() { document.getElementById('modalOverlay').classList.add('show'); }
+function showModal(title, content) {
+  if (title || content) {
+    const modal = document.getElementById('modalContent');
+    modal.innerHTML = `
+      ${title ? `<div class="modal-header"><h3>${title}</h3><button class="modal-close-btn" onclick="PFM.closeModal()">✕</button></div>` : ''}
+      <div class="modal-body">${content || ''}</div>`;
+  }
+  document.getElementById('modalOverlay').classList.add('show');
+}
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
   const modal = document.getElementById('modalContent');
