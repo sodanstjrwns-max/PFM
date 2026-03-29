@@ -81,8 +81,8 @@ hr.put('/me', async (c) => {
     }
   }
   if (fields.length === 0) return c.json({ error: '변경 사항이 없습니다' }, 400)
-  fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(user.id)
-  await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=?`).bind(...vals).run()
+  fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(user.id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
   return c.json({ success: true })
 })
 

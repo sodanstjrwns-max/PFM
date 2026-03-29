@@ -89,6 +89,9 @@ meetings.delete('/:id', async (c) => {
 
 meetings.put('/:id/participants', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 회의인지 확인
+  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first()
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     user_id: { type: 'string', max: 100 },
@@ -99,18 +102,25 @@ meetings.put('/:id/participants', async (c) => {
     await c.env.DB.prepare('UPDATE meeting_participants SET attendance = ? WHERE meeting_id = ? AND user_id = ?').bind(b.attendance, meetingId, b.user_id || user.id).run()
   } else if (b.user_id) {
     const pId = 'mp-' + crypto.randomUUID().slice(0,8)
-    await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(pId, meetingId, b.user_id, b.role || 'attendee').run()
+    await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role, hospital_id) VALUES (?,?,?,?,?)').bind(pId, meetingId, b.user_id, b.role || 'attendee', user.hospitalId).run()
   }
   return c.json({ success: true })
 })
 
 meetings.delete('/:id/participants/:userId', async (c) => {
+  const user = c.get('user')!
+  // IDOR 방지: 해당 병원의 회의인지 확인
+  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(c.req.param('id'), c.req.param('userId')).run()
   return c.json({ success: true })
 })
 
 meetings.post('/:id/minutes', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 회의인지 확인
+  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first()
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     content: { type: 'string', max: 20000 },
@@ -123,8 +133,8 @@ meetings.post('/:id/minutes', async (c) => {
     return c.json({ id: existing.id, updated: true })
   }
   const id = 'mm-' + crypto.randomUUID().slice(0,8)
-  await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, content, decisions, action_items, written_by) VALUES (?,?,?,?,?,?)').bind(id, meetingId, b.content || '', b.decisions || '', b.action_items || '', user.id).run()
-  await c.env.DB.prepare("UPDATE meetings SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(meetingId).run()
+  await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, content, decisions, action_items, written_by, hospital_id) VALUES (?,?,?,?,?,?,?)').bind(id, meetingId, b.content || '', b.decisions || '', b.action_items || '', user.id, user.hospitalId).run()
+  await c.env.DB.prepare("UPDATE meetings SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND hospital_id = ?").bind(meetingId, user.hospitalId).run()
   return c.json({ id })
 })
 

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody, verifyOwnership } from '../lib/middleware'
 
 const community = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -42,37 +42,53 @@ community.post('/posts', async (c) => {
 
 community.delete('/posts/:id', async (c) => {
   const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM comments WHERE post_id=?').bind(c.req.param('id')).run()
-  await c.env.DB.prepare('DELETE FROM posts WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  const postId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 게시글인지 먼저 확인
+  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
+  if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare('DELETE FROM comments WHERE post_id=?').bind(postId).run()
+  await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id=?').bind(postId).run()
+  await c.env.DB.prepare('DELETE FROM posts WHERE id=?').bind(postId).run()
   return c.json({ success: true })
 })
 
 community.get('/posts/:id/comments', async (c) => {
+  const user = c.get('user')!
+  // IDOR 방지: 해당 병원의 게시글인지 확인
+  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
   const rows = await c.env.DB.prepare('SELECT cm.*, u.name as author_name FROM comments cm JOIN users u ON cm.author_id=u.id WHERE cm.post_id=? ORDER BY cm.created_at LIMIT 200').bind(c.req.param('id')).all()
   return c.json(rows.results)
 })
 
 community.post('/posts/:id/comments', async (c) => {
   const user = c.get('user')!
+  const postId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 게시글인지 확인
+  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
+  if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
   const raw = await c.req.json()
   const content = sanitizeString(raw.content || '', 5000)
   if (!content) return c.json({ error: '내용을 입력하세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO comments (id, post_id, author_id, content) VALUES (?,?,?,?)').bind(id, c.req.param('id'), user.id, content).run()
+  await c.env.DB.prepare('INSERT INTO comments (id, post_id, author_id, content, hospital_id) VALUES (?,?,?,?,?)').bind(id, postId, user.id, content, user.hospitalId).run()
   return c.json({ id })
 })
 
 community.post('/posts/:id/like', async (c) => {
   const user = c.get('user')!
   const postId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 게시글인지 확인
+  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
+  if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
   const existing = await c.env.DB.prepare('SELECT id FROM post_likes WHERE post_id=? AND user_id=?').bind(postId, user.id).first()
   if (existing) {
     await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id=? AND user_id=?').bind(postId, user.id).run()
-    await c.env.DB.prepare('UPDATE posts SET like_count=MAX(0,like_count-1) WHERE id=?').bind(postId).run()
+    await c.env.DB.prepare('UPDATE posts SET like_count=MAX(0,like_count-1) WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).run()
     return c.json({ liked: false })
   } else {
-    await c.env.DB.prepare('INSERT INTO post_likes (id, post_id, user_id) VALUES (?,?,?)').bind(crypto.randomUUID(), postId, user.id).run()
-    await c.env.DB.prepare('UPDATE posts SET like_count=like_count+1 WHERE id=?').bind(postId).run()
+    await c.env.DB.prepare('INSERT INTO post_likes (id, post_id, user_id, hospital_id) VALUES (?,?,?,?)').bind(crypto.randomUUID(), postId, user.id, user.hospitalId).run()
+    await c.env.DB.prepare('UPDATE posts SET like_count=like_count+1 WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).run()
     return c.json({ liked: true })
   }
 })
@@ -299,11 +315,18 @@ community.post('/checklists/:id/complete', async (c) => {
     log_date: { type: 'string', max: 20 },
   })
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO checklist_logs (id, checklist_id, completed_by, completed_items, log_date, notes) VALUES (?,?,?,?,?,?)').bind(id, c.req.param('id'), user.id, JSON.stringify(b.completed_items), b.log_date||new Date().toISOString().split('T')[0], b.notes||'').run()
+  // IDOR 방지: 해당 병원의 체크리스트인지 확인
+  const checklist = await c.env.DB.prepare('SELECT id FROM checklists WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!checklist) return c.json({ error: '체크리스트를 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare('INSERT INTO checklist_logs (id, checklist_id, completed_by, completed_items, log_date, notes, hospital_id) VALUES (?,?,?,?,?,?,?)').bind(id, c.req.param('id'), user.id, JSON.stringify(b.completed_items), b.log_date||new Date().toISOString().split('T')[0], b.notes||'', user.hospitalId).run()
   return c.json({ id })
 })
 
 community.get('/checklists/:id/logs', async (c) => {
+  const user = c.get('user')!
+  // IDOR 방지: 해당 병원의 체크리스트인지 확인
+  const checklist = await c.env.DB.prepare('SELECT id FROM checklists WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!checklist) return c.json({ error: '체크리스트를 찾을 수 없습니다' }, 404)
   const rows = await c.env.DB.prepare('SELECT cl.*, u.name as completed_by_name FROM checklist_logs cl JOIN users u ON cl.completed_by=u.id WHERE cl.checklist_id=? ORDER BY cl.log_date DESC LIMIT 30').bind(c.req.param('id')).all()
   return c.json(rows.results)
 })

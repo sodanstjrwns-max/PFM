@@ -134,14 +134,14 @@ materials.get('/cases/:id', async (c) => {
   const id = c.req.param('id')
   const cs: any = await c.env.DB.prepare('SELECT cs.*, c.name as category_name FROM cases cs JOIN categories c ON cs.category_id=c.id WHERE cs.id=? AND cs.hospital_id=?').bind(id, user.hospitalId).first()
   if (!cs) return c.json({ error: 'Not found' }, 404)
-  const images = await c.env.DB.prepare('SELECT id, case_id, image_url, image_type, caption, sort_order FROM case_images WHERE case_id=? ORDER BY sort_order').bind(id).all()
+  const images = await c.env.DB.prepare('SELECT id, case_id, image_url, image_type, caption, sort_order FROM case_images WHERE case_id=? AND hospital_id=? ORDER BY sort_order').bind(id, user.hospitalId).all()
   return c.json({ ...cs, images: images.results })
 })
 
 materials.delete('/cases/:id', async (c) => {
   const user = c.get('user')!
   const id = c.req.param('id')
-  await c.env.DB.prepare('DELETE FROM case_images WHERE case_id=?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM case_images WHERE case_id=? AND hospital_id=?').bind(id, user.hospitalId).run()
   await c.env.DB.prepare('DELETE FROM cases WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).run()
   return c.json({ success: true })
 })
@@ -150,6 +150,9 @@ materials.delete('/cases/:id', async (c) => {
 materials.post('/cases/:id/images', async (c) => {
   const user = c.get('user')!
   const caseId = c.req.param('id')
+  // IDOR 방지: 해당 병원의 케이스인지 확인
+  const cs = await c.env.DB.prepare('SELECT id FROM cases WHERE id=? AND hospital_id=?').bind(caseId, user.hospitalId).first()
+  if (!cs) return c.json({ error: '케이스를 찾을 수 없습니다' }, 404)
   const form = await c.req.formData()
   const file = form.get('file') as File
   const imageType = sanitizeString((form.get('image_type') as string) || 'during', 20)
@@ -161,11 +164,15 @@ materials.post('/cases/:id/images', async (c) => {
   const key = `cases/${user.hospitalId}/${caseId}/${imgId}.${fv.ext}`
   await c.env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } })
   const imageUrl = `/api/protected/files/${key}`
-  await c.env.DB.prepare('INSERT INTO case_images (id, case_id, image_url, image_type, caption) VALUES (?,?,?,?,?)').bind(imgId, caseId, imageUrl, imageType, caption).run()
+  await c.env.DB.prepare('INSERT INTO case_images (id, case_id, image_url, image_type, caption, hospital_id) VALUES (?,?,?,?,?,?)').bind(imgId, caseId, imageUrl, imageType, caption, user.hospitalId).run()
   return c.json({ id: imgId, image_url: imageUrl })
 })
 
 materials.delete('/case-images/:id', async (c) => {
+  const user = c.get('user')!
+  // IDOR 방지: case_images → cases → hospital_id 검증
+  const img: any = await c.env.DB.prepare('SELECT ci.id, cs.hospital_id FROM case_images ci JOIN cases cs ON ci.case_id=cs.id WHERE ci.id=?').bind(c.req.param('id')).first()
+  if (!img || img.hospital_id !== user.hospitalId) return c.json({ error: '이미지를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM case_images WHERE id=?').bind(c.req.param('id')).run()
   return c.json({ success: true })
 })

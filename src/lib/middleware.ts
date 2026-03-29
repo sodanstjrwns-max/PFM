@@ -242,6 +242,34 @@ export async function safeJsonParse(c: any): Promise<Record<string, any> | null>
   }
 }
 
+/* ═══ Hospital Ownership Verification (IDOR 방지) ═══ */
+// 자식 테이블 리소스가 해당 병원 소유인지 검증
+export async function verifyOwnership(
+  db: any,
+  table: string,
+  resourceId: string,
+  hospitalId: string,
+  idColumn = 'id'
+): Promise<boolean> {
+  const row = await db.prepare(
+    `SELECT hospital_id FROM ${table} WHERE ${idColumn}=?`
+  ).bind(resourceId).first()
+  return row?.hospital_id === hospitalId
+}
+
+// 부모 테이블을 통한 간접 소유권 검증 (hospital_id가 없는 레거시 자식 테이블)
+export async function verifyOwnershipViaParent(
+  db: any,
+  parentTable: string,
+  parentId: string,
+  hospitalId: string
+): Promise<boolean> {
+  const row = await db.prepare(
+    `SELECT hospital_id FROM ${parentTable} WHERE id=?`
+  ).bind(parentId).first()
+  return row?.hospital_id === hospitalId
+}
+
 /* ═══ File Upload Validation ═══ */
 const ALLOWED_FILE_TYPES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],

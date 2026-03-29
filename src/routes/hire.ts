@@ -137,7 +137,11 @@ hire.post('/applicants/:id/resume', async (c) => {
 
 /* ─── PF Hire: Interviews API ─── */
 hire.get('/applicants/:id/interviews', async (c) => {
-  const rows = await c.env.DB.prepare('SELECT i.*, u.name as interviewer_name FROM interviews i LEFT JOIN users u ON i.interviewer_id=u.id WHERE i.applicant_id=? ORDER BY i.scheduled_at DESC LIMIT 50').bind(c.req.param('id')).all()
+  const user = c.get('user')!
+  // IDOR 방지: 해당 병원의 지원자인지 확인
+  const applicant = await c.env.DB.prepare('SELECT id FROM applicants WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!applicant) return c.json({ error: '지원자를 찾을 수 없습니다' }, 404)
+  const rows = await c.env.DB.prepare('SELECT i.*, u.name as interviewer_name FROM interviews i LEFT JOIN users u ON i.interviewer_id=u.id WHERE i.applicant_id=? AND i.hospital_id=? ORDER BY i.scheduled_at DESC LIMIT 50').bind(c.req.param('id'), user.hospitalId).all()
   return c.json(rows.results)
 })
 
@@ -158,6 +162,7 @@ hire.post('/interviews', async (c) => {
 })
 
 hire.put('/interviews/:id', async (c) => {
+  const user = c.get('user')!
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     status: { type: 'enum', values: ['scheduled','completed','cancelled','no_show'] },
@@ -169,8 +174,8 @@ hire.put('/interviews/:id', async (c) => {
   if (b.feedback !== undefined) { updates.push('feedback=?'); params.push(b.feedback) }
   if (b.score !== undefined) { updates.push('score=?'); params.push(b.score) }
   if (!updates.length) return c.json({ error: '수정할 항목이 없습니다' }, 400)
-  params.push(c.req.param('id'))
-  await c.env.DB.prepare(`UPDATE interviews SET ${updates.join(',')} WHERE id=?`).bind(...params).run()
+  params.push(c.req.param('id'), user.hospitalId)
+  await c.env.DB.prepare(`UPDATE interviews SET ${updates.join(',')}, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?`).bind(...params).run()
   return c.json({ success: true })
 })
 
@@ -178,7 +183,10 @@ hire.put('/interviews/:id', async (c) => {
 hire.get('/applicants/:id/evaluations', async (c) => {
   const user = c.get('user')!
   if (user.role === 'staff') return c.json({ error: '평가 열람 권한이 없습니다' }, 403)
-  const rows = await c.env.DB.prepare('SELECT e.*, u.name as evaluator_name FROM evaluations e JOIN users u ON e.evaluator_id=u.id WHERE e.applicant_id=? ORDER BY e.created_at DESC LIMIT 50').bind(c.req.param('id')).all()
+  // IDOR 방지: 해당 병원의 지원자인지 확인
+  const applicant = await c.env.DB.prepare('SELECT id FROM applicants WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!applicant) return c.json({ error: '지원자를 찾을 수 없습니다' }, 404)
+  const rows = await c.env.DB.prepare('SELECT e.*, u.name as evaluator_name FROM evaluations e JOIN users u ON e.evaluator_id=u.id WHERE e.applicant_id=? AND e.hospital_id=? ORDER BY e.created_at DESC LIMIT 50').bind(c.req.param('id'), user.hospitalId).all()
   return c.json(rows.results)
 })
 
@@ -196,7 +204,10 @@ hire.post('/evaluations', async (c) => {
   })
   if (!b.applicant_id || !b.criteria) return c.json({ error: '평가 항목을 입력해주세요' }, 400)
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO evaluations (id, applicant_id, evaluator_id, criteria, total_score, max_score, comments, recommendation) VALUES (?,?,?,?,?,?,?,?)').bind(id, b.applicant_id, user.id, JSON.stringify(b.criteria), b.total_score||0, b.max_score||100, b.comments||'', b.recommendation||'neutral').run()
+  // IDOR 방지: 해당 병원의 지원자인지 확인
+  const applicant = await c.env.DB.prepare('SELECT id FROM applicants WHERE id=? AND hospital_id=?').bind(b.applicant_id, user.hospitalId).first()
+  if (!applicant) return c.json({ error: '지원자를 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare('INSERT INTO evaluations (id, applicant_id, hospital_id, evaluator_id, criteria, total_score, max_score, comments, recommendation) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, b.applicant_id, user.hospitalId, user.id, JSON.stringify(b.criteria), b.total_score||0, b.max_score||100, b.comments||'', b.recommendation||'neutral').run()
   return c.json({ id })
 })
 
