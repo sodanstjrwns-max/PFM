@@ -48,7 +48,7 @@ async function renderGamification(body, actions) {
 }
 
 async function renderMyProgress(el) {
-  const data = await api('/protected/gamification/my-progress?period=' + gamState.period);
+  const data = await api('/api/protected/gamification/my-progress?period=' + gamState.period);
   const missions = data.missions || [];
   const totalPoints = data.totalPoints || 0;
 
@@ -119,7 +119,7 @@ async function renderMyProgress(el) {
 }
 
 async function renderRanking(el) {
-  const data = await api('/protected/gamification/ranking?period=' + gamState.period);
+  const data = await api('/api/protected/gamification/ranking?period=' + gamState.period);
   const ranking = data.ranking || [];
   const periodLabel = gamState.period === 'daily' ? '오늘' : gamState.period === 'weekly' ? '이번 주' : gamState.period === 'monthly' ? '이번 달' : '전체';
 
@@ -152,7 +152,7 @@ async function renderRanking(el) {
 }
 
 async function renderMissions(el) {
-  const missions = await api('/protected/gamification/missions?period=' + gamState.period);
+  const missions = await api('/api/protected/gamification/missions?period=' + gamState.period);
   const typeLabel = { consult_conversion:'상담전환', review_collect:'리뷰수집', patient_recall:'리콜', call_target:'콜목표', nps_score:'NPS', attendance:'출석', custom:'사용자정의' };
 
   el.innerHTML = `
@@ -180,7 +180,7 @@ async function renderMissions(el) {
   el.querySelectorAll('.del-mission-btn').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('이 미션을 삭제할까요?')) return;
     try {
-      await api('/protected/gamification/missions/' + b.dataset.id, { method: 'DELETE' });
+      await api('/api/protected/gamification/missions/' + b.dataset.id, { method: 'DELETE' });
       toast('삭제 완료', 'success');
       renderMissions(el);
     } catch(e) { toast(e.message, 'error'); }
@@ -243,7 +243,7 @@ function showAddMissionModal() {
     const target_value = parseInt(document.getElementById('mTarget').value) || 1;
     if (!title) { toast('미션 이름을 입력해주세요', 'error'); return; }
     try {
-      await api('/protected/gamification/missions', { method: 'POST', json: {
+      await api('/api/protected/gamification/missions', { method: 'POST', json: {
         title,
         description: document.getElementById('mDesc').value.trim(),
         mission_type: document.getElementById('mType').value,
@@ -264,8 +264,8 @@ function showAddMissionModal() {
 
 async function renderUpdateProgress(el) {
   const [missions, staffRes] = await Promise.all([
-    api('/protected/gamification/missions?period=' + gamState.period),
-    api('/protected/hr/staff'),
+    api('/api/protected/gamification/missions?period=' + gamState.period),
+    api('/api/protected/hr/staff'),
   ]);
   const staff = (staffRes || []).filter(s => s.is_active);
 
@@ -303,7 +303,7 @@ async function renderUpdateProgress(el) {
     const value = parseInt(document.getElementById('upValue').value) || 0;
     if (!user_id || !mission_id) { toast('직원과 미션을 선택해주세요', 'error'); return; }
     try {
-      const res = await api('/protected/gamification/update-progress', { method: 'POST', json: { user_id, mission_id, value } });
+      const res = await api('/api/protected/gamification/update-progress', { method: 'POST', json: { user_id, mission_id, value } });
       toast(res.completed ? `미션 완료! ${res.pointsEarned}P 지급 🎉` : '진행상황 업데이트 완료', 'success');
     } catch(e) { toast(e.message, 'error'); }
   });

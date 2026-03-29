@@ -8,7 +8,7 @@ async function renderHeatmap(body, actions) {
   body.innerHTML = `<div class="card" style="padding:20px"><div class="loading-spinner">데이터 로딩 중...</div></div>`;
   
   try {
-    const data = await api('/protected/patients/stats/detailed?period=monthly&from=' + month + '-01&to=' + month + '-31');
+    const data = await api('/api/protected/patients/stats/detailed?period=monthly&from=' + month + '-01&to=' + month + '-31');
     renderHeatmapView(body, actions, data, month);
   } catch(e) {
     body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
@@ -157,7 +157,7 @@ function renderHeatmapView(body, actions, data, month) {
     const m = e.target.value;
     body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">로딩 중...</div></div>';
     try {
-      const d = await api('/protected/patients/stats/detailed?period=monthly&from=' + m + '-01&to=' + m + '-31');
+      const d = await api('/api/protected/patients/stats/detailed?period=monthly&from=' + m + '-01&to=' + m + '-31');
       renderHeatmapView(body, actions, d, m);
     } catch(err) { body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(err.message)}</p></div>`; }
   });

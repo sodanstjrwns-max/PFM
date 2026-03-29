@@ -48,7 +48,7 @@ async function renderReviewMgmt(body, actions) {
 }
 
 async function renderRvDashboard(el) {
-  const data = await api('/protected/review-mgmt/dashboard');
+  const data = await api('/api/protected/review-mgmt/dashboard');
   const ov = data.overview || {};
   const platforms = data.byPlatform || [];
   const monthly = data.monthlyTrend || [];
@@ -198,7 +198,7 @@ async function renderRvDashboard(el) {
 
 async function renderRvList(el) {
   const f = rvState.filters;
-  let url = '/protected/review-mgmt?page=' + rvState.page;
+  let url = '/api/protected/review-mgmt?page=' + rvState.page;
   if (f.platform) url += '&platform=' + f.platform;
   if (f.sentiment) url += '&sentiment=' + f.sentiment;
   if (f.status) url += '&status=' + f.status;
@@ -351,7 +351,7 @@ function showAddReviewModal(el) {
     const review_text = document.getElementById('rvText').value.trim();
     if (!review_text) { toast('리뷰 내용을 입력해주세요', 'error'); return; }
     try {
-      const res = await api('/protected/review-mgmt', { method: 'POST', json: {
+      const res = await api('/api/protected/review-mgmt', { method: 'POST', json: {
         platform: document.getElementById('rvPlatform').value,
         rating: parseInt(document.getElementById('rvRating').value),
         reviewer_name: document.getElementById('rvName').value.trim(),
@@ -405,7 +405,7 @@ function showReviewActionModal(review, el) {
   document.getElementById('updateReviewBtn')?.addEventListener('click', async () => {
     try {
       const response_text = document.getElementById('rvResponse').value.trim();
-      await api('/protected/review-mgmt/' + review.id, { method: 'PUT', json: {
+      await api('/api/protected/review-mgmt/' + review.id, { method: 'PUT', json: {
         response_text,
         response_status: response_text ? 'completed' : 'pending',
         sentiment: document.getElementById('rvSentimentEdit').value,
@@ -418,7 +418,7 @@ function showReviewActionModal(review, el) {
 
   document.getElementById('pinReviewBtn')?.addEventListener('click', async () => {
     try {
-      await api('/protected/review-mgmt/' + review.id, { method: 'PUT', json: { is_pinned: !review.is_pinned } });
+      await api('/api/protected/review-mgmt/' + review.id, { method: 'PUT', json: { is_pinned: !review.is_pinned } });
       toast(review.is_pinned ? '고정 해제' : '고정됨', 'success');
       closeModal();
       await renderRvList(el);
@@ -428,7 +428,7 @@ function showReviewActionModal(review, el) {
   document.getElementById('deleteReviewBtn')?.addEventListener('click', async () => {
     if (!confirm('이 리뷰를 삭제할까요?')) return;
     try {
-      await api('/protected/review-mgmt/' + review.id, { method: 'DELETE' });
+      await api('/api/protected/review-mgmt/' + review.id, { method: 'DELETE' });
       toast('삭제 완료', 'success');
       closeModal();
       await renderRvList(el);

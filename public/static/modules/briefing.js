@@ -10,7 +10,7 @@ async function renderBriefing(body, actions) {
   body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">브리핑 생성 중...</div></div>';
   
   try {
-    const data = await api('/protected/briefing');
+    const data = await api('/api/protected/briefing');
     renderBriefingView(body, actions, data);
   } catch(e) {
     body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
@@ -170,7 +170,7 @@ function renderBriefingView(body, actions, d) {
   document.getElementById('briefingDate')?.addEventListener('change', async (e) => {
     body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">브리핑 생성 중...</div></div>';
     try {
-      const data = await api('/protected/briefing?date=' + e.target.value);
+      const data = await api('/api/protected/briefing?date=' + e.target.value);
       renderBriefingView(body, actions, data);
     } catch(err) { body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(err.message)}</p></div>`; }
   });
