@@ -467,6 +467,8 @@ function getNavConfig() {
       id: 'marketing_group', label: '📈 마케팅', icon: ICONS.chart,
       children: [
         { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
+        { id: 'heatmap', label: '🗺️ 유입 히트맵', icon: ICONS.chart },
+        { id: 'review_mgmt', label: '⭐ 리뷰 관리', icon: ICONS.star },
         { id: 'reviews', label: '후기 관리', icon: ICONS.star },
         ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
       ]
@@ -476,6 +478,7 @@ function getNavConfig() {
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
+        { id: 'gamification', label: '🏆 성과 게이미피케이션', icon: ICONS.star },
         { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
         { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
@@ -483,6 +486,7 @@ function getNavConfig() {
         { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
       ]
     },
+    { id: 'briefing', label: '📋 일일 브리핑', icon: ICONS.dashboard },
     {
       id: 'operations', label: '🏢 병원 운영', icon: ICONS.settings,
       children: [
@@ -806,6 +810,10 @@ function renderPage() {
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     surveys: ['📋 만족도 설문', ICONS.star],
+    heatmap: ['🗺️ 환자 유입 히트맵', ICONS.chart],
+    briefing: ['📋 일일 브리핑', ICONS.dashboard],
+    gamification: ['🏆 성과 게이미피케이션', ICONS.star],
+    review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
     settings: ['설정', ICONS.settings],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
@@ -861,6 +869,10 @@ function renderPage() {
     case 'parking': M.parking.renderParking(body, actions); break;
     case 'parking_stats': M.parking.renderParkingStats(body, actions); break;
     case 'surveys': M.surveys.renderSurveys(body, actions); break;
+    case 'heatmap': M.heatmap.renderHeatmap(body, actions); break;
+    case 'briefing': M.briefing.renderBriefing(body, actions); break;
+    case 'gamification': M.gamification.renderGamification(body, actions); break;
+    case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }

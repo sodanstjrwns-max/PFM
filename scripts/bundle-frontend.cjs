@@ -15,6 +15,7 @@ const files = [
   'modules/funnel.js', 'modules/kpi.js', 'modules/kpi-stats.js',
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
   'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
+  'modules/heatmap.js', 'modules/briefing.js', 'modules/gamification.js', 'modules/reviews.js',
 ];
 
 let bundle = '';
