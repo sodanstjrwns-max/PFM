@@ -36,14 +36,17 @@ async function renderDashboard(body) {
     <div id="dashLoading" style="text-align:center;padding:40px"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">대시보드 로딩중...</div></div>`;
 
   try {
-    const stats = await api('/api/protected/dashboard');
-    renderDashboardContent(body, stats);
+    const [stats, briefing] = await Promise.all([
+      api('/api/protected/dashboard'),
+      api('/api/protected/briefing').catch(() => null),
+    ]);
+    renderDashboardContent(body, stats, briefing);
   } catch(e) {
     body.innerHTML = `<div style="color:#ef4444;text-align:center;padding:40px">대시보드 로딩 실패: ${esc(e.message)}</div>`;
   }
 }
 
-function renderDashboardContent(body, s) {
+function renderDashboardContent(body, s, briefing) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '오후도 화이팅' : '오늘도 수고하셨습니다';
@@ -111,6 +114,9 @@ function renderDashboardContent(body, s) {
         <button class="btn btn-sm" id="monthReportBtn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);font-size:11px;padding:6px 14px;border-radius:8px">📋 월간 리포트</button>
       </div>` : ''}
     </div>
+
+    <!-- 일일 브리핑 -->
+    ${briefing ? renderBriefingSection(briefing, isManager) : ''}
 
     <!-- 오늘의 현황 카드 -->
     <div class="section-title">📊 <span>오늘의 현황</span></div>
@@ -229,6 +235,134 @@ function renderDashboardContent(body, s) {
       el.addEventListener('click', () => navigate(el.dataset.goto));
     });
   }
+}
+
+/* ════════════════════════════════════════════════
+   일일 브리핑 섹션 (대시보드 내장)
+   ════════════════════════════════════════════════ */
+function renderBriefingSection(d, isManager) {
+  const alertColors = { high: '#ef4444', medium: '#f59e0b', low: '#3b82f6' };
+  const alertIcons = { complaint: '⚠️', leave: '🏖️', birthday: '🎂', kanban: '📋', consult: '📉' };
+
+  // 어제 매출 포맷
+  const yRev = d.yesterday?.revenue || 0;
+  const yRevFmt = yRev >= 10000 ? (yRev/10000).toFixed(0) + '만' : fmtNum(yRev);
+
+  // 달성률
+  const achRate = d.monthCumulative?.achieveRate || 0;
+  const achColor = achRate >= 100 ? '#10b981' : achRate >= 70 ? '#0f766e' : '#f59e0b';
+
+  // 상담 전환
+  const cRate = d.consult?.confirmRate || 0;
+  const cColor = cRate >= 60 ? '#10b981' : cRate >= 40 ? '#f59e0b' : '#ef4444';
+
+  return `
+    <div style="margin-bottom:24px">
+      <!-- 알림 배너 -->
+      ${d.alerts && d.alerts.length > 0 ? `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;padding:14px 18px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">🔔 주요 알림 <span style="font-size:11px;color:var(--text-muted);font-weight:400">${d.alerts.length}건</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${d.alerts.map(a => `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${a.priority==='high'?'#fef2f2':a.priority==='medium'?'#fffbeb':'#f0f9ff'};border-radius:8px;font-size:12px">
+              <span>${alertIcons[a.type] || '📌'}</span>
+              <span style="font-weight:600;color:${alertColors[a.priority]};font-size:10px;min-width:28px">${a.priority==='high'?'긴급':a.priority==='medium'?'주의':'참고'}</span>
+              <span style="flex:1">${esc(a.message)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+
+      ${isManager ? `
+      <!-- 어제 실적 + 월 누적 + 상담 전환 요약 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px">
+        <!-- 어제 실적 -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">📊 어제 실적 <span style="font-size:10px;color:var(--text-muted)">${d.yesterday?.date || ''}</span></div>
+          ${d.yesterday?.hasData ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+            <div style="text-align:center;padding:8px;background:var(--primary-bg);border-radius:8px">
+              <div style="font-size:10px;color:var(--text-muted)">매출</div>
+              <div style="font-size:18px;font-weight:800;color:var(--primary)">${yRevFmt}</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
+              <div style="font-size:10px;color:var(--text-muted)">환자</div>
+              <div style="font-size:18px;font-weight:800;color:#2563eb">${(d.yesterday?.newPatients||0)+(d.yesterday?.existingPatients||0)}</div>
+              <div style="font-size:9px;color:var(--text-muted)">신${d.yesterday?.newPatients||0}/구${d.yesterday?.existingPatients||0}</div>
+            </div>
+          </div>
+          ${(d.yesterday?.cancels > 0 || d.yesterday?.complaints > 0) ? `
+          <div style="display:flex;gap:6px;margin-top:6px">
+            ${d.yesterday?.cancels > 0 ? `<span style="font-size:10px;color:#ef4444;background:#fef2f2;padding:2px 8px;border-radius:4px">취소 ${d.yesterday.cancels}</span>` : ''}
+            ${d.yesterday?.complaints > 0 ? `<span style="font-size:10px;color:#ef4444;background:#fef2f2;padding:2px 8px;border-radius:4px">컴플레인 ${d.yesterday.complaints}</span>` : ''}
+          </div>` : ''}
+          ` : `<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px">기록 없음</div>`}
+        </div>
+
+        <!-- 월 누적 -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">📈 월 누적 <span style="font-size:10px">${d.monthCumulative?.month || ''} (${d.monthCumulative?.days||0}일)</span></div>
+          <div style="text-align:center;margin-bottom:8px">
+            <div style="font-size:20px;font-weight:800;color:var(--primary)">${fmtMoney(d.monthCumulative?.totalRevenue || 0)}</div>
+          </div>
+          ${d.monthCumulative?.target > 0 ? `
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:3px">
+              <span>달성률</span><span style="font-weight:700;color:${achColor}">${achRate}%</span>
+            </div>
+            <div style="height:6px;background:var(--border-light);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,achRate)}%;background:${achColor};border-radius:3px"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:right">목표 ${fmtMoney(d.monthCumulative.target)}</div>
+          </div>` : ''}
+        </div>
+
+        <!-- 상담 전환 -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">💬 이번 달 상담</div>
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:900;color:${cColor}">${cRate}%</div>
+            <div style="font-size:11px;color:var(--text-muted)">${d.consult?.monthConfirmed||0}건 동의 / ${d.consult?.monthTotal||0}건</div>
+            ${d.consult?.monthAgreed > 0 ? `<div style="font-size:11px;color:var(--primary);margin-top:4px">동의액 ${fmtMoney(d.consult.monthAgreed)}</div>` : ''}
+          </div>
+        </div>
+      </div>` : ''}
+
+      <!-- 미해결 컴플레인 (있을 때만) -->
+      ${(d.pendingComplaints && d.pendingComplaints.length > 0) ? `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;padding:14px 18px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px">⚠️ 미해결 컴플레인 ${d.pendingComplaints.length}건</div>
+        ${d.pendingComplaints.slice(0,3).map(c => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border-light)">
+            <span><strong>${esc(c.patient_name)}</strong> <span style="color:var(--text-muted)">${esc(c.part||'')} · ${esc(c.category||'')}</span></span>
+            <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${c.severity==='critical'?'#ef4444':c.severity==='high'?'#f59e0b':'#94a3b8'};color:#fff">${c.severity}</span>
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+      <!-- 하단 정보 행: 출근 + 생일 + 신환 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+        <!-- 출근 현황 -->
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600">👥 출근</div>
+          <div style="font-size:24px;font-weight:800;color:${(d.attendance?.rate||0)>=90?'#10b981':(d.attendance?.rate||0)>=70?'#f59e0b':'#ef4444'};margin:4px 0">${d.attendance?.present||0}/${d.attendance?.shouldWork||0}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${d.attendance?.rate||0}%</div>
+        </div>
+        ${(d.birthdayPatients && d.birthdayPatients.length > 0) ? `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">🎂 오늘 생일</div>
+          ${d.birthdayPatients.slice(0,3).map(p => `<div style="font-size:12px;padding:2px 0">${esc(p.patient_name)} <span style="color:var(--text-muted);font-size:10px">${esc(p.phone||'')}</span></div>`).join('')}
+          ${d.birthdayPatients.length > 3 ? `<div style="font-size:10px;color:var(--text-muted)">+${d.birthdayPatients.length-3}명 더</div>` : ''}
+        </div>` : ''}
+        ${(d.recentNewPatients && d.recentNewPatients.length > 0) ? `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">🆕 최근 신환</div>
+          ${d.recentNewPatients.slice(0,3).map(p => `<div style="font-size:12px;padding:2px 0">${esc(p.patient_name)} <span style="color:var(--text-muted);font-size:10px">${esc(p.visit_source||'')} · ${esc(p.treatment_area||'')}</span></div>`).join('')}
+          ${d.recentNewPatients.length > 3 ? `<div style="font-size:10px;color:var(--text-muted)">+${d.recentNewPatients.length-3}명 더</div>` : ''}
+        </div>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 /* ════════════════════════════════════════════════

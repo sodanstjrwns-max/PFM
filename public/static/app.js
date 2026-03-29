@@ -486,7 +486,6 @@ function getNavConfig() {
         { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
       ]
     },
-    { id: 'briefing', label: '📋 일일 브리핑', icon: ICONS.dashboard },
     {
       id: 'operations', label: '🏢 병원 운영', icon: ICONS.settings,
       children: [
