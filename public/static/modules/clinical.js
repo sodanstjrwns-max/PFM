@@ -3,9 +3,46 @@
 'use strict';
 const { api, ICONS, state, toast, esc, showModal, closeModal, timeAgo, formatPrice, initKanbanDnD } = PFM;
 
+/* ─── Smart Polling Engine ─── */
+let _pollTimer = null;
+let _pollHash = '';
+let _pollActive = false;
+
+function startPolling(loadFn, intervalMs) {
+  stopPolling();
+  _pollActive = true;
+  _pollTimer = setInterval(async () => {
+    if (!_pollActive || document.hidden) return; // Don't poll when tab is hidden
+    try { await loadFn(true); } catch(e) { /* silent */ }
+  }, intervalMs || 15000);
+  // Also listen for visibility change
+  document.addEventListener('visibilitychange', _onVisChange);
+  // Expose stop function globally for navigation
+  window._pfmStopPolling = stopPolling;
+}
+
+function stopPolling() {
+  _pollActive = false;
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  document.removeEventListener('visibilitychange', _onVisChange);
+}
+
+function _onVisChange() {
+  // Resume polling when tab becomes visible
+  if (!document.hidden && _pollActive) {
+    // Immediate refresh
+  }
+}
+
+// Generate a simple hash for change detection
+function hashData(data) {
+  return JSON.stringify(data).length + ':' + (data?.length || 0);
+}
+
 async function renderTreatmentBoard(body, actions) {
   const today = new Date().toISOString().split('T')[0];
   actions.innerHTML = `
+    <span id="liveIndicator" style="font-size:10px;color:#22c55e;display:flex;align-items:center;gap:4px;margin-right:8px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></span>LIVE</span>
     <input type="date" class="form-input" id="tbDatePicker" value="${today}" style="padding:4px 10px;font-size:12px;width:auto">
     <button class="btn btn-primary btn-sm" id="addTreatmentBtn">${ICONS.plus} 환자 등록</button>`;
 
@@ -28,10 +65,11 @@ async function renderTreatmentBoard(body, actions) {
   let onDutyDoctors = [];
   let T = { chair:'체어', room:'진료실', floor:'층', surgery_room:'수술실', waiting_room:'대기실', consult_room:'상담실', xray_room:'촬영실', sterilization:'소독실' };
 
-  async function loadBoard() {
+  async function loadBoard(isPolling) {
     const container = document.getElementById('treatmentBoard');
     const summary = document.getElementById('tbSummary');
     const doctorBar = document.getElementById('tbDoctorBar');
+    if (!container) { stopPolling(); return; } // Page changed, stop polling
     try {
       const [items, chairList, doctorList, dutyList, settings] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
@@ -40,6 +78,14 @@ async function renderTreatmentBoard(body, actions) {
         api('/api/protected/doctors/on-duty?date=' + boardDate),
         api('/api/protected/hospital/settings')
       ]);
+      
+      // Change detection: skip render if nothing changed (during polling only)
+      if (isPolling) {
+        const newHash = hashData(items);
+        if (newHash === _pollHash) return; // No changes
+        _pollHash = newHash;
+      }
+      
       chairs = chairList;
       doctors = doctorList;
       allItems = items;
@@ -252,6 +298,8 @@ async function renderTreatmentBoard(body, actions) {
     } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3><p>${esc(e.message)}</p></div>`; }
   }
   loadBoard();
+  // Start smart polling (every 15 seconds)
+  startPolling(loadBoard, 15000);
 
   document.getElementById('tbDatePicker').addEventListener('change', (e) => {
     boardDate = e.target.value;
@@ -630,7 +678,7 @@ async function openConsultDetail(consultId, consultations, reload) {
         ${c.consultation_date ? `<span class="meta-pill">📅 ${c.consultation_date}</span>` : ''}
       </div>
 
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">상담 파이프라인</div>
         <div style="display:flex;gap:3px;flex-wrap:wrap" id="csPipeline">
           ${statusOrder.map(s => `<button class="btn ${c.status===s?'btn-primary':'btn-secondary'} btn-sm" data-status="${s}" style="flex:1;min-width:56px;font-size:10px;padding:5px 4px">${statusLabels[s]}</button>`).join('')}
@@ -641,13 +689,13 @@ async function openConsultDetail(consultId, consultations, reload) {
         </div>
       </div>
 
-      <div class="form-grid" style="margin-bottom:16px">
+      <div class="form-grid" class="mb-16">
         <div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--text-muted)">동의 금액 (만원)</label><input class="form-input" type="number" id="csAgreedAmt" value="${c.agreed_amount||''}" placeholder="0"></div>
         <div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--text-muted)">수납 금액 (만원)</label><input class="form-input" type="number" id="csPaidAmt" value="${c.paid_amount||''}" placeholder="0"></div>
       </div>
-      <button class="btn btn-secondary btn-sm" id="csAmountSaveBtn" style="margin-bottom:16px">금액 저장</button>
+      <button class="btn btn-secondary btn-sm" id="csAmountSaveBtn" class="mb-16">금액 저장</button>
 
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">📝 상담 기록 (${notes.length}건)</div>
         <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:12px" id="csNotesArea">
           ${notes.length ? notes.map(n => {
@@ -656,7 +704,7 @@ async function openConsultDetail(consultId, consultations, reload) {
             return `<div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border-left:3px solid ${typeColors[n.note_type]||'#6366f1'}">
               <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
                 <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${typeColors[n.note_type]||'#6366f1'}22;color:${typeColors[n.note_type]||'#6366f1'};font-weight:600">${typeLabels[n.note_type]||n.note_type}</span>
-                <span style="font-size:11px;color:var(--text-muted)">${esc(n.author_name||'')} · ${timeAgo(n.created_at)}</span>
+                <span class="mod-muted-sm">${esc(n.author_name||'')} · ${timeAgo(n.created_at)}</span>
               </div>
               <div style="font-size:13px;line-height:1.6;white-space:pre-line">${esc(n.content)}</div>
             </div>`;
@@ -666,7 +714,7 @@ async function openConsultDetail(consultId, consultations, reload) {
           <select class="form-input" id="csNoteType" style="width:auto;padding:6px 10px;font-size:11px">
             <option value="general">메모</option><option value="objection">반론</option><option value="follow_up">F/U</option><option value="treatment_plan">치료계획</option><option value="payment">수납</option><option value="phone_call">전화</option>
           </select>
-          <textarea class="form-input" id="csNewNote" rows="2" placeholder="상담 내용을 입력하세요..." style="flex:1"></textarea>
+          <textarea class="form-input" id="csNewNote" rows="2" placeholder="상담 내용을 입력하세요..." class="flex-1"></textarea>
           <button class="btn btn-primary btn-sm" id="csAddNoteBtn" style="white-space:nowrap">기록 추가</button>
         </div>
       </div>
@@ -711,7 +759,7 @@ async function openConsultDetail(consultId, consultations, reload) {
     document.getElementById('csNotesArea').innerHTML = newNotes.map(n => `<div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm);border-left:3px solid ${typeColors[n.note_type]||'#6366f1'}">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
         <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${typeColors[n.note_type]||'#6366f1'}22;color:${typeColors[n.note_type]||'#6366f1'};font-weight:600">${typeLabels[n.note_type]||n.note_type}</span>
-        <span style="font-size:11px;color:var(--text-muted)">${esc(n.author_name||'')} · ${timeAgo(n.created_at)}</span>
+        <span class="mod-muted-sm">${esc(n.author_name||'')} · ${timeAgo(n.created_at)}</span>
       </div>
       <div style="font-size:13px;line-height:1.6;white-space:pre-line">${esc(n.content)}</div>
     </div>`).join('');
@@ -738,7 +786,7 @@ async function renderConsultationStats(body, actions) {
 
       container.innerHTML = `
         <div style="max-width:1000px">
-          <div style="margin-bottom:24px">
+          <div class="mb-24">
             <div class="section-title">📊 <span>${period} 상담 전환율</span></div>
           </div>
 
@@ -805,7 +853,7 @@ async function renderConsultationStats(body, actions) {
                   <div style="text-align:center;padding:12px 8px;background:${step.color}15;border-radius:var(--radius);min-width:${w}px;border:2px solid ${step.color}33">
                     <div style="font-size:22px;font-weight:800;color:${step.color}">${step.value}</div>
                     <div style="font-size:11px;font-weight:600;color:var(--text-secondary)">${step.label}</div>
-                    <div style="font-size:10px;color:var(--text-muted)">${pct}%</div>
+                    <div class="mod-muted-xs">${pct}%</div>
                   </div>`;
               }).join('')}
             </div>

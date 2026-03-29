@@ -43,7 +43,7 @@ async function renderGamification(body, actions) {
       case 'update': await renderUpdateProgress(content); break;
     }
   } catch(e) {
-    content.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
+    content.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(e.message)}</p></div>`;
   }
 }
 
@@ -68,7 +68,7 @@ async function renderMyProgress(el) {
           <div style="font-size:18px;font-weight:800">${level}</div>
           <div style="font-size:13px;opacity:0.8;margin-top:4px">누적 ${totalPoints.toLocaleString()} P</div>
         </div>
-        <div style="text-align:right">
+        <div class="text-right">
           <div style="font-size:48px;font-weight:800">${completedCount}<span style="font-size:18px;opacity:0.6">/${missions.length}</span></div>
           <div style="font-size:12px;opacity:0.8">미션 완료</div>
         </div>
@@ -141,7 +141,7 @@ async function renderRanking(el) {
             <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)} ${isMe ? '<span style="font-size:10px;color:#0f766e">(나)</span>' : ''}</div>
             <div style="font-size:11px;color:#94a3b8">${esc(posLabel)} · ${esc(r.team || '')} · ${r.badge} ${r.level}</div>
           </div>
-          <div style="text-align:right">
+          <div class="text-right">
             <div style="font-size:18px;font-weight:800;color:#0f766e">${(r.total_points || 0).toLocaleString()}<span style="font-size:11px;color:#94a3b8">P</span></div>
             <div style="font-size:10px;color:#64748b">미션 ${r.missions_completed || 0}개 완료</div>
           </div>
@@ -191,17 +191,17 @@ function showAddMissionModal() {
   showModal('미션 추가', `
     <div style="display:grid;gap:12px">
       <div class="form-group">
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">미션 이름 *</label>
-        <input id="mTitle" class="form-input" placeholder="예: 주간 상담 전환 5건 달성" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+        <label class="mod-label-sm">미션 이름 *</label>
+        <input id="mTitle" class="form-input" placeholder="예: 주간 상담 전환 5건 달성" class="input-outline">
       </div>
       <div class="form-group">
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">설명</label>
-        <input id="mDesc" class="form-input" placeholder="미션에 대한 설명" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+        <label class="mod-label-sm">설명</label>
+        <input id="mDesc" class="form-input" placeholder="미션에 대한 설명" class="input-outline">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">미션 유형</label>
-          <select id="mType" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">미션 유형</label>
+          <select id="mType" class="form-input" class="input-outline">
             <option value="custom">사용자 정의</option>
             <option value="consult_conversion">상담 전환</option>
             <option value="review_collect">리뷰 수집</option>
@@ -212,8 +212,8 @@ function showAddMissionModal() {
           </select>
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">기간</label>
-          <select id="mPeriod" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">기간</label>
+          <select id="mPeriod" class="form-input" class="input-outline">
             <option value="daily">일간</option>
             <option value="weekly" selected>주간</option>
             <option value="monthly">월간</option>
@@ -222,16 +222,16 @@ function showAddMissionModal() {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">목표값 *</label>
-          <input id="mTarget" class="form-input" type="number" min="1" value="5" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">목표값 *</label>
+          <input id="mTarget" class="form-input" type="number" min="1" value="5" class="input-outline">
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">포인트</label>
-          <input id="mPoints" class="form-input" type="number" min="1" value="100" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">포인트</label>
+          <input id="mPoints" class="form-input" type="number" min="1" value="100" class="input-outline">
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">아이콘</label>
-          <input id="mIcon" class="form-input" value="🎯" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">아이콘</label>
+          <input id="mIcon" class="form-input" value="🎯" class="input-outline">
         </div>
       </div>
       <button id="saveMissionBtn" style="padding:12px;background:#0f766e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">미션 등록</button>
@@ -270,27 +270,27 @@ async function renderUpdateProgress(el) {
   const staff = (staffRes || []).filter(s => s.is_active);
 
   el.innerHTML = `
-    <div class="card" style="padding:20px">
+    <div class="card" class="p-20">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">📝 포인트 부여 / 진행상황 업데이트</h3>
       ${(missions || []).length === 0 ? '<p style="color:#94a3b8">등록된 미션이 없습니다. 먼저 미션을 추가해주세요.</p>' : `
       <div style="display:grid;gap:12px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">직원 선택</label>
-          <select id="upUser" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">직원 선택</label>
+          <select id="upUser" class="form-input" class="input-outline">
             <option value="">직원을 선택하세요</option>
             ${staff.map(s => `<option value="${s.id}">${esc(s.name)} (${s.position})</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">미션 선택</label>
-          <select id="upMission" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">미션 선택</label>
+          <select id="upMission" class="form-input" class="input-outline">
             <option value="">미션을 선택하세요</option>
             ${(missions||[]).map(m => `<option value="${m.id}" data-target="${m.target_value}">${m.badge_icon} ${esc(m.title)} (목표: ${m.target_value})</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">달성값</label>
-          <input id="upValue" class="form-input" type="number" min="0" value="0" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">달성값</label>
+          <input id="upValue" class="form-input" type="number" min="0" value="0" class="input-outline">
         </div>
         <button id="submitUpdateBtn" style="padding:12px;background:#0f766e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">포인트 부여</button>
       </div>`}

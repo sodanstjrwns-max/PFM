@@ -11,7 +11,7 @@ async function renderMaterials(body, actions) {
       <div class="search-input">${ICONS.search}<input type="text" id="matSearch" placeholder="자료 검색..."></div>
     </div>
     <div class="category-tabs" id="matCatTabs"></div>
-    <div id="matContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+    <div id="matContent"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   let cats = [];
   let selectedCat = '';
@@ -22,7 +22,7 @@ async function renderMaterials(body, actions) {
 
   async function loadMats() {
     const container = document.getElementById('matContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       let url = '/api/protected/materials?';
       if (selectedCat) url += 'category=' + selectedCat + '&';
@@ -93,10 +93,10 @@ function openAddMaterialModal(cats, onSuccess) {
           <div class="upload-area" id="matUploadArea">
             ${ICONS.upload}
             <p>클릭하거나 파일을 드래그하세요</p>
-            <p style="font-size:11px;color:var(--text-muted)">이미지, PDF, 동영상</p>
+            <p class="mod-muted-sm">이미지, PDF, 동영상</p>
           </div>
-          <input type="file" id="matFile" accept="image/*,video/*,.pdf" style="display:none">
-          <img id="matPreview" class="upload-preview" style="display:none">
+          <input type="file" id="matFile" accept="image/*,video/*,.pdf" class="hidden">
+          <img id="matPreview" class="upload-preview" class="hidden">
         </div>
       </form>
     </div>
@@ -149,7 +149,7 @@ async function renderPricing(body, actions) {
 
   body.innerHTML = `
     <div class="category-tabs" id="prcCatTabs"></div>
-    <div id="prcContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+    <div id="prcContent"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   let cats = [];
   let selectedCat = '';
@@ -159,7 +159,7 @@ async function renderPricing(body, actions) {
 
   async function loadPrc() {
     const container = document.getElementById('prcContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       let url = '/api/protected/pricing?';
       if (selectedCat) url += 'category=' + selectedCat;
@@ -266,7 +266,7 @@ async function renderCases(body, actions) {
 
   body.innerHTML = `
     <div class="category-tabs" id="caseCatTabs"></div>
-    <div id="caseContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+    <div id="caseContent"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   let cats = [];
   let selectedCat = '';
@@ -276,7 +276,7 @@ async function renderCases(body, actions) {
 
   async function loadCases() {
     const container = document.getElementById('caseContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       let url = '/api/protected/cases?';
       if (selectedCat) url += 'category=' + selectedCat;
@@ -379,7 +379,7 @@ function openAddCaseModal(cats, onSuccess) {
 async function openCaseDetail(caseId) {
   const modal = document.getElementById('modalContent');
   modal.style.maxWidth = '720px';
-  modal.innerHTML = `<div class="modal-body" style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  modal.innerHTML = `<div class="modal-body" class="mod-empty"><span class="loading-spinner"></span></div>`;
   showModal();
 
   try {
@@ -466,8 +466,8 @@ function openAddCaseImageModal(caseId, onSuccess) {
         <div class="form-group">
           <label>사진</label>
           <div class="upload-area" id="imgUploadArea">${ICONS.upload}<p>사진을 선택해주세요</p></div>
-          <input type="file" id="imgFile" accept="image/*" style="display:none">
-          <img id="imgPreview" class="upload-preview" style="display:none">
+          <input type="file" id="imgFile" accept="image/*" class="hidden">
+          <img id="imgPreview" class="upload-preview" class="hidden">
         </div>
       </form>
     </div>

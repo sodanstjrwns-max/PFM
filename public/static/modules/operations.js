@@ -5,7 +5,7 @@ const { api, ICONS, state, toast, esc, showModal, closeModal, timeAgo } = PFM;
 
 async function renderChecklists(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addChecklistBtn">${ICONS.plus} 체크리스트 추가</button>`;
-  body.innerHTML = `<div id="checkContent" style="max-width:800px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="checkContent" style="max-width:800px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadChecks() {
     const container = document.getElementById('checkContent');
@@ -150,7 +150,7 @@ async function renderCalendar(body, actions) {
 /* ─── Marketing ─── */
 async function renderMarketing(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addRecordBtn">${ICONS.plus} 실적 입력</button>`;
-  body.innerHTML = `<div id="mktContent" style="max-width:900px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="mktContent" style="max-width:900px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadMkt() {
     const container = document.getElementById('mktContent');
@@ -162,7 +162,7 @@ async function renderMarketing(body, actions) {
       const totalRevenue = records.reduce((s,r)=>s+(r.revenue||0),0);
 
       container.innerHTML = `
-        <div class="dashboard-grid" style="margin-bottom:24px">
+        <div class="dashboard-grid" class="mb-24">
           <div class="stat-card"><div class="stat-card-icon teal">${ICONS.users}</div><div class="stat-card-body"><div class="stat-card-label">총 신환</div><div class="stat-card-value">${totalNewPatients}</div></div></div>
           <div class="stat-card"><div class="stat-card-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706">${ICONS.chart}</div><div class="stat-card-body"><div class="stat-card-label">총 광고비</div><div class="stat-card-value">${totalAdSpend}만</div></div></div>
           <div class="stat-card"><div class="stat-card-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a">${ICONS.pricing}</div><div class="stat-card-body"><div class="stat-card-label">총 매출</div><div class="stat-card-value">${totalRevenue}만</div></div></div>
@@ -228,7 +228,7 @@ async function renderMarketing(body, actions) {
 /* ─── Reviews (후기 관리) ─── */
 async function renderReviews(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addReviewBtn">${ICONS.plus} 후기 등록</button>`;
-  body.innerHTML = `<div id="reviewContent" style="max-width:800px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="reviewContent" style="max-width:800px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadReviews() {
     const container = document.getElementById('reviewContent');

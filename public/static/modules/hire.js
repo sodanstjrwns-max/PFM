@@ -18,13 +18,13 @@ async function renderHirePostings(body, actions) {
       <button class="btn btn-secondary btn-sm" data-status="draft">임시저장</button>
       <button class="btn btn-secondary btn-sm" data-status="closed">마감</button>
     </div>
-    <div id="postingContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+    <div id="postingContent"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   let filterStatus = '';
 
   async function loadPostings() {
     const container = document.getElementById('postingContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       let url = '/api/protected/hire/postings';
       if (filterStatus) url += '?status=' + filterStatus;
@@ -142,10 +142,10 @@ function openPostingDetail(postingId, postings, reload) {
         ${jp.deadline ? `<span class="meta-pill">📅 마감 ${jp.deadline}</span>` : ''}
         <span class="meta-pill">📝 지원자 ${jp.applicant_count||0}명</span>
       </div>
-      ${jp.description ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">직무 설명</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:var(--bg);padding:12px;border-radius:var(--radius-sm)">${esc(jp.description)}</div></div>` : ''}
-      ${jp.requirements ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">자격 요건</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:#eff6ff;padding:12px;border-radius:var(--radius-sm)">${esc(jp.requirements)}</div></div>` : ''}
-      ${jp.benefits ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">복리후생</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:#f0fdf4;padding:12px;border-radius:var(--radius-sm)">${esc(jp.benefits)}</div></div>` : ''}
-      <div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">공고 상태 변경</div>
+      ${jp.description ? `<div class="mb-12"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">직무 설명</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:var(--bg);padding:12px;border-radius:var(--radius-sm)">${esc(jp.description)}</div></div>` : ''}
+      ${jp.requirements ? `<div class="mb-12"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">자격 요건</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:#eff6ff;padding:12px;border-radius:var(--radius-sm)">${esc(jp.requirements)}</div></div>` : ''}
+      ${jp.benefits ? `<div class="mb-12"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">복리후생</div><div style="font-size:13px;white-space:pre-line;line-height:1.8;background:#f0fdf4;padding:12px;border-radius:var(--radius-sm)">${esc(jp.benefits)}</div></div>` : ''}
+      <div class="mt-16"><div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">공고 상태 변경</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap" id="jpStatusBtns">
           ${['draft','open','paused','closed'].map(s => `<button class="btn ${jp.status===s?'btn-primary':'btn-secondary'} btn-sm" data-status="${s}">${statusLabels[s]}</button>`).join('')}
         </div>
@@ -323,14 +323,14 @@ function openApplicantDetail(applicantId, applicants, reload) {
       ${a.cover_letter ? `<div style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);font-size:13px;white-space:pre-line;line-height:1.7;margin-bottom:16px">${esc(a.cover_letter)}</div>` : ''}
       ${a.notes ? `<div style="background:#eff6ff;padding:10px 12px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:16px"><strong>메모:</strong> ${esc(a.notes)}</div>` : ''}
 
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">채용 파이프라인</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap" id="apPipeline">
           ${statusOrder.map(s => `<button class="btn ${a.status===s?'btn-primary':'btn-secondary'} btn-sm" data-status="${s}" style="flex:1;min-width:60px;font-size:11px">${statusLabels[s]}</button>`).join('')}
         </div>
       </div>
 
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">평점</div>
         <div style="display:flex;gap:4px" id="apRating">
           ${[1,2,3,4,5].map(r => `<button style="font-size:20px;background:none;border:none;cursor:pointer;opacity:${r<=a.rating?'1':'0.3'}" data-rating="${r}">⭐</button>`).join('')}
@@ -376,11 +376,11 @@ async function renderHireInterviews(body, actions) {
   const statusColors = { scheduled:'#3b82f6', completed:'#22c55e', cancelled:'#94a3b8', no_show:'#ef4444' };
   const typeLabels = { onsite:'대면', phone:'전화', video:'화상' };
 
-  body.innerHTML = `<div id="interviewContent" style="max-width:900px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="interviewContent" style="max-width:900px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadInterviews() {
     const container = document.getElementById('interviewContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       // 모든 지원자의 인터뷰를 수집
       const applicants = await api('/api/protected/hire/applicants');
@@ -480,7 +480,7 @@ function openInterviewDetail(iv, reload) {
         <span class="meta-pill">📋 ${esc(iv._job_title||'')}</span>
         <span class="meta-pill">📅 ${iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleString('ko-KR') : ''}</span>
       </div>
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">상태 변경</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap" id="ivStatusBtns">
           ${['scheduled','completed','cancelled','no_show'].map(s => `<button class="btn ${iv.status===s?'btn-primary':'btn-secondary'} btn-sm" data-status="${s}">${statusLabels[s]}</button>`).join('')}
@@ -488,7 +488,7 @@ function openInterviewDetail(iv, reload) {
       </div>
       <div class="form-group"><label style="font-size:12px;font-weight:700;color:var(--text-muted)">면접 피드백</label><textarea class="form-input" id="ivFeedback" rows="3" placeholder="면접 결과, 인상 등">${esc(iv.feedback||'')}</textarea></div>
       <div class="form-group"><label style="font-size:12px;font-weight:700;color:var(--text-muted)">점수 (0-100)</label><input class="form-input" type="number" id="ivScore" min="0" max="100" value="${iv.score||''}"></div>
-      <button class="btn btn-primary btn-sm" id="ivSaveBtn" style="margin-top:8px">피드백 저장</button>
+      <button class="btn btn-primary btn-sm" id="ivSaveBtn" class="mt-8">피드백 저장</button>
     </div>`;
   showModal();
   document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -514,11 +514,11 @@ async function renderHireOnboarding(body, actions) {
   const statusColors = { pending:'#6366f1', in_progress:'#f59e0b', completed:'#22c55e' };
   const catLabels = { documents:'📄 서류', training:'📚 교육', equipment:'🖥️ 장비', access:'🔑 계정/권한', general:'📋 일반' };
 
-  body.innerHTML = `<div id="onboardContent" style="max-width:900px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="onboardContent" style="max-width:900px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadOnboarding() {
     const container = document.getElementById('onboardContent');
-    container.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       const tasks = await api('/api/protected/hire/onboarding');
       if (!tasks.length) {
@@ -551,7 +551,7 @@ async function renderHireOnboarding(body, actions) {
               ${items.map(t => `
                 <div class="onboard-task" data-id="${t.id}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg);border-radius:var(--radius-sm);cursor:pointer;border-left:3px solid ${statusColors[t.status]||'#6366f1'}">
                   <span style="font-size:16px">${t.status==='completed'?'✅':t.status==='in_progress'?'🔄':'⬜'}</span>
-                  <div style="flex:1">
+                  <div class="flex-1">
                     <div style="font-weight:600;font-size:13px;${t.status==='completed'?'text-decoration:line-through;opacity:0.6':''}">${esc(t.title)}</div>
                     <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px;margin-top:2px">
                       <span>${catLabels[t.category]||t.category}</span>

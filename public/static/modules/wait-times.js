@@ -23,7 +23,7 @@ async function renderWaitTimes(body, actions) {
   document.getElementById('addWt').onclick = function() { showForm(null); };
 
   async function load() {
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     var p = new URLSearchParams();
     if (filters.from) p.set('from', filters.from);
     if (filters.to) p.set('to', filters.to);
@@ -47,11 +47,11 @@ async function renderWaitTimes(body, actions) {
     var start = (currentPage-1)*pageSize;
     var pg = sorted.slice(start, start+pageSize);
 
-    var html = '<div style="margin-bottom:16px">';
+    var html = '<div class="mb-16">';
     html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
-    html += '<input type="date" id="wtFrom" value="'+esc(filters.from)+'" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
-    html += '<span style="color:var(--text-muted)">~</span>';
-    html += '<input type="date" id="wtTo" value="'+esc(filters.to)+'" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
+    html += '<input type="date" id="wtFrom" value="'+esc(filters.from)+'" class="input-sm">';
+    html += '<span class="text-muted">~</span>';
+    html += '<input type="date" id="wtTo" value="'+esc(filters.to)+'" class="input-sm">';
     html += '<button class="btn btn-primary btn-sm" id="wtApply">조회</button></div>';
     html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:8px">';
     html += '<span>총 <strong style="color:var(--text)">'+fmt(allData.length)+'</strong>건</span>';
@@ -112,14 +112,14 @@ async function renderWaitTimes(body, actions) {
     var html = '<div style="max-width:500px;margin:0 auto">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><h3 style="margin:0;font-size:18px;font-weight:900">'+(isEdit?'대기시간 수정':'대기시간 등록')+'</h3><button class="btn btn-sm" id="wtBack">← 목록</button></div>';
     html += '<form id="wtForm" style="display:flex;flex-direction:column;gap:14px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">날짜 *</label><input type="date" name="record_date" value="'+esc(rec?rec.record_date:today)+'" required style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">총 대기시간 (분)</label><input type="number" name="total_wait_minutes" value="'+(rec?rec.total_wait_minutes:0)+'" min="0" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">평균 대기시간 (분)</label><input type="number" name="avg_wait_minutes" value="'+(rec?rec.avg_wait_minutes:0)+'" min="0" step="0.1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
+    html += '<div><label class="mod-label">날짜 *</label><input type="date" name="record_date" value="'+esc(rec?rec.record_date:today)+'" required class="input-md"></div>';
+    html += '<div class="grid-2">';
+    html += '<div><label class="mod-label">총 대기시간 (분)</label><input type="number" name="total_wait_minutes" value="'+(rec?rec.total_wait_minutes:0)+'" min="0" class="input-md"></div>';
+    html += '<div><label class="mod-label">평균 대기시간 (분)</label><input type="number" name="avg_wait_minutes" value="'+(rec?rec.avg_wait_minutes:0)+'" min="0" step="0.1" class="input-md"></div>';
     html += '</div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">메모</label><input type="text" name="memo" value="'+esc(rec?rec.memo:'')+'" placeholder="메모" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
+    html += '<div><label class="mod-label">메모</label><input type="text" name="memo" value="'+esc(rec?rec.memo:'')+'" placeholder="메모" class="input-md"></div>';
     html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">';
-    if(isEdit) html += '<button type="button" class="btn" id="wtDel" style="color:#ef4444">삭제</button>';
+    if(isEdit) html += '<button type="button" class="btn" id="wtDel" class="text-danger">삭제</button>';
     html += '<button type="submit" class="btn btn-primary" style="padding:10px 24px;font-weight:700">'+(isEdit?'수정':'등록')+'</button></div>';
     html += '</form></div>';
     body.innerHTML = html;
@@ -147,12 +147,12 @@ async function renderWaitTimeStats(body, actions) {
   actions.innerHTML = '';
   var now=new Date(),cFrom='',cTo='',cPreset='all';
   async function loadStats(){
-    body.innerHTML='<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML='<div class="mod-empty"><span class="loading-spinner"></span></div>';
     var p=new URLSearchParams();if(cFrom)p.set('from',cFrom);if(cTo)p.set('to',cTo);
     var data=await api('/api/protected/wait-times/stats?'+p);render(data);
   }
   function render(d){
-    var html='<div style="margin-bottom:20px"><h3 style="margin:0 0 16px;font-size:20px;font-weight:900">대기시간 통계</h3>';
+    var html='<div class="mb-20"><h3 style="margin:0 0 16px;font-size:20px;font-weight:900">대기시간 통계</h3>';
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">';
     [{id:'this_month',l:'이번 달'},{id:'last_month',l:'지난 달'},{id:'this_year',l:'올해'},{id:'last_year',l:'작년'},{id:'all',l:'전체'},{id:'custom',l:'직접 선택'}].forEach(function(pr){
       html += '<button class="btn btn-sm ws-pre" data-pre="'+pr.id+'" style="'+(cPreset===pr.id?'background:var(--primary);color:#fff;font-weight:700;':'')+'border-radius:20px;padding:6px 14px;font-size:12px">'+pr.l+'</button>';
@@ -166,15 +166,15 @@ async function renderWaitTimeStats(body, actions) {
     var t=d.total||{};
     var avgColor=(t.overall_avg||0)<=15?'#22c55e':(t.overall_avg||0)<=20?'#f59e0b':'#ef4444';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:16px">';
-    html += '<div style="'+cardS()+';text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600">전체 평균</div><div style="font-size:28px;font-weight:900;color:'+avgColor+'">'+(t.overall_avg||0)+'<span style="font-size:14px">분</span></div></div>';
-    html += '<div style="'+cardS()+';text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600">최대 평균</div><div style="font-size:28px;font-weight:900;color:#ef4444">'+(t.max_avg||0)+'<span style="font-size:14px">분</span></div></div>';
-    html += '<div style="'+cardS()+';text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600">최소 평균</div><div style="font-size:28px;font-weight:900;color:#22c55e">'+(t.min_avg||0)+'<span style="font-size:14px">분</span></div></div>';
-    html += '<div style="'+cardS()+';text-align:center"><div style="font-size:10px;color:var(--text-muted);font-weight:600">데이터 일수</div><div style="font-size:28px;font-weight:900;color:var(--text)">'+fmt(t.cnt)+'</div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">전체 평균</div><div style="font-size:28px;font-weight:900;color:'+avgColor+'">'+(t.overall_avg||0)+'<span style="font-size:14px">분</span></div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최대 평균</div><div style="font-size:28px;font-weight:900;color:#ef4444">'+(t.max_avg||0)+'<span style="font-size:14px">분</span></div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최소 평균</div><div style="font-size:28px;font-weight:900;color:#22c55e">'+(t.min_avg||0)+'<span style="font-size:14px">분</span></div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">데이터 일수</div><div style="font-size:28px;font-weight:900;color:var(--text)">'+fmt(t.cnt)+'</div></div>';
     html += '</div>';
 
     // 요일별
     if(d.byDow&&d.byDow.length>0){
-      html += '<div style="'+cardS()+'"><h4 style="margin:0 0 14px;font-size:14px;font-weight:800">요일별 평균 대기시간</h4>';
+      html += '<div style="'+cardS()+'"><h4 class="mod-title">요일별 평균 대기시간</h4>';
       var maxW=Math.max.apply(null,d.byDow.map(function(r){return r.avg_wait;}));
       var dowMap={};d.byDow.forEach(function(r){dowMap[r.dow]=r;});
       DOW_ORDER.forEach(function(dw){
@@ -191,7 +191,7 @@ async function renderWaitTimeStats(body, actions) {
 
     // 월별 트렌드
     if(d.monthlyTrend&&d.monthlyTrend.length>1){
-      html += '<div style="'+cardS()+'"><h4 style="margin:0 0 14px;font-size:14px;font-weight:800">월별 평균 대기시간 추이</h4>';
+      html += '<div style="'+cardS()+'"><h4 class="mod-title">월별 평균 대기시간 추이</h4>';
       var maxM=Math.max.apply(null,d.monthlyTrend.map(function(m){return m.avg_wait;}));
       html += '<div style="display:flex;gap:2px;align-items:flex-end;min-height:140px;padding-bottom:28px">';
       d.monthlyTrend.forEach(function(m){

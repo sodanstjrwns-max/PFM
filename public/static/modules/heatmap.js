@@ -5,13 +5,13 @@ const { state, api, esc, ICONS, navigate } = window.PFM;
 
 async function renderHeatmap(body, actions) {
   const month = new Date().toISOString().slice(0,7);
-  body.innerHTML = `<div class="card" style="padding:20px"><div class="loading-spinner">데이터 로딩 중...</div></div>`;
+  body.innerHTML = `<div class="card" class="p-20"><div class="loading-spinner">데이터 로딩 중...</div></div>`;
   
   try {
     const data = await api('/api/protected/patients/stats/detailed?period=monthly&from=' + month + '-01&to=' + month + '-31');
     renderHeatmapView(body, actions, data, month);
   } catch(e) {
-    body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
+    body.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(e.message)}</p></div>`;
   }
 }
 
@@ -65,7 +65,7 @@ function renderHeatmapView(body, actions, data, month) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
       <!-- 시/도별 히트맵 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🗺️ 지역별 환자 분포 (시/도)</h3>
         <div id="sidoHeatmap" style="display:flex;flex-wrap:wrap;gap:8px">
           ${bySido.length === 0 ? '<p style="color:#94a3b8;font-size:13px">데이터가 없습니다. 환자 등록 시 주소를 입력해주세요.</p>' : 
@@ -82,7 +82,7 @@ function renderHeatmapView(body, actions, data, month) {
       </div>
 
       <!-- 시/군/구 상세 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">📍 상세 지역 Top 20 (시/군/구)</h3>
         <div style="max-height:300px;overflow-y:auto">
           ${bySigungu.length === 0 ? '<p style="color:#94a3b8;font-size:13px">데이터가 없습니다.</p>' :
@@ -108,7 +108,7 @@ function renderHeatmapView(body, actions, data, month) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <!-- 내원경로별 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">📊 내원경로별 분포</h3>
         ${bySource.length === 0 ? '<p style="color:#94a3b8;font-size:13px">데이터가 없습니다.</p>' :
         bySource.map(s => {
@@ -132,17 +132,17 @@ function renderHeatmapView(body, actions, data, month) {
       </div>
 
       <!-- 담당 원장별 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">👨‍⚕️ 담당 원장별 환자 수</h3>
         ${byDoctor.length === 0 ? '<p style="color:#94a3b8;font-size:13px">데이터가 없습니다.</p>' :
         byDoctor.map((d, i) => {
           const pct = total > 0 ? Math.round(d.c / total * 1000)/10 : 0;
           return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;background:#f8fafc;border-radius:8px">
             <div style="width:28px;height:28px;border-radius:50%;background:#0f766e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${i+1}</div>
-            <div style="flex:1">
+            <div class="flex-1">
               <div style="font-size:13px;font-weight:600">${esc(d.primary_doctor || '미배정')}</div>
             </div>
-            <div style="text-align:right">
+            <div class="text-right">
               <div style="font-size:15px;font-weight:800;color:#0f766e">${d.c}</div>
               <div style="font-size:10px;color:#94a3b8">${pct}%</div>
             </div>
@@ -155,11 +155,11 @@ function renderHeatmapView(body, actions, data, month) {
   // 월 변경 이벤트
   document.getElementById('heatmapMonth')?.addEventListener('change', async (e) => {
     const m = e.target.value;
-    body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">로딩 중...</div></div>';
+    body.innerHTML = '<div class="card" class="p-20"><div class="loading-spinner">로딩 중...</div></div>';
     try {
       const d = await api('/api/protected/patients/stats/detailed?period=monthly&from=' + m + '-01&to=' + m + '-31');
       renderHeatmapView(body, actions, d, m);
-    } catch(err) { body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(err.message)}</p></div>`; }
+    } catch(err) { body.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(err.message)}</p></div>`; }
   });
 }
 

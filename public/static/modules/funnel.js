@@ -1,7 +1,7 @@
-/* ═══ Module: Patient Funnel (환자 퍼널 10단계) ═══ */
+/* ═══ Module: Patient Funnel 10단계 — 이탈률 분석 + 구체적 액션 ═══ */
 (function(PFM) {
 'use strict';
-const { api, ICONS, state, esc, toast, showModal, closeModal, formatPrice, initKanbanDnD } = PFM;
+const { api, ICONS, state, esc, toast, showModal, closeModal, formatPrice, initKanbanDnD, navigate, canManage } = PFM;
 
 const STAGES = [
   { key: 'awareness',    label: '인지',  icon: '👁️', color: '#94a3b8', desc: '병원 존재를 알게 됨' },
@@ -18,167 +18,352 @@ const STAGES = [
 
 const SOURCES = ['네이버','인스타그램','구글','지인소개','블로그','유튜브','오프라인','기타'];
 
+let funnelState = {
+  period: 'month',
+  tab: 'analytics', // analytics | patients
+};
+
 async function renderFunnel(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addFunnelBtn">➕ 환자 등록</button>`;
 
-  body.innerHTML = `<div id="funnelPage"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
-
-  const [statsData, patients] = await Promise.all([
-    api('/api/protected/funnel/stats'),
-    api('/api/protected/funnel'),
-  ]);
-
-  renderFunnelPage(body, statsData, patients);
-
-  document.getElementById('addFunnelBtn')?.addEventListener('click', () => openAddPatient(body, actions));
-}
-
-function renderFunnelPage(body, stats, patients) {
-  const page = document.getElementById('funnelPage');
-  const stageMap = stats.stages || {};
-  const total = Object.values(stageMap).reduce((a, b) => a + b, 0);
-  const maxVal = Math.max(1, ...Object.values(stageMap));
-
-  // 단계별 환자 그룹
-  const byStage = {};
-  STAGES.forEach(s => { byStage[s.key] = []; });
-  patients.forEach(p => { if (byStage[p.current_stage]) byStage[p.current_stage].push(p); });
-
-  page.innerHTML = `
-    <!-- 퍼널 시각화 -->
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <div>
-          <div style="font-size:18px;font-weight:800">🔄 Patient Funnel</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">환자 여정 10단계 — 인지부터 소개까지</div>
-        </div>
-        <div style="display:flex;gap:12px;font-size:13px">
-          <span style="color:var(--text-muted)">총 <strong style="color:var(--text)">${total}</strong>명</span>
-        </div>
+  body.innerHTML = `
+    <div class="funnel-controls">
+      <div class="funnel-tabs">
+        <button class="funnel-tab-btn ${funnelState.tab === 'analytics' ? 'active' : ''}" data-tab="analytics">📊 퍼널 분석</button>
+        <button class="funnel-tab-btn ${funnelState.tab === 'patients' ? 'active' : ''}" data-tab="patients">👥 환자 목록</button>
       </div>
-
-      <!-- 퍼널 차트 (깔때기형) -->
-      <div style="max-width:700px;margin:0 auto">
-        ${STAGES.map((st, i) => {
-          const count = stageMap[st.key] || 0;
-          const pct = total > 0 ? Math.round(count / total * 100) : 0;
-          const width = total > 0 ? Math.max(20, 100 - i * 7) : 60;
-          const convRate = i > 0 && (stageMap[STAGES[i-1].key]||0) > 0
-            ? Math.round(count / stageMap[STAGES[i-1].key] * 100) : null;
-          return `
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;cursor:pointer" class="funnel-row" data-stage="${st.key}">
-              <div style="width:70px;text-align:right;font-size:12px;display:flex;align-items:center;justify-content:end;gap:4px">
-                <span>${st.icon}</span>
-                <span style="font-weight:600;color:${st.color}">${st.label}</span>
-              </div>
-              <div style="flex:1;position:relative">
-                <div style="width:${width}%;height:32px;background:${st.color}20;border-radius:6px;margin:0 auto;position:relative;overflow:hidden;border:1px solid ${st.color}33;transition:all .2s">
-                  <div style="height:100%;width:${count > 0 ? Math.max(5, count/maxVal*100) : 0}%;background:${st.color};border-radius:5px;transition:width .5s"></div>
-                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:${count>0?'white':st.color};text-shadow:${count>0?'0 1px 2px rgba(0,0,0,0.3)':'none'};mix-blend-mode:${count>0?'normal':'normal'}">${count}</div>
-                </div>
-              </div>
-              <div style="width:50px;text-align:right;font-size:11px;color:var(--text-muted)">
-                ${convRate !== null ? `<span style="color:${convRate>=70?'#22c55e':convRate>=40?'#f59e0b':'#ef4444'}">${convRate}%</span>` : ''}
-              </div>
-            </div>`;
-        }).join('')}
-      </div>
-
-      <!-- 요약 금액 -->
-      <div style="display:flex;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light)">
-        ${[
-          { label: '예상 매출', value: stats.estimated, color: '#3b82f6' },
-          { label: '동의 금액', value: stats.agreed, color: '#22c55e' },
-          { label: '수납 완료', value: stats.paid, color: '#f59e0b' },
-        ].map(s => `
-          <div style="flex:1;text-align:center">
-            <div style="font-size:11px;color:var(--text-muted)">${s.label}</div>
-            <div style="font-size:16px;font-weight:800;color:${s.color};margin-top:2px">${formatPrice(s.value)}</div>
-          </div>
+      <div class="funnel-period-btns">
+        ${['month','quarter','all'].map(p => `
+          <button class="btn btn-sm ${funnelState.period === p ? 'btn-primary' : 'btn-secondary'}" data-period="${p}">
+            ${p === 'month' ? '이번 달' : p === 'quarter' ? '분기' : '전체'}
+          </button>
         `).join('')}
       </div>
     </div>
-
-    <!-- 단계별 환자 목록 (탭) -->
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px" id="funnelTabs">
-      <button class="btn btn-sm funnel-tab active" data-stage="all" style="font-size:11px">전체 (${total})</button>
-      ${STAGES.map(st => `
-        <button class="btn btn-sm funnel-tab" data-stage="${st.key}" style="font-size:11px;${(stageMap[st.key]||0)>0?`border-color:${st.color}33`:''}">${st.icon} ${st.label} (${stageMap[st.key]||0})</button>
-      `).join('')}
-    </div>
-    <div id="funnelList"></div>
+    <div id="funnelContent"><div class="funnel-loading"><span class="loading-spinner"></span></div></div>
   `;
 
-  let currentTab = 'all';
-
-  function renderPatientList(stage) {
-    const listEl = document.getElementById('funnelList');
-    const filtered = stage === 'all' ? patients : byStage[stage] || [];
-
-    if (!filtered.length) {
-      listEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">등록된 환자가 없습니다</div>`;
-      return;
-    }
-
-    listEl.innerHTML = `
-      <div style="display:grid;gap:8px">
-        ${filtered.map(p => {
-          const st = STAGES.find(s => s.key === p.current_stage) || STAGES[0];
-          return `
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .15s;border-left:4px solid ${st.color}" class="funnel-patient" data-id="${p.id}" onmouseenter="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseleave="this.style.boxShadow=''">
-              <div style="width:36px;height:36px;border-radius:50%;background:${st.color}15;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${st.icon}</div>
-              <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span style="font-weight:700;font-size:14px">${esc(p.patient_name)}</span>
-                  <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:${st.color}15;color:${st.color};font-weight:600">${st.label}</span>
-                  ${p.source ? `<span style="font-size:10px;color:var(--text-muted)">via ${esc(p.source)}</span>` : ''}
-                </div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
-                  ${p.treatment_type ? `🦷 ${esc(p.treatment_type)}` : ''}
-                  ${p.doctor_name ? ` · 🩺 ${esc(p.doctor_name)}` : ''}
-                  ${p.estimated_amount ? ` · 💰 ${formatPrice(p.estimated_amount)}` : ''}
-                </div>
-              </div>
-              <div style="display:flex;gap:4px">
-                ${STAGES.map((s, si) => {
-                  const ci = STAGES.findIndex(x => x.key === p.current_stage);
-                  const done = si <= ci;
-                  return `<div style="width:8px;height:8px;border-radius:50%;background:${done ? s.color : '#e5e7eb'}" title="${s.label}"></div>`;
-                }).join('')}
-              </div>
-            </div>`;
-        }).join('')}
-      </div>`;
-
-    listEl.querySelectorAll('.funnel-patient').forEach(el => {
-      el.addEventListener('click', () => openPatientDetail(el.dataset.id, patients, body, document.getElementById('headerActions')));
-    });
-  }
-
-  renderPatientList('all');
-
-  // 탭 이벤트
-  document.querySelectorAll('.funnel-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.funnel-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      currentTab = tab.dataset.stage;
-      renderPatientList(currentTab);
+  // Tab events
+  body.querySelectorAll('.funnel-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      funnelState.tab = btn.dataset.tab;
+      renderFunnel(body, actions);
     });
   });
 
-  // 퍼널 행 클릭 시 해당 탭으로
-  page.querySelectorAll('.funnel-row').forEach(row => {
+  // Period events
+  body.querySelectorAll('[data-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      funnelState.period = btn.dataset.period;
+      renderFunnel(body, actions);
+    });
+  });
+
+  document.getElementById('addFunnelBtn')?.addEventListener('click', () => openAddPatient(body, actions));
+
+  if (funnelState.tab === 'analytics') {
+    await renderAnalytics(body, actions);
+  } else {
+    await renderPatientsList(body, actions);
+  }
+}
+
+/* ══════════════════════════════════════
+   📊 퍼널 분석 대시보드
+   ══════════════════════════════════════ */
+async function renderAnalytics(body, actions) {
+  const content = document.getElementById('funnelContent');
+  try {
+    const data = await api(`/api/protected/funnel/analytics?period=${funnelState.period}`);
+    content.innerHTML = buildAnalyticsDashboard(data);
+    bindAnalyticsEvents(content, body, actions);
+  } catch(e) {
+    content.innerHTML = `<div class="funnel-empty">데이터를 불러올 수 없습니다: ${esc(e.message)}</div>`;
+  }
+}
+
+function buildAnalyticsDashboard(data) {
+  const { stages, summary, bottleneck, sources, treatments, actions: recActions } = data;
+  const maxCount = Math.max(1, ...stages.map(s => s.count));
+
+  return `
+    <!-- 핵심 지표 카드 -->
+    <div class="funnel-summary-grid">
+      ${buildSummaryCard('🔄', '전체 전환율', `${summary.overallConversion}%`, '인지 → 진료', summary.overallConversion >= 30 ? 'good' : summary.overallConversion >= 15 ? 'warn' : 'bad')}
+      ${buildSummaryCard('💬', '상담 전환율', `${summary.consultConversion}%`, '상담 → 진료', summary.consultConversion >= 60 ? 'good' : summary.consultConversion >= 40 ? 'warn' : 'bad')}
+      ${buildSummaryCard('🤝', '소개 비율', `${summary.referralRate}%`, '진료 → 소개', summary.referralRate >= 20 ? 'good' : summary.referralRate >= 10 ? 'warn' : 'bad')}
+      ${buildSummaryCard('💰', '수금율', `${summary.collectionRate}%`, `수납 ${fmtAmount(summary.paid)} / 예상 ${fmtAmount(summary.estimated)}`, summary.collectionRate >= 70 ? 'good' : summary.collectionRate >= 50 ? 'warn' : 'bad')}
+    </div>
+
+    <!-- 퍼널 시각화 -->
+    <div class="funnel-viz-card">
+      <div class="funnel-viz-header">
+        <div>
+          <div class="funnel-viz-title">🔄 Patient Funnel 10단계</div>
+          <div class="funnel-viz-subtitle">환자 여정 — 인지부터 소개까지 · 총 ${summary.totalPatients}명</div>
+        </div>
+      </div>
+      
+      <div class="funnel-viz-container">
+        ${stages.map((st, i) => {
+          const widthPct = Math.max(25, 100 - i * 7.5);
+          const fillPct = st.count > 0 ? Math.max(8, st.count / maxCount * 100) : 0;
+          const stageInfo = STAGES[i];
+          const convColor = st.conversionRate >= 70 ? '#22c55e' : st.conversionRate >= 40 ? '#f59e0b' : '#ef4444';
+          const dropColor = st.dropoffRate >= 50 ? '#ef4444' : st.dropoffRate >= 30 ? '#f59e0b' : '#22c55e';
+          
+          return `
+          <div class="funnel-stage-row" data-stage="${st.key}">
+            <div class="funnel-stage-info">
+              <span class="funnel-stage-icon">${stageInfo.icon}</span>
+              <div class="funnel-stage-label-wrap">
+                <span class="funnel-stage-label" style="color:${stageInfo.color}">${stageInfo.label}</span>
+                <span class="funnel-stage-desc">${stageInfo.desc}</span>
+              </div>
+            </div>
+            <div class="funnel-stage-bar-area">
+              <div class="funnel-stage-bar-track" style="width:${widthPct}%">
+                <div class="funnel-stage-bar-fill" style="width:${fillPct}%;background:${stageInfo.color}" data-count="${st.count}"></div>
+                <span class="funnel-stage-count">${st.count}</span>
+              </div>
+              ${i > 0 ? `<div class="funnel-stage-arrow" style="color:${convColor}">↓ ${st.conversionRate}%</div>` : ''}
+            </div>
+            <div class="funnel-stage-metrics">
+              ${i > 0 ? `
+                <div class="funnel-metric-badge" style="background:${dropColor}15;color:${dropColor}">
+                  이탈 ${st.dropoffRate}%
+                </div>
+              ` : '<div class="funnel-metric-badge" style="background:#22c55e15;color:#22c55e">시작</div>'}
+              ${st.avgDurationHours !== null ? `
+                <div class="funnel-metric-time">${st.avgDurationHours < 24 ? st.avgDurationHours + '시간' : Math.round(st.avgDurationHours/24) + '일'}</div>
+              ` : ''}
+              ${st.trend !== 0 ? `
+                <span class="funnel-trend ${st.trend > 0 ? 'up' : 'down'}">${st.trend > 0 ? '↑' : '↓'}${Math.abs(st.trend)}%</span>
+              ` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- 금액 요약 -->
+      <div class="funnel-amounts-row">
+        <div class="funnel-amount-item">
+          <span class="funnel-amount-label">예상 매출</span>
+          <span class="funnel-amount-value" style="color:#3b82f6">${fmtAmount(summary.estimated)}</span>
+        </div>
+        <div class="funnel-amount-item">
+          <span class="funnel-amount-label">동의 금액</span>
+          <span class="funnel-amount-value" style="color:#22c55e">${fmtAmount(summary.agreed)}</span>
+        </div>
+        <div class="funnel-amount-item">
+          <span class="funnel-amount-label">수납 완료</span>
+          <span class="funnel-amount-value" style="color:#f59e0b">${fmtAmount(summary.paid)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 병목 + 액션 -->
+    ${bottleneck && bottleneck.dropoffRate > 0 ? `
+    <div class="funnel-bottleneck-card">
+      <div class="funnel-bottleneck-header">
+        <span class="funnel-bottleneck-icon">⚠️</span>
+        <div>
+          <div class="funnel-bottleneck-title">병목 구간: ${esc(bottleneck.label)} 단계</div>
+          <div class="funnel-bottleneck-desc">이탈률 ${bottleneck.dropoffRate}% — 이 단계를 개선하면 가장 큰 효과를 볼 수 있습니다</div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${recActions.length > 0 ? `
+    <div class="funnel-actions-card">
+      <div class="funnel-actions-title">🎯 구체적 개선 액션</div>
+      <div class="funnel-actions-list">
+        ${recActions.map(a => `
+          <div class="funnel-action-item priority-${a.priority}">
+            <div class="funnel-action-priority">${a.priority === 'critical' ? '🔴 긴급' : a.priority === 'high' ? '🟡 높음' : '🟢 보통'}</div>
+            <div class="funnel-action-body">
+              <div class="funnel-action-title-text">${esc(a.title)}</div>
+              <div class="funnel-action-desc">${esc(a.description)}</div>
+              <div class="funnel-action-impact">💡 ${esc(a.impact)}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- 유입 경로 + 진료유형 -->
+    <div class="funnel-insight-grid">
+      <div class="funnel-insight-card">
+        <div class="funnel-insight-title">📡 유입 경로 분석</div>
+        ${sources.length > 0 ? `
+          <div class="funnel-source-list">
+            ${sources.map((s, i) => {
+              const maxSrc = sources[0]?.count || 1;
+              const pct = Math.round(s.count / maxSrc * 100);
+              return `
+              <div class="funnel-source-row">
+                <span class="funnel-source-rank">${i + 1}</span>
+                <span class="funnel-source-name">${esc(s.source)}</span>
+                <div class="funnel-source-bar-wrap">
+                  <div class="funnel-source-bar" style="width:${pct}%"></div>
+                </div>
+                <span class="funnel-source-count">${s.count}명</span>
+              </div>`;
+            }).join('')}
+          </div>
+        ` : '<div class="funnel-empty-small">유입 경로 데이터 없음</div>'}
+      </div>
+      
+      <div class="funnel-insight-card">
+        <div class="funnel-insight-title">🦷 진료 유형별 분석</div>
+        ${treatments.length > 0 ? `
+          <div class="funnel-source-list">
+            ${treatments.map((t, i) => {
+              const maxTrt = treatments[0]?.count || 1;
+              const pct = Math.round(t.count / maxTrt * 100);
+              return `
+              <div class="funnel-source-row">
+                <span class="funnel-source-rank">${i + 1}</span>
+                <span class="funnel-source-name">${esc(t.treatment_type)}</span>
+                <div class="funnel-source-bar-wrap">
+                  <div class="funnel-source-bar" style="width:${pct}%;background:var(--primary)"></div>
+                </div>
+                <span class="funnel-source-count">${t.count}명 · ${fmtAmount(t.revenue)}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        ` : '<div class="funnel-empty-small">진료 유형 데이터 없음</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function buildSummaryCard(icon, label, value, sub, status) {
+  const colors = { good: '#22c55e', warn: '#f59e0b', bad: '#ef4444' };
+  const bgColors = { good: '#f0fdf4', warn: '#fffbeb', bad: '#fef2f2' };
+  return `
+    <div class="funnel-summary-card" style="border-left:4px solid ${colors[status]}">
+      <div class="funnel-summary-icon" style="background:${bgColors[status]}">${icon}</div>
+      <div class="funnel-summary-body">
+        <div class="funnel-summary-label">${label}</div>
+        <div class="funnel-summary-value" style="color:${colors[status]}">${value}</div>
+        <div class="funnel-summary-sub">${sub}</div>
+      </div>
+    </div>
+  `;
+}
+
+function fmtAmount(n) {
+  if (!n || n === 0) return '0원';
+  if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';
+  if (n >= 10000) return Math.round(n / 10000).toLocaleString() + '만원';
+  return n.toLocaleString() + '원';
+}
+
+function bindAnalyticsEvents(content, body, actions) {
+  // 퍼널 행 클릭 시 해당 단계 환자 필터
+  content.querySelectorAll('.funnel-stage-row').forEach(row => {
     row.addEventListener('click', () => {
-      const stage = row.dataset.stage;
-      document.querySelectorAll('.funnel-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.stage === stage);
-      });
-      renderPatientList(stage);
+      funnelState.tab = 'patients';
+      funnelState.filterStage = row.dataset.stage;
+      renderFunnel(body, actions);
     });
   });
 }
 
+/* ══════════════════════════════════════
+   👥 환자 목록 (기존 + 개선)
+   ══════════════════════════════════════ */
+async function renderPatientsList(body, actions) {
+  const content = document.getElementById('funnelContent');
+  content.innerHTML = `<div class="funnel-loading"><span class="loading-spinner"></span></div>`;
+  
+  try {
+    const [statsData, patients] = await Promise.all([
+      api('/api/protected/funnel/stats'),
+      api('/api/protected/funnel'),
+    ]);
+    
+    const stageMap = statsData.stages || {};
+    const total = Object.values(stageMap).reduce((a, b) => a + b, 0);
+    
+    // 단계별 그룹
+    const byStage = {};
+    STAGES.forEach(s => { byStage[s.key] = []; });
+    patients.forEach(p => { if (byStage[p.current_stage]) byStage[p.current_stage].push(p); });
+    
+    let currentFilter = funnelState.filterStage || 'all';
+    
+    content.innerHTML = `
+      <div class="funnel-filter-tabs" id="funnelTabs">
+        <button class="btn btn-sm funnel-filter-tab ${currentFilter === 'all' ? 'active' : ''}" data-stage="all">전체 (${total})</button>
+        ${STAGES.map(st => `
+          <button class="btn btn-sm funnel-filter-tab ${currentFilter === st.key ? 'active' : ''}" data-stage="${st.key}" style="${(stageMap[st.key]||0)>0?`border-color:${st.color}33`:''}">${st.icon} ${st.label} (${stageMap[st.key]||0})</button>
+        `).join('')}
+      </div>
+      <div id="funnelList"></div>
+    `;
+    
+    function renderList(stage) {
+      const listEl = document.getElementById('funnelList');
+      const filtered = stage === 'all' ? patients : byStage[stage] || [];
+      
+      if (!filtered.length) {
+        listEl.innerHTML = `<div class="funnel-empty">등록된 환자가 없습니다</div>`;
+        return;
+      }
+      
+      listEl.innerHTML = `
+        <div class="funnel-patients-grid">
+          ${filtered.map(p => {
+            const st = STAGES.find(s => s.key === p.current_stage) || STAGES[0];
+            return `
+              <div class="funnel-patient-card" data-id="${p.id}" style="border-left:4px solid ${st.color}">
+                <div class="funnel-patient-icon" style="background:${st.color}15">${st.icon}</div>
+                <div class="funnel-patient-info">
+                  <div class="funnel-patient-name">
+                    ${esc(p.patient_name)}
+                    <span class="funnel-patient-stage" style="background:${st.color}15;color:${st.color}">${st.label}</span>
+                    ${p.source ? `<span class="funnel-patient-source">via ${esc(p.source)}</span>` : ''}
+                  </div>
+                  <div class="funnel-patient-meta">
+                    ${p.treatment_type ? `🦷 ${esc(p.treatment_type)}` : ''}
+                    ${p.doctor_name ? ` · 🩺 ${esc(p.doctor_name)}` : ''}
+                    ${p.estimated_amount ? ` · 💰 ${fmtAmount(p.estimated_amount)}` : ''}
+                  </div>
+                </div>
+                <div class="funnel-patient-progress">
+                  ${STAGES.map((s, si) => {
+                    const ci = STAGES.findIndex(x => x.key === p.current_stage);
+                    return `<div class="funnel-progress-dot ${si <= ci ? 'active' : ''}" style="${si <= ci ? `background:${s.color}` : ''}" title="${s.label}"></div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+      
+      listEl.querySelectorAll('.funnel-patient-card').forEach(el => {
+        el.addEventListener('click', () => openPatientDetail(el.dataset.id, patients, body, actions));
+      });
+    }
+    
+    renderList(currentFilter);
+    
+    content.querySelectorAll('.funnel-filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        content.querySelectorAll('.funnel-filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.stage;
+        funnelState.filterStage = currentFilter;
+        renderList(currentFilter);
+      });
+    });
+  } catch(e) {
+    content.innerHTML = `<div class="funnel-empty">데이터 로딩 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+/* ── 환자 등록 모달 ── */
 async function openAddPatient(body, actions) {
   let doctors = [];
   try { doctors = await api('/api/protected/doctors'); } catch(e) {}
@@ -201,7 +386,7 @@ async function openAddPatient(body, actions) {
     </div>
     <div class="form-grid">
       <div class="form-group"><label>담당 원장</label>
-        <select class="form-input" id="fpDoctor"><option value="">미지정</option>${doctors.map(d => `<option value="${d.id}">${h(d.name)}</option>`).join('')}</select>
+        <select class="form-input" id="fpDoctor"><option value="">미지정</option>${doctors.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select>
       </div>
       <div class="form-group"><label>예상 금액</label>
         <input class="form-input" type="number" id="fpAmount" placeholder="0">
@@ -232,23 +417,24 @@ async function openAddPatient(body, actions) {
   });
 }
 
+/* ── 환자 상세 / 편집 모달 ── */
 async function openPatientDetail(patientId, patients, body, actions) {
   const p = patients.find(x => x.id === patientId);
   if (!p) return;
   const st = STAGES.find(s => s.key === p.current_stage) || STAGES[0];
 
   showModal(`${st.icon} ${esc(p.patient_name)}`, `
-    <div style="margin-bottom:16px">
-      <div style="display:flex;gap:4px;margin-bottom:12px">
+    <div class="mb-16">
+      <div class="funnel-detail-progress">
         ${STAGES.map(s => {
           const ci = STAGES.findIndex(x => x.key === p.current_stage);
           const si = STAGES.findIndex(x => x.key === s.key);
           const done = si <= ci;
-          return `<div style="flex:1;height:6px;border-radius:3px;background:${done ? s.color : '#e5e7eb'}" title="${s.label}"></div>`;
+          return `<div class="funnel-detail-step ${done ? 'done' : ''}" style="${done ? `background:${s.color}` : ''}" title="${s.label}"></div>`;
         }).join('')}
       </div>
-      <div style="text-align:center;margin-bottom:8px">
-        <span style="font-size:12px;padding:4px 12px;border-radius:12px;background:${st.color}15;color:${st.color};font-weight:700">${st.icon} ${st.label} 단계</span>
+      <div style="text-align:center;margin:8px 0">
+        <span class="funnel-patient-stage" style="background:${st.color}15;color:${st.color};padding:4px 14px;font-size:13px">${st.icon} ${st.label} 단계</span>
       </div>
     </div>
     <div class="form-group"><label>단계 변경</label>
@@ -264,7 +450,7 @@ async function openPatientDetail(patientId, patients, body, actions) {
     </div>
     <div class="form-group"><label>메모</label><textarea class="form-input" id="pdNotes" rows="2">${esc(p.notes||'')}</textarea></div>
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn btn-primary" id="pdSave" style="flex:1">💾 저장</button>
+      <button class="btn btn-primary" id="pdSave" class="flex-1">💾 저장</button>
       <button class="btn btn-danger" id="pdDelete">🗑 삭제</button>
     </div>
   `);
@@ -286,7 +472,7 @@ async function openPatientDetail(patientId, patients, body, actions) {
   });
 
   document.getElementById('pdDelete').addEventListener('click', async () => {
-    if (!confirm(`"${h(p.patient_name)}" 환자를 퍼널에서 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${esc(p.patient_name)}" 환자를 퍼널에서 삭제하시겠습니까?`)) return;
     try {
       await api('/api/protected/funnel/' + patientId, { method: 'DELETE' });
       toast('삭제되었습니다', 'success');

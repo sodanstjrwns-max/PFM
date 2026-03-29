@@ -74,10 +74,10 @@ async function renderKpiStats(body, actions) {
   var init = getPeriodDates(currentPreset);
   var currentFrom = init.from, currentTo = init.to, currentPeriod = init.period;
 
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   async function loadStats() {
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       var params = new URLSearchParams({ period: currentPeriod });
       if (currentFrom) params.set('from', currentFrom);
@@ -117,7 +117,7 @@ async function renderKpiStats(body, actions) {
     var html = '';
 
     // 제목 + 기간선택
-    html += '<div style="margin-bottom:20px">' +
+    html += '<div class="mb-20">' +
       '<h3 style="margin:0 0 16px;font-size:20px;font-weight:900">📊 KPI 통계</h3>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">';
     ['today','this_week','this_month','last_month','this_year','last_year','all','custom'].forEach(function(p) {
@@ -131,10 +131,10 @@ async function renderKpiStats(body, actions) {
 
     // 커스텀 날짜
     html += '<div id="ksCustomRange" style="display:' + (currentPreset === 'custom' ? 'flex' : 'none') + ';gap:8px;align-items:center;margin-bottom:12px">' +
-      '<input type="date" id="ksFrom" value="' + currentFrom + '" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
-      '<span style="color:var(--text-muted)">~</span>' +
-      '<input type="date" id="ksTo" value="' + currentTo + '" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
-      '<select id="ksPeriod" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
+      '<input type="date" id="ksFrom" value="' + currentFrom + '" class="input-sm">' +
+      '<span class="text-muted">~</span>' +
+      '<input type="date" id="ksTo" value="' + currentTo + '" class="input-sm">' +
+      '<select id="ksPeriod" class="input-sm">' +
         '<option value="daily"' + (currentPeriod==='daily'?' selected':'') + '>일간</option>' +
         '<option value="weekly"' + (currentPeriod==='weekly'?' selected':'') + '>주간</option>' +
         '<option value="monthly"' + (currentPeriod==='monthly'?' selected':'') + '>월간</option>' +
@@ -175,14 +175,14 @@ async function renderKpiStats(body, actions) {
     var t3c = s.t3_consult || 0, t3a = s.t3_agree || 0;
     var totalConsult = s.total_consult || 0;
     html += '<div style="' + cardS() + '">';
-    html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🤝 상담 & 동의율</h4>';
+    html += '<h4 class="mod-title">🤝 상담 & 동의율</h4>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">';
-    html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--text-muted)">총 상담</div><div style="font-size:24px;font-weight:900">' + fmt(totalConsult) + '</div></div>';
+    html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center"><div class="mod-muted-xs">총 상담</div><div style="font-size:24px;font-weight:900">' + fmt(totalConsult) + '</div></div>';
     [['핵심진료1', t1c, t1a, '#3b82f6'], ['핵심진료2', t2c, t2a, '#8b5cf6'], ['핵심진료3', t3c, t3a, '#ec4899']].forEach(function(item) {
       html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">' +
-        '<div style="font-size:10px;color:var(--text-muted)">' + item[0] + '</div>' +
+        '<div class="mod-muted-xs">' + item[0] + '</div>' +
         '<div style="font-size:20px;font-weight:900;color:' + item[3] + '">' + item[1] + ' → ' + item[2] + '</div>' +
-        '<div style="font-size:11px;color:var(--text-muted)">동의율 ' + fmtPct(item[2], item[1]) + '</div>' +
+        '<div class="mod-muted-sm">동의율 ' + fmtPct(item[2], item[1]) + '</div>' +
       '</div>';
     });
     html += '</div></div>';
@@ -192,13 +192,13 @@ async function renderKpiStats(body, actions) {
     var sourceTotal = refNew + onNew + etcNew;
     if (sourceTotal > 0) {
       html += '<div style="' + cardS() + '">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🚪 신환 유입경로</h4>';
+      html += '<h4 class="mod-title">🚪 신환 유입경로</h4>';
       html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';
       [['소개', refNew, '#22c55e'], ['온라인', onNew, '#3b82f6'], ['기타', etcNew, '#f59e0b']].forEach(function(item) {
         html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">' +
-          '<div style="font-size:10px;color:var(--text-muted)">' + item[0] + '</div>' +
+          '<div class="mod-muted-xs">' + item[0] + '</div>' +
           '<div style="font-size:24px;font-weight:900;color:' + item[2] + '">' + fmt(item[1]) + '</div>' +
-          '<div style="font-size:11px;color:var(--text-muted)">' + fmtPct(item[1], sourceTotal) + '</div>' +
+          '<div class="mod-muted-sm">' + fmtPct(item[1], sourceTotal) + '</div>' +
         '</div>';
       });
       html += '</div></div>';
@@ -209,13 +209,13 @@ async function renderKpiStats(body, actions) {
     var regionTotal = rc + re + ra + ro;
     if (regionTotal > 0) {
       html += '<div style="' + cardS() + '">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📍 신환 지역분포</h4>';
+      html += '<h4 class="mod-title">📍 신환 지역분포</h4>';
       html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">';
       [['핵심지역', rc, '#3b82f6'], ['확장지역', re, '#8b5cf6'], ['인접지역', ra, '#06b6d4'], ['기타지역', ro, '#94a3b8']].forEach(function(item) {
         html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">' +
-          '<div style="font-size:10px;color:var(--text-muted)">' + item[0] + '</div>' +
+          '<div class="mod-muted-xs">' + item[0] + '</div>' +
           '<div style="font-size:24px;font-weight:900;color:' + item[2] + '">' + fmt(item[1]) + '</div>' +
-          '<div style="font-size:11px;color:var(--text-muted)">' + fmtPct(item[1], regionTotal) + '</div>' +
+          '<div class="mod-muted-sm">' + fmtPct(item[1], regionTotal) + '</div>' +
         '</div>';
       });
       html += '</div></div>';
@@ -223,7 +223,7 @@ async function renderKpiStats(body, actions) {
 
     // ═══ 요일별 통계 ═══
     html += '<div style="' + cardS() + '">';
-    html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📅 요일별 평균</h4>';
+    html += '<h4 class="mod-title">📅 요일별 평균</h4>';
 
     if (dow.length > 0) {
       // 요일 정렬
@@ -233,7 +233,7 @@ async function renderKpiStats(body, actions) {
       var maxPat = Math.max.apply(null, dow.map(function(d) { return d.avg_total_patients || 0; }));
 
       // 매출 바 차트
-      html += '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 평균 매출</div>';
+      html += '<div class="mb-16"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 평균 매출</div>';
       DAY_ORDER.forEach(function(d) {
         var v = dowMap[d];
         if (v) html += bar(DAY_LABELS[d], v.avg_revenue || 0, maxRev, DAY_COLORS[d], fmtM(v.avg_revenue || 0));
@@ -241,7 +241,7 @@ async function renderKpiStats(body, actions) {
       html += '</div>';
 
       // 환자수 바 차트
-      html += '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">👥 평균 환자수</div>';
+      html += '<div class="mb-16"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">👥 평균 환자수</div>';
       DAY_ORDER.forEach(function(d) {
         var v = dowMap[d];
         if (v) html += bar(DAY_LABELS[d], v.avg_total_patients || 0, maxPat, DAY_COLORS[d]);
@@ -289,11 +289,11 @@ async function renderKpiStats(body, actions) {
     // ═══ 기간별 트렌드 ═══
     if (trend.length > 1) {
       html += '<div style="' + cardS() + '">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📈 기간별 추이</h4>';
+      html += '<h4 class="mod-title">📈 기간별 추이</h4>';
 
       // 매출 트렌드 바
       var maxTrendRev = Math.max.apply(null, trend.map(function(t) { return t.total_revenue || 0; }));
-      html += '<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 매출 추이</div>';
+      html += '<div class="mb-20"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💰 매출 추이</div>';
       html += '<div style="display:flex;gap:2px;align-items:flex-end;min-height:140px;padding-bottom:28px;position:relative">';
       trend.forEach(function(t) {
         var h = maxTrendRev > 0 ? Math.max(Math.round((t.total_revenue || 0) / maxTrendRev * 120), 5) : 5;
@@ -310,7 +310,7 @@ async function renderKpiStats(body, actions) {
 
       // 환자 트렌드 바
       var maxTrendPat = Math.max.apply(null, trend.map(function(t) { return (t.new_patients||0) + (t.existing_patients||0); }));
-      html += '<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">👥 환자수 추이 (신환 + 구환)</div>';
+      html += '<div class="mb-20"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">👥 환자수 추이 (신환 + 구환)</div>';
       html += '<div style="display:flex;gap:2px;align-items:flex-end;min-height:140px;padding-bottom:28px;position:relative">';
       trend.forEach(function(t) {
         var total = (t.new_patients||0) + (t.existing_patients||0);
@@ -372,13 +372,13 @@ async function renderKpiStats(body, actions) {
     var tTotal = t1cnt + t2cnt + t3cnt;
     if (tTotal > 0) {
       html += '<div style="' + cardS() + '">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🏥 핵심진료 치료건수</h4>';
+      html += '<h4 class="mod-title">🏥 핵심진료 치료건수</h4>';
       html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';
       [['핵심진료1', t1cnt, '#3b82f6'], ['핵심진료2', t2cnt, '#8b5cf6'], ['핵심진료3', t3cnt, '#ec4899']].forEach(function(item) {
         html += '<div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">' +
-          '<div style="font-size:10px;color:var(--text-muted)">' + item[0] + '</div>' +
+          '<div class="mod-muted-xs">' + item[0] + '</div>' +
           '<div style="font-size:24px;font-weight:900;color:' + item[2] + '">' + fmt(item[1]) + '건</div>' +
-          '<div style="font-size:11px;color:var(--text-muted)">' + fmtPct(item[1], tTotal) + '</div>' +
+          '<div class="mod-muted-sm">' + fmtPct(item[1], tTotal) + '</div>' +
         '</div>';
       });
       html += '</div></div>';
@@ -388,18 +388,18 @@ async function renderKpiStats(body, actions) {
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
     // 소개감사장
     html += '<div style="' + cardS() + '">';
-    html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">💌 소개감사장</h4>';
+    html += '<h4 class="mod-title">💌 소개감사장</h4>';
     html += '<div style="text-align:center;font-size:36px;font-weight:900;color:#f59e0b">' + fmt(s.referral_thanks || 0) + '</div>';
     html += '<div style="text-align:center;font-size:11px;color:var(--text-muted)">발송 건수</div>';
     html += '</div>';
     // 핵심진료 신규
     var t1n = s.core_t1_new || 0, t2n = s.core_t2_new || 0, t3n = s.core_t3_new || 0;
     html += '<div style="' + cardS() + '">';
-    html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">✨ 핵심진료 신규접수</h4>';
+    html += '<h4 class="mod-title">✨ 핵심진료 신규접수</h4>';
     html += '<div style="display:flex;gap:8px;justify-content:center">';
     [['T1', t1n, '#3b82f6'], ['T2', t2n, '#8b5cf6'], ['T3', t3n, '#ec4899']].forEach(function(item) {
       html += '<div style="text-align:center;padding:8px 16px;background:var(--bg);border-radius:10px">' +
-        '<div style="font-size:10px;color:var(--text-muted)">' + item[0] + '</div>' +
+        '<div class="mod-muted-xs">' + item[0] + '</div>' +
         '<div style="font-size:24px;font-weight:900;color:' + item[2] + '">' + fmt(item[1]) + '</div>' +
       '</div>';
     });
@@ -450,7 +450,155 @@ async function renderKpiStats(body, actions) {
   await loadStats();
 }
 
+/* ══════════════════════════════════════
+   🏆 병원 벤치마킹 대시보드
+   ══════════════════════════════════════ */
+async function renderBenchmark(body, actions) {
+  var now = new Date();
+  var currentMonth = now.toISOString().slice(0, 7);
+
+  actions.innerHTML = '';
+  body.innerHTML = '';
+
+  await PFM.withErrorBoundary(body, async function() {
+    var data = await api('/api/protected/kpi/benchmark?month=' + currentMonth);
+    renderBenchmarkContent(body, data, currentMonth);
+  }, 'dashboard');
+}
+
+function renderBenchmarkContent(body, data, month) {
+  var ind = data.indicators || [];
+  var goodCount = ind.filter(function(i) { return i.isGood; }).length;
+  var totalCount = ind.length;
+  var score = totalCount > 0 ? Math.round(goodCount / totalCount * 100) : 0;
+  var grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
+  var gradeColor = score >= 80 ? '#22c55e' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#ef4444';
+  var gradeEmoji = score >= 80 ? '🏆' : score >= 60 ? '👍' : score >= 40 ? '📈' : '💪';
+
+  body.innerHTML = '<div class="card-lg mb-20">' +
+    '<div class="flex-between mb-16">' +
+      '<div>' +
+        '<div class="text-2xl font-800">🏆 병원 벤치마킹</div>' +
+        '<div class="mod-muted-sm mt-4">전체 ' + data.hospitalCount + '개 병원 대비 성과 비교 · ' + month + '</div>' +
+      '</div>' +
+      '<div class="text-center">' +
+        '<div style="width:80px;height:80px;border-radius:50%;background:' + gradeColor + '15;display:flex;align-items:center;justify-content:center;margin:0 auto">' +
+          '<span style="font-size:32px;font-weight:900;color:' + gradeColor + '">' + grade + '</span>' +
+        '</div>' +
+        '<div class="mod-muted-sm mt-4">종합 등급</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="flex gap-16" style="flex-wrap:wrap">' +
+      buildBenchSummary('📊', '종합 점수', score + '점', '상위 ' + data.percentile + '%', gradeColor) +
+      buildBenchSummary('✅', '우수 항목', goodCount + '개', '/' + totalCount + '개 중', '#22c55e') +
+      buildBenchSummary('📅', '기록일', data.daysRecorded + '일', month, '#3b82f6') +
+      buildBenchSummary(gradeEmoji, '전체 순위', '상위 ' + data.percentile + '%', data.hospitalCount + '개 병원 중', gradeColor) +
+    '</div>' +
+  '</div>' +
+
+  '<div class="card-lg mb-20">' +
+    '<div class="mod-title">📊 항목별 비교</div>' +
+    '<div style="display:grid;gap:12px">' +
+      ind.map(function(item) {
+        return buildBenchItem(item);
+      }).join('') +
+    '</div>' +
+  '</div>' +
+
+  '<div class="card-lg">' +
+    '<div class="mod-title">💡 개선 포인트</div>' +
+    '<div style="display:grid;gap:8px">' +
+      ind.filter(function(i) { return !i.isGood; }).map(function(item) {
+        var tips = {
+          revenue: '매출 증대를 위해 핵심 진료 상담 전환율 개선, 신환 유입 채널 확대를 고려해보세요.',
+          new_patients: '신환 유입을 위한 마케팅 채널 최적화, 소개 프로그램 강화가 필요합니다.',
+          total_patients: '기존 환자 재방문율 개선을 위한 정기검진 알림 시스템을 활용해보세요.',
+          conv_rate: '상담 스크립트 고도화, 비용 투명성 강화, 상담사 교육이 효과적입니다.',
+          wait_time: '예약 시스템 최적화, 대기 환경 개선, 실시간 대기 안내를 도입해보세요.',
+          cancel: '예약 리마인더 강화, 노쇼 패널티 정책, 대기 환자 자동 연결을 검토해보세요.',
+          complaint: '환자 동선 개선, 직원 응대 교육, 불만 사전 감지 시스템이 도움됩니다.',
+          referral: '소개 인센티브 프로그램 도입, 진료 만족도 개선에 집중해보세요.',
+          reviews: '진료 후 리뷰 요청 시스템 도입, 네이버 플레이스 관리를 강화해보세요.',
+        };
+        return '<div class="funnel-action-item priority-high">' +
+          '<div class="funnel-action-priority">📌</div>' +
+          '<div class="funnel-action-body">' +
+            '<div class="funnel-action-title-text">' + esc(item.label) + ' 개선 필요</div>' +
+            '<div class="funnel-action-desc">' + esc(tips[item.key] || '데이터 분석을 통한 개선 포인트를 찾아보세요.') + '</div>' +
+            '<div class="funnel-action-impact">현재: ' + fmtBenchVal(item.myValue, item.format) + ' / 평균: ' + fmtBenchVal(item.avgValue, item.format) + ' (차이: ' + item.diff + '%)</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+      (ind.every(function(i) { return i.isGood; }) ? '<div class="mod-empty">🏆 모든 항목이 평균 이상입니다! 훌륭합니다!</div>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function buildBenchSummary(icon, label, value, sub, color) {
+  return '<div class="flex-1" style="min-width:140px;text-align:center;padding:16px;background:' + color + '08;border-radius:12px">' +
+    '<div style="font-size:24px">' + icon + '</div>' +
+    '<div class="mod-muted-sm mt-4">' + label + '</div>' +
+    '<div style="font-size:20px;font-weight:800;color:' + color + ';margin-top:4px">' + value + '</div>' +
+    '<div class="mod-muted-xs mt-4">' + sub + '</div>' +
+  '</div>';
+}
+
+function buildBenchItem(item) {
+  var myVal = fmtBenchVal(item.myValue, item.format);
+  var avgVal = fmtBenchVal(item.avgValue, item.format);
+  var diffColor = item.isGood ? '#22c55e' : '#ef4444';
+  var diffIcon = item.isGood ? '✅' : '⚠️';
+  var myPct = item.avgValue > 0 ? Math.min(100, Math.max(5, item.myValue / item.avgValue * 50)) : 50;
+  var avgPct = 50;
+
+  return '<div class="card" style="padding:14px 18px;border-left:4px solid ' + diffColor + '">' +
+    '<div class="flex-between mb-8">' +
+      '<div class="flex items-center gap-8">' +
+        '<span>' + diffIcon + '</span>' +
+        '<span class="font-700 text-lg">' + esc(item.label) + '</span>' +
+      '</div>' +
+      '<span class="pill" style="background:' + diffColor + '15;color:' + diffColor + '">' +
+        (item.diff > 0 ? '+' : '') + item.diff + '%' +
+      '</span>' +
+    '</div>' +
+    '<div class="flex gap-8 items-center">' +
+      '<div style="flex:1">' +
+        '<div class="flex-between mb-4">' +
+          '<span class="mod-muted-xs">우리 병원</span>' +
+          '<span class="text-md font-700" style="color:' + diffColor + '">' + myVal + '</span>' +
+        '</div>' +
+        '<div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden">' +
+          '<div style="height:100%;width:' + myPct + '%;background:' + diffColor + ';border-radius:4px;transition:width .4s"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="width:1px;height:40px;background:var(--border)"></div>' +
+      '<div style="flex:1">' +
+        '<div class="flex-between mb-4">' +
+          '<span class="mod-muted-xs">전체 평균</span>' +
+          '<span class="text-md font-700 text-secondary">' + avgVal + '</span>' +
+        '</div>' +
+        '<div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden">' +
+          '<div style="height:100%;width:' + avgPct + '%;background:var(--text-muted);border-radius:4px"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function fmtBenchVal(val, format) {
+  if (val == null) return '-';
+  switch (format) {
+    case 'money':
+      if (val >= 100000000) return (val / 100000000).toFixed(1) + '억';
+      if (val >= 10000) return Math.round(val / 10000).toLocaleString() + '만원';
+      return val.toLocaleString() + '원';
+    case 'percent': return val + '%';
+    case 'minutes': return val + '분';
+    default: return Number(val).toLocaleString();
+  }
+}
+
 // ═══ 모듈 등록 ═══
-PFM.modules.kpiStats = { renderKpiStats: renderKpiStats };
+PFM.modules.kpiStats = { renderKpiStats: renderKpiStats, renderBenchmark: renderBenchmark };
 
 })(window.PFM);

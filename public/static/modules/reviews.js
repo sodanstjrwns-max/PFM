@@ -43,7 +43,7 @@ async function renderReviewMgmt(body, actions) {
     if (rvState.tab === 'dashboard') await renderRvDashboard(content);
     else await renderRvList(content);
   } catch(e) {
-    content.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
+    content.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(e.message)}</p></div>`;
   }
 }
 
@@ -88,7 +88,7 @@ async function renderRvDashboard(el) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
       <!-- 플랫폼별 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">📱 플랫폼별 현황</h3>
         ${platforms.length === 0 ? '<p style="color:#94a3b8;font-size:13px">리뷰 데이터가 없습니다</p>' :
         platforms.map(p => {
@@ -104,7 +104,7 @@ async function renderRvDashboard(el) {
               <div style="display:flex;gap:8px;font-size:11px;color:#94a3b8;margin-top:2px">
                 <span style="color:#f59e0b">★ ${p.avg_rating || '-'}</span>
                 <span style="color:#10b981">긍정 ${p.positive||0}</span>
-                <span style="color:#ef4444">부정 ${p.negative||0}</span>
+                <span class="text-danger">부정 ${p.negative||0}</span>
               </div>
             </div>
           </div>`;
@@ -112,7 +112,7 @@ async function renderRvDashboard(el) {
       </div>
 
       <!-- 감성 분포 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">💭 감성 분포</h3>
         ${ov.total > 0 ? `
         <div style="display:flex;gap:12px;margin-bottom:16px">
@@ -150,17 +150,17 @@ async function renderRvDashboard(el) {
           <thead>
             <tr style="border-bottom:2px solid #e2e8f0">
               <th style="padding:8px;text-align:left">월</th>
-              <th style="padding:8px;text-align:center">건수</th>
-              <th style="padding:8px;text-align:center">평균별점</th>
-              <th style="padding:8px;text-align:center">긍정</th>
-              <th style="padding:8px;text-align:center">부정</th>
+              <th class="tbl-cell-center">건수</th>
+              <th class="tbl-cell-center">평균별점</th>
+              <th class="tbl-cell-center">긍정</th>
+              <th class="tbl-cell-center">부정</th>
             </tr>
           </thead>
           <tbody>
             ${monthly.map(m => `
             <tr style="border-bottom:1px solid #f0f0f0">
               <td style="padding:8px;font-weight:600">${m.month}</td>
-              <td style="padding:8px;text-align:center">${m.count}</td>
+              <td class="tbl-cell-center">${m.count}</td>
               <td style="padding:8px;text-align:center;color:#f59e0b;font-weight:700">★ ${m.avg_rating||'-'}</td>
               <td style="padding:8px;text-align:center;color:#10b981">${m.positive||0}</td>
               <td style="padding:8px;text-align:center;color:#ef4444">${m.negative||0}</td>
@@ -305,14 +305,14 @@ function showAddReviewModal(el) {
     <div style="display:grid;gap:12px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">플랫폼 *</label>
-          <select id="rvPlatform" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">플랫폼 *</label>
+          <select id="rvPlatform" class="form-input" class="input-outline">
             ${Object.entries(platformInfo).map(([k,v]) => `<option value="${k}">${v.name}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">별점</label>
-          <select id="rvRating" class="form-input" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">별점</label>
+          <select id="rvRating" class="form-input" class="input-outline">
             <option value="5">★★★★★ (5점)</option>
             <option value="4">★★★★☆ (4점)</option>
             <option value="3">★★★☆☆ (3점)</option>
@@ -323,25 +323,25 @@ function showAddReviewModal(el) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">작성자</label>
-          <input id="rvName" class="form-input" placeholder="닉네임 또는 이름" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">작성자</label>
+          <input id="rvName" class="form-input" placeholder="닉네임 또는 이름" class="input-outline">
         </div>
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">날짜</label>
-          <input id="rvDate" class="form-input" type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+          <label class="mod-label-sm">날짜</label>
+          <input id="rvDate" class="form-input" type="date" value="${new Date().toISOString().slice(0,10)}" class="input-outline">
         </div>
       </div>
       <div class="form-group">
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">리뷰 내용 *</label>
+        <label class="mod-label-sm">리뷰 내용 *</label>
         <textarea id="rvText" class="form-input" rows="4" placeholder="리뷰 내용을 복사하여 붙여넣기 해주세요" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;resize:vertical;font-family:inherit"></textarea>
       </div>
       <div class="form-group">
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">리뷰 URL</label>
-        <input id="rvUrl" class="form-input" placeholder="https://..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+        <label class="mod-label-sm">리뷰 URL</label>
+        <input id="rvUrl" class="form-input" placeholder="https://..." class="input-outline">
       </div>
       <div class="form-group">
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">태그 (쉼표 구분)</label>
-        <input id="rvTags" class="form-input" placeholder="친절, 임플란트, 교정" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px">
+        <label class="mod-label-sm">태그 (쉼표 구분)</label>
+        <input id="rvTags" class="form-input" placeholder="친절, 임플란트, 교정" class="input-outline">
       </div>
       <button id="saveReviewBtn" style="padding:12px;background:#0f766e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">리뷰 등록</button>
     </div>
@@ -383,7 +383,7 @@ function showReviewActionModal(review, el) {
       </div>
       <div style="display:grid;gap:10px">
         <div class="form-group">
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">답변 작성</label>
+          <label class="mod-label-sm">답변 작성</label>
           <textarea id="rvResponse" rows="3" placeholder="답변 내용을 입력하세요..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;resize:vertical;font-family:inherit">${esc(review.response_text || '')}</textarea>
         </div>
         <div style="display:flex;gap:8px">

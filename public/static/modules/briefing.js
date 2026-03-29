@@ -7,13 +7,13 @@ function fmtNum(n) { return (n || 0).toLocaleString(); }
 function fmtMoney(n) { return n >= 10000 ? (n/10000).toFixed(1) + '만' : fmtNum(n); }
 
 async function renderBriefing(body, actions) {
-  body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">브리핑 생성 중...</div></div>';
+  body.innerHTML = '<div class="card" class="p-20"><div class="loading-spinner">브리핑 생성 중...</div></div>';
   
   try {
     const data = await api('/api/protected/briefing');
     renderBriefingView(body, actions, data);
   } catch(e) {
-    body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(e.message)}</p></div>`;
+    body.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(e.message)}</p></div>`;
   }
 }
 
@@ -53,7 +53,7 @@ function renderBriefingView(body, actions, d) {
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px">
       <!-- 어제 실적 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:6px">📊 어제 실적 <span style="font-size:11px;color:#94a3b8;font-weight:400">${d.yesterday.date}</span></h3>
         ${d.yesterday.hasData ? `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -84,7 +84,7 @@ function renderBriefingView(body, actions, d) {
       </div>
 
       <!-- 이번 달 누적 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">📈 이번 달 누적 <span style="font-size:11px;color:#94a3b8;font-weight:400">${d.monthCumulative.month} (${d.monthCumulative.days}일)</span></h3>
         <div style="text-align:center;margin-bottom:12px">
           <div style="font-size:10px;color:#64748b">누적 매출</div>
@@ -109,18 +109,18 @@ function renderBriefingView(body, actions, d) {
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px">
       <!-- 출근 현황 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">👥 오늘 출근 현황</h3>
-        <div style="text-align:center">
+        <div class="text-center">
           <div style="font-size:36px;font-weight:800;color:${d.attendance.rate >= 90 ? '#10b981' : d.attendance.rate >= 70 ? '#f59e0b' : '#ef4444'}">${d.attendance.present}/${d.attendance.shouldWork}</div>
           <div style="font-size:12px;color:#64748b">출근율 ${d.attendance.rate}%</div>
         </div>
       </div>
 
       <!-- 상담 전환 -->
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">💬 이번 달 상담 전환</h3>
-        <div style="text-align:center">
+        <div class="text-center">
           <div style="font-size:36px;font-weight:800;color:${d.consult.confirmRate >= 60 ? '#10b981' : d.consult.confirmRate >= 40 ? '#f59e0b' : '#ef4444'}">${d.consult.confirmRate}%</div>
           <div style="font-size:12px;color:#64748b">${d.consult.monthConfirmed}건 동의 / ${d.consult.monthTotal}건 상담</div>
           ${d.consult.monthAgreed > 0 ? `<div style="font-size:12px;color:#0f766e;margin-top:4px">동의금액 ${fmtMoney(d.consult.monthAgreed)}</div>` : ''}
@@ -144,7 +144,7 @@ function renderBriefingView(body, actions, d) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       ${d.recentNewPatients.length > 0 ? `
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🆕 최근 7일 신환</h3>
         ${d.recentNewPatients.map(p => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12px">
@@ -155,7 +155,7 @@ function renderBriefingView(body, actions, d) {
       </div>` : ''}
 
       ${d.birthdayPatients.length > 0 ? `
-      <div class="card" style="padding:20px">
+      <div class="card" class="p-20">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🎂 오늘 생일 환자</h3>
         ${d.birthdayPatients.map(p => `
           <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12px">
@@ -168,11 +168,11 @@ function renderBriefingView(body, actions, d) {
   `;
 
   document.getElementById('briefingDate')?.addEventListener('change', async (e) => {
-    body.innerHTML = '<div class="card" style="padding:20px"><div class="loading-spinner">브리핑 생성 중...</div></div>';
+    body.innerHTML = '<div class="card" class="p-20"><div class="loading-spinner">브리핑 생성 중...</div></div>';
     try {
       const data = await api('/api/protected/briefing?date=' + e.target.value);
       renderBriefingView(body, actions, data);
-    } catch(err) { body.innerHTML = `<div class="card" style="padding:20px"><p style="color:#ef4444">${esc(err.message)}</p></div>`; }
+    } catch(err) { body.innerHTML = `<div class="card" class="p-20"><p class="text-danger">${esc(err.message)}</p></div>`; }
   });
 }
 

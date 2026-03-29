@@ -84,13 +84,13 @@ async function renderCallsInbound(body, actions) {
     <button class="btn btn-sm" id="callInStatsBtn" style="margin-left:6px">📊 통계</button>
   `;
   
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   let filters = { search: '', staff: '', reservation: '', purpose: '' };
   
   async function loadRecords(month) {
     currentMonth = month;
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     
     const params = new URLSearchParams({ type: 'inbound', month });
     if (filters.search) params.set('search', filters.search);
@@ -136,27 +136,27 @@ async function renderCallsInbound(body, actions) {
       
       <!-- 요약 카드 -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:16px">
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">총 콜</div>
           <div style="font-size:24px;font-weight:900;color:var(--primary)">${records.length}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">✅ 예약</div>
           <div style="font-size:24px;font-weight:900;color:#22c55e">${totalReserved}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">❌ 미예약</div>
           <div style="font-size:24px;font-weight:900;color:#ef4444">${totalNotReserved}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">📵 부재중</div>
           <div style="font-size:24px;font-weight:900;color:#f59e0b">${totalNoAnswer}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">예약률</div>
           <div style="font-size:24px;font-weight:900;color:${resRate>=50?'#22c55e':'#ef4444'}">${resRate}%</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">🔵 신환</div>
           <div style="font-size:24px;font-weight:900;color:#3b82f6">${totalNew}</div>
         </div>
@@ -179,15 +179,15 @@ async function renderCallsInbound(body, actions) {
           <input type="text" id="ciSearch" placeholder="🔍 환자명, 연락처, 메모 검색..." value="${esc(filters.search)}"
             style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--bg-card)">
         </div>
-        <select id="ciFilterStaff" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="ciFilterStaff" class="input-sm">
           <option value="">상담원 전체</option>
           ${STAFF_INBOUND.map(s => `<option value="${esc(s)}" ${filters.staff===s?'selected':''}>${esc(s)}</option>`).join('')}
         </select>
-        <select id="ciFilterPurpose" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="ciFilterPurpose" class="input-sm">
           <option value="">콜 목적 전체</option>
           ${CALL_PURPOSES_INBOUND.map(p => `<option value="${p.key}" ${filters.purpose===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
         </select>
-        <select id="ciFilterRes" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="ciFilterRes" class="input-sm">
           <option value="">예약여부 전체</option>
           ${RESERVATION_STATUS.map(r => `<option value="${r.key}" ${filters.reservation===r.key?'selected':''}>${r.icon} ${r.label}</option>`).join('')}
         </select>
@@ -198,16 +198,16 @@ async function renderCallsInbound(body, actions) {
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
           <thead>
             <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">날짜</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">환자명</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">연락처</th>
+              <th class="tbl-header">날짜</th>
+              <th class="tbl-header">환자명</th>
+              <th class="tbl-header">연락처</th>
               <th style="padding:10px 8px;text-align:center;font-weight:700;font-size:11px;color:var(--text-muted)">신/구환</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">상담원</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">관심진료</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">인지경로</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">콜 목적</th>
+              <th class="tbl-header">상담원</th>
+              <th class="tbl-header">관심진료</th>
+              <th class="tbl-header">인지경로</th>
+              <th class="tbl-header">콜 목적</th>
               <th style="padding:10px 8px;text-align:center;font-weight:700;font-size:11px;color:var(--text-muted)">예약여부</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">예약일</th>
+              <th class="tbl-header">예약일</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted);max-width:200px">메모</th>
             </tr>
           </thead>
@@ -224,12 +224,12 @@ async function renderCallsInbound(body, actions) {
                 <td style="padding:8px;font-size:11px;white-space:nowrap">${fmtDate(r.call_date)}</td>
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name||'-')}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.phone||'-')}</td>
-                <td style="padding:8px;text-align:center"><span style="background:${ptColor}15;color:${ptColor};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${ptLabel}</span></td>
+                <td class="tbl-cell-center"><span style="background:${ptColor}15;color:${ptColor};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${ptLabel}</span></td>
                 <td style="padding:8px;font-size:11px">${esc(r.staff_name||'-')}</td>
                 <td style="padding:8px"><span style="background:${treat.color}20;color:${treat.color};padding:2px 6px;border-radius:6px;font-size:10px;font-weight:600">${esc(treat.label)}</span></td>
                 <td style="padding:8px;font-size:11px">${esc(path.label)}</td>
                 <td style="padding:8px"><span style="background:${purp.color}15;color:${purp.color};padding:2px 6px;border-radius:6px;font-size:10px;font-weight:600">${purp.icon} ${esc(purp.label)}</span></td>
-                <td style="padding:8px;text-align:center"><span style="color:${res.color};font-weight:700;font-size:12px">${res.icon}</span> <span style="font-size:10px;color:${res.color}">${res.label}</span></td>
+                <td class="tbl-cell-center"><span style="color:${res.color};font-weight:700;font-size:12px">${res.icon}</span> <span style="font-size:10px;color:${res.color}">${res.label}</span></td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${fmtDate(r.reservation_date)}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.comment||'-')}</td>
               </tr>`;
@@ -296,9 +296,9 @@ function openCallForm(callType, record, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:6px">
             <span style="background:${isInbound?'#3b82f6':'#8b5cf6'};color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">${isInbound?'인바운드':'아웃바운드'}</span> 기본 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
-              <label style="${ls}">📅 날짜 <span style="color:#ef4444">*</span></label>
+              <label style="${ls}">📅 날짜 <span class="text-danger">*</span></label>
               <input type="date" name="call_date" value="${r.call_date || new Date().toISOString().slice(0,10)}" required style="${is}">
             </div>
             <div>
@@ -309,7 +309,7 @@ function openCallForm(callType, record, onSave) {
               </select>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">👤 환자 성함</label>
               <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" placeholder="환자명" style="${is}">
@@ -319,7 +319,7 @@ function openCallForm(callType, record, onSave) {
               <input type="tel" name="phone" value="${esc(r.phone||'')}" placeholder="010-0000-0000" style="${is}">
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="grid-2">
             <div>
               <label style="${ls}">🏷️ 신/구환</label>
               <select name="patient_type" style="${ss}">
@@ -383,7 +383,7 @@ function openCallForm(callType, record, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:6px">
             <span style="background:#06b6d4;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">예약</span> 내원 예약 정보
           </div>
-          <div style="margin-bottom:12px">
+          <div class="mb-12">
             <label style="${ls}">📋 예약 여부</label>
             <div style="display:flex;gap:8px" id="callResGroup">
               ${RESERVATION_STATUS.map(rs => `
@@ -395,7 +395,7 @@ function openCallForm(callType, record, onSave) {
               `).join('')}
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">📅 예약일</label>
               <input type="date" name="reservation_date" value="${r.reservation_date||''}" style="${is}">
@@ -487,7 +487,7 @@ async function openCallStats(callType, month) {
   showModal();
   const mc = document.getElementById('modalContent');
   mc.style.maxWidth = '500px';
-  mc.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  mc.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   try {
     const stats = await api(`/api/protected/calls/stats?type=${callType}&month=${month}`);
@@ -499,12 +499,12 @@ async function openCallStats(callType, month) {
         <h3 style="margin:0 0 20px;font-size:18px;font-weight:900">📊 ${isInbound?'인바운드':'아웃바운드'} 콜 통계 (${y}.${m})</h3>
         
         <div style="background:var(--bg);border-radius:12px;padding:16px;text-align:center;margin-bottom:16px">
-          <div style="font-size:10px;color:var(--text-muted)">총 콜 수</div>
+          <div class="mod-muted-xs">총 콜 수</div>
           <div style="font-size:36px;font-weight:900;color:var(--primary)">${stats.total}</div>
         </div>
         
         ${stats.byReservation.length > 0 ? `
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">예약 현황</h4>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${stats.byReservation.map(r => {
@@ -513,14 +513,14 @@ async function openCallStats(callType, month) {
               return `<div style="flex:1;min-width:80px;background:${rs.color}10;border:1px solid ${rs.color}30;border-radius:10px;padding:10px;text-align:center">
                 <div style="font-size:16px">${rs.icon}</div>
                 <div style="font-size:18px;font-weight:900;color:${rs.color}">${r.c}</div>
-                <div style="font-size:10px;color:var(--text-muted)">${rs.label} (${pct}%)</div>
+                <div class="mod-muted-xs">${rs.label} (${pct}%)</div>
               </div>`;
             }).join('')}
           </div>
         </div>` : ''}
         
         ${stats.byStaff.length > 0 ? `
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">상담원별</h4>
           <div style="display:flex;flex-direction:column;gap:4px">
             ${stats.byStaff.slice(0,10).map(s => {
@@ -538,14 +538,14 @@ async function openCallStats(callType, month) {
         </div>` : ''}
         
         ${stats.byPurpose && stats.byPurpose.length > 0 ? `
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">콜 목적별</h4>
           <div style="display:flex;flex-direction:column;gap:4px">
             ${stats.byPurpose.map(p => {
               const purp = isInbound ? (CALL_PURPOSES_INBOUND.find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' }) : ((PFM._callShared?.CALL_PURPOSES || []).find(cp => cp.key === p.call_purpose) || { icon: '📝', label: p.call_purpose || '-', color: '#94a3b8' });
               return '<div style="display:flex;align-items:center;gap:8px;font-size:12px">' +
                 '<span style="width:4px;height:18px;border-radius:2px;background:' + purp.color + '"></span>' +
-                '<span style="flex:1">' + purp.icon + ' ' + esc(purp.label) + '</span>' +
+                '<span class="flex-1">' + purp.icon + ' ' + esc(purp.label) + '</span>' +
                 '<strong>' + p.c + '건</strong>' +
               '</div>';
             }).join('')}
@@ -553,14 +553,14 @@ async function openCallStats(callType, month) {
         </div>` : ''}
         
         ${stats.byTreatment.length > 0 ? `
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <h4 style="font-size:13px;font-weight:700;margin:0 0 8px">관심 진료별</h4>
           <div style="display:flex;flex-direction:column;gap:4px">
             ${stats.byTreatment.map(t => {
               const treat = getTreatment(t.treatment_interest);
               return `<div style="display:flex;align-items:center;gap:8px;font-size:12px">
                 <span style="width:4px;height:18px;border-radius:2px;background:${treat.color}"></span>
-                <span style="flex:1">${esc(treat.label)}</span>
+                <span class="flex-1">${esc(treat.label)}</span>
                 <strong>${t.c}건</strong>
               </div>`;
             }).join('')}

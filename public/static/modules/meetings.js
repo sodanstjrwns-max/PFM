@@ -109,7 +109,7 @@ async function renderMeetings(body, actions) {
           </div>
           <h2 style="margin:0;font-size:18px;font-weight:800">${esc(data.title)}</h2>
         </div>
-        ${canEdit ? '<button class="btn btn-sm" style="color:#ef4444" id="deleteMeetingBtn">🗑️</button>' : ''}
+        ${canEdit ? '<button class="btn btn-sm" class="text-danger" id="deleteMeetingBtn">🗑️</button>' : ''}
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
@@ -129,7 +129,7 @@ async function renderMeetings(body, actions) {
 
       ${data.description ? `<div style="background:var(--bg-main);border-radius:10px;padding:14px;margin-bottom:20px;font-size:13px;color:var(--text-secondary);line-height:1.6">${esc(data.description).replace(/\\n/g, '<br>')}</div>` : ''}
 
-      <div style="margin-bottom:20px">
+      <div class="mb-20">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px">👥 참가자 (${data.participants.length}명)</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           ${data.participants.map(p => {
@@ -164,7 +164,7 @@ async function renderMeetings(body, actions) {
             <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#92400e">📋 액션 아이템</div>
             <div style="font-size:13px;line-height:1.8;white-space:pre-wrap">${esc(mins.action_items)}</div>
           </div>` : ''}
-          ${mins.file_url ? `<div style="margin-bottom:12px"><a href="/api/protected/files/${mins.file_url}" target="_blank" style="color:var(--primary);font-size:13px">📎 ${esc(mins.file_name || '첨부파일')}</a></div>` : ''}
+          ${mins.file_url ? `<div class="mb-12"><a href="/api/protected/files/${mins.file_url}" target="_blank" style="color:var(--primary);font-size:13px">📎 ${esc(mins.file_name || '첨부파일')}</a></div>` : ''}
           <div style="font-size:11px;color:var(--text-secondary)">작성: ${esc(mins.writer_name)} · ${mins.updated_at || mins.created_at}</div>
         ` : `<div style="text-align:center;color:var(--text-secondary);padding:20px;font-size:13px">${isPast || isCompleted ? '아직 회의록이 작성되지 않았습니다' : '회의 종료 후 작성할 수 있습니다'}</div>`}
         ${(isPast || isCompleted) && canEdit ? `<button class="btn btn-primary" id="writeMinutesBtn" style="width:100%;margin-top:12px;padding:10px;font-size:13px;border-radius:10px">${mins ? '📝 회의록 수정' : '📝 회의록 작성'}</button>` : ''}
@@ -214,15 +214,15 @@ async function renderMeetings(body, actions) {
         <h2 style="margin:0;font-size:18px;font-weight:800">${existing ? '회의록 수정' : '회의록 작성'}</h2>
       </div>
       <form id="minutesForm">
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">📝 회의 내용 *</label>
           <textarea name="content" rows="6" required placeholder="회의에서 논의된 내용을 작성하세요..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;resize:vertical">${existing ? esc(existing.content) : ''}</textarea>
         </div>
-        <div style="margin-bottom:16px">
+        <div class="mb-16">
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">✅ 결정사항</label>
           <textarea name="decisions" rows="3" placeholder="회의에서 결정된 사항을 작성하세요..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;resize:vertical">${existing && existing.decisions ? esc(existing.decisions) : ''}</textarea>
         </div>
-        <div style="margin-bottom:20px">
+        <div class="mb-20">
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">📋 액션 아이템 (담당자: 내용)</label>
           <textarea name="action_items" rows="3" placeholder="담당자별 할 일을 작성하세요..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;resize:vertical">${existing && existing.action_items ? esc(existing.action_items) : ''}</textarea>
         </div>
@@ -325,7 +325,7 @@ async function renderMeetings(body, actions) {
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">설명</label>
           <textarea name="description" rows="2" placeholder="회의 안건 및 설명" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
         </div>
-        <div style="margin-bottom:20px">
+        <div class="mb-20">
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">👥 참가자</label>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${(users||[]).filter(u => u.id !== state.user.id).map(u => `<label style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;background:var(--bg-main);border:1px solid var(--border);cursor:pointer;font-size:12px;transition:all 0.15s">

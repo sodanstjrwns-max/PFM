@@ -36,7 +36,7 @@ async function renderLeaveManagement(body, actions) {
       ${isAdmin ? '<button class="btn btn-sm" id="pendingFilter" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d">⏳ 승인 대기</button>' : ''}
       ${isAdmin ? '<button class="btn btn-sm" id="balanceSettingBtn" style="background:var(--primary-light);color:white">⚙️ 연차 설정</button>' : ''}
     </div>
-    <div id="leaveBalanceCards" style="margin-bottom:24px"></div>
+    <div id="leaveBalanceCards" class="mb-24"></div>
     <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start" id="leaveLayout">
       <div id="leaveCalendar" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;min-height:400px"></div>
       <div id="leaveList" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;max-height:600px;overflow-y:auto"></div>
@@ -73,7 +73,7 @@ async function renderLeaveManagement(body, actions) {
         </div>
         <div style="display:flex;gap:16px;font-size:13px">
           <div>🏖️ 연차 <strong style="color:#3b82f6">${annualRemain}</strong>/<span style="color:var(--text-secondary)">${annualTotal}일</span></div>
-          <div>🤒 병가 <strong style="color:#ef4444">${sickRemain}</strong>/<span style="color:var(--text-secondary)">${sickTotal}일</span></div>
+          <div>🤒 병가 <strong class="text-danger">${sickRemain}</strong>/<span style="color:var(--text-secondary)">${sickTotal}일</span></div>
         </div>
         <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden">
           <div style="background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#3b82f6'};height:100%;width:${pct}%;transition:width 0.3s"></div>
@@ -190,8 +190,8 @@ async function renderLeaveManagement(body, actions) {
           <button class="btn btn-sm" style="background:#22c55e;color:white;font-size:11px" onclick="approveLeave('${r.id}')">✅ 승인</button>
           <button class="btn btn-sm" style="background:#ef4444;color:white;font-size:11px" onclick="rejectLeave('${r.id}')">❌ 반려</button>
         </div>` : ''}
-        ${r.status === 'pending' && r.user_id === state.user.id ? `<div style="margin-top:8px"><button class="btn btn-sm" style="font-size:11px" onclick="cancelLeave('${r.id}')">취소</button></div>` : ''}
-        ${r.status === 'approved' && (r.user_id === state.user.id || state.user.role === 'admin') ? `<div style="margin-top:8px"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" onclick="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
+        ${r.status === 'pending' && r.user_id === state.user.id ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px" onclick="cancelLeave('${r.id}')">취소</button></div>` : ''}
+        ${r.status === 'approved' && (r.user_id === state.user.id || state.user.role === 'admin') ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" onclick="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
       </div>`;
     }).join('');
   }
@@ -276,7 +276,7 @@ async function renderLeaveManagement(body, actions) {
         </div>
 
         <form id="leaveForm">
-          <div style="margin-bottom:24px">
+          <div class="mb-24">
             <label style="display:block;font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px">휴가 유형</label>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px" id="leaveTypeGrid">
               <label class="leave-type-option selected" data-value="annual" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;border:2px solid var(--primary);border-radius:12px;cursor:pointer;transition:all 0.15s;background:rgba(20,184,166,0.06)">
@@ -312,7 +312,7 @@ async function renderLeaveManagement(body, actions) {
             </div>
           </div>
 
-          <div style="margin-bottom:24px">
+          <div class="mb-24">
             <label style="display:block;font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:8px">사유</label>
             <textarea name="reason" rows="2" placeholder="사유를 입력하세요 (선택사항)" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
           </div>

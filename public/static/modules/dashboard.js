@@ -28,22 +28,17 @@ function fmtPct(n) { return (n||0).toFixed(1) + '%'; }
 function changeArrow(pct) {
   if (pct > 0) return `<span style="color:#22c55e;font-weight:700">▲ ${fmtPct(Math.abs(pct))}</span>`;
   if (pct < 0) return `<span style="color:#ef4444;font-weight:700">▼ ${fmtPct(Math.abs(pct))}</span>`;
-  return `<span style="color:var(--text-muted)">— 0%</span>`;
+  return `<span class="text-muted">— 0%</span>`;
 }
 
 async function renderDashboard(body) {
-  body.innerHTML = `
-    <div id="dashLoading" style="text-align:center;padding:40px"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">대시보드 로딩중...</div></div>`;
-
-  try {
+  await PFM.withErrorBoundary(body, async () => {
     const [stats, briefing] = await Promise.all([
       api('/api/protected/dashboard'),
       api('/api/protected/briefing').catch(() => null),
     ]);
     renderDashboardContent(body, stats, briefing);
-  } catch(e) {
-    body.innerHTML = `<div style="color:#ef4444;text-align:center;padding:40px">대시보드 로딩 실패: ${esc(e.message)}</div>`;
-  }
+  }, 'dashboard');
 }
 
 function renderDashboardContent(body, s, briefing) {
@@ -124,7 +119,7 @@ function renderDashboardContent(body, s, briefing) {
       ${staffCards.map(c => `
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden" data-goto="${c.goto}" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
           <div style="position:absolute;right:8px;top:8px;font-size:28px;opacity:0.15">${c.icon}</div>
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">${c.label}</div>
+          <div class="mod-muted-sm-bold">${c.label}</div>
           <div style="font-size:28px;font-weight:900;color:${c.color};margin-top:4px">${c.value}</div>
         </div>
       `).join('')}
@@ -137,7 +132,7 @@ function renderDashboardContent(body, s, briefing) {
       <div style="display:flex;gap:2px;align-items:end;height:80px;margin-bottom:12px" id="funnelChart"></div>
       <div style="display:flex;gap:2px" id="funnelLabels"></div>
       <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)">
-        <button class="btn btn-primary btn-sm" data-goto="funnel" style="font-size:12px">📊 퍼널 상세보기</button>
+        <button class="btn btn-primary btn-sm" data-goto="funnel" class="text-base">📊 퍼널 상세보기</button>
         <div style="display:flex;gap:16px;font-size:12px;color:var(--text-muted)">
           <span>총 <strong style="color:var(--text)">${Object.values(s.funnel||{}).reduce((a,b) => a+b, 0)}</strong>명</span>
         </div>
@@ -224,7 +219,7 @@ function renderDashboardContent(body, s, briefing) {
           ].map(s => `
             <div class="onboard-step" data-goto="${s.goto}" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow=''">
               <div style="width:44px;height:44px;border-radius:12px;background:${s.bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.icon}</div>
-              <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${h(s.title)}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
+              <div class="flex-1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${h(s.title)}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
               <span style="font-size:20px">→</span>
             </div>
           `).join('')}
@@ -257,7 +252,7 @@ function renderBriefingSection(d, isManager) {
   const cColor = cRate >= 60 ? '#10b981' : cRate >= 40 ? '#f59e0b' : '#ef4444';
 
   return `
-    <div style="margin-bottom:24px">
+    <div class="mb-24">
       <!-- 알림 배너 -->
       ${d.alerts && d.alerts.length > 0 ? `
       <div style="background:var(--bg-card);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;padding:14px 18px;margin-bottom:12px">
@@ -267,7 +262,7 @@ function renderBriefingSection(d, isManager) {
             <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${a.priority==='high'?'#fef2f2':a.priority==='medium'?'#fffbeb':'#f0f9ff'};border-radius:8px;font-size:12px">
               <span>${alertIcons[a.type] || '📌'}</span>
               <span style="font-weight:600;color:${alertColors[a.priority]};font-size:10px;min-width:28px">${a.priority==='high'?'긴급':a.priority==='medium'?'주의':'참고'}</span>
-              <span style="flex:1">${esc(a.message)}</span>
+              <span class="flex-1">${esc(a.message)}</span>
             </div>
           `).join('')}
         </div>
@@ -278,15 +273,15 @@ function renderBriefingSection(d, isManager) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px">
         <!-- 어제 실적 -->
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">📊 어제 실적 <span style="font-size:10px;color:var(--text-muted)">${d.yesterday?.date || ''}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">📊 어제 실적 <span class="mod-muted-xs">${d.yesterday?.date || ''}</span></div>
           ${d.yesterday?.hasData ? `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
             <div style="text-align:center;padding:8px;background:var(--primary-bg);border-radius:8px">
-              <div style="font-size:10px;color:var(--text-muted)">매출</div>
+              <div class="mod-muted-xs">매출</div>
               <div style="font-size:18px;font-weight:800;color:var(--primary)">${yRevFmt}</div>
             </div>
             <div style="text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
-              <div style="font-size:10px;color:var(--text-muted)">환자</div>
+              <div class="mod-muted-xs">환자</div>
               <div style="font-size:18px;font-weight:800;color:#2563eb">${(d.yesterday?.newPatients||0)+(d.yesterday?.existingPatients||0)}</div>
               <div style="font-size:9px;color:var(--text-muted)">신${d.yesterday?.newPatients||0}/구${d.yesterday?.existingPatients||0}</div>
             </div>
@@ -320,9 +315,9 @@ function renderBriefingSection(d, isManager) {
         <!-- 상담 전환 -->
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
           <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">💬 이번 달 상담</div>
-          <div style="text-align:center">
+          <div class="text-center">
             <div style="font-size:28px;font-weight:900;color:${cColor}">${cRate}%</div>
-            <div style="font-size:11px;color:var(--text-muted)">${d.consult?.monthConfirmed||0}건 동의 / ${d.consult?.monthTotal||0}건</div>
+            <div class="mod-muted-sm">${d.consult?.monthConfirmed||0}건 동의 / ${d.consult?.monthTotal||0}건</div>
             ${d.consult?.monthAgreed > 0 ? `<div style="font-size:11px;color:var(--primary);margin-top:4px">동의액 ${fmtMoney(d.consult.monthAgreed)}</div>` : ''}
           </div>
         </div>
@@ -334,7 +329,7 @@ function renderBriefingSection(d, isManager) {
         <div style="font-size:12px;font-weight:700;margin-bottom:8px">⚠️ 미해결 컴플레인 ${d.pendingComplaints.length}건</div>
         ${d.pendingComplaints.slice(0,3).map(c => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border-light)">
-            <span><strong>${esc(c.patient_name)}</strong> <span style="color:var(--text-muted)">${esc(c.part||'')} · ${esc(c.category||'')}</span></span>
+            <span><strong>${esc(c.patient_name)}</strong> <span class="text-muted">${esc(c.part||'')} · ${esc(c.category||'')}</span></span>
             <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${c.severity==='critical'?'#ef4444':c.severity==='high'?'#f59e0b':'#94a3b8'};color:#fff">${c.severity}</span>
           </div>
         `).join('')}
@@ -343,22 +338,22 @@ function renderBriefingSection(d, isManager) {
       <!-- 하단 정보 행: 출근 + 생일 + 신환 -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
         <!-- 출근 현황 -->
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">👥 출근</div>
+        <div class="card-sm">
+          <div class="mod-muted-sm-bold">👥 출근</div>
           <div style="font-size:24px;font-weight:800;color:${(d.attendance?.rate||0)>=90?'#10b981':(d.attendance?.rate||0)>=70?'#f59e0b':'#ef4444'};margin:4px 0">${d.attendance?.present||0}/${d.attendance?.shouldWork||0}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${d.attendance?.rate||0}%</div>
+          <div class="mod-muted-xs">${d.attendance?.rate||0}%</div>
         </div>
         ${(d.birthdayPatients && d.birthdayPatients.length > 0) ? `
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
           <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">🎂 오늘 생일</div>
           ${d.birthdayPatients.slice(0,3).map(p => `<div style="font-size:12px;padding:2px 0">${esc(p.patient_name)} <span style="color:var(--text-muted);font-size:10px">${esc(p.phone||'')}</span></div>`).join('')}
-          ${d.birthdayPatients.length > 3 ? `<div style="font-size:10px;color:var(--text-muted)">+${d.birthdayPatients.length-3}명 더</div>` : ''}
+          ${d.birthdayPatients.length > 3 ? `<div class="mod-muted-xs">+${d.birthdayPatients.length-3}명 더</div>` : ''}
         </div>` : ''}
         ${(d.recentNewPatients && d.recentNewPatients.length > 0) ? `
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
           <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px">🆕 최근 신환</div>
           ${d.recentNewPatients.slice(0,3).map(p => `<div style="font-size:12px;padding:2px 0">${esc(p.patient_name)} <span style="color:var(--text-muted);font-size:10px">${esc(p.visit_source||'')} · ${esc(p.treatment_area||'')}</span></div>`).join('')}
-          ${d.recentNewPatients.length > 3 ? `<div style="font-size:10px;color:var(--text-muted)">+${d.recentNewPatients.length-3}명 더</div>` : ''}
+          ${d.recentNewPatients.length > 3 ? `<div class="mod-muted-xs">+${d.recentNewPatients.length-3}명 더</div>` : ''}
         </div>` : ''}
       </div>
     </div>
@@ -377,7 +372,7 @@ async function openReport(period) {
       <button class="btn-icon" id="modalClose">${ICONS.close}</button>
     </div>
     <div class="modal-body" style="max-height:75vh;overflow-y:auto" id="reportBody">
-      <div style="text-align:center;padding:40px"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">리포트 생성중...</div></div>
+      <div class="mod-empty"><span class="loading-spinner"></span><div style="margin-top:12px;color:var(--text-muted);font-size:13px">리포트 생성중...</div></div>
     </div>`;
   showModal();
   document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -403,13 +398,13 @@ function renderReportContent(el, r, period) {
   el.innerHTML = `
     <!-- 기간 표시 -->
     <div style="text-align:center;margin-bottom:20px;padding:12px;background:var(--primary-bg);border-radius:10px">
-      <div style="font-size:11px;color:var(--text-muted)">리포트 기간</div>
+      <div class="mod-muted-sm">리포트 기간</div>
       <div style="font-size:16px;font-weight:800;color:var(--primary)">${esc(r.label)}</div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:4px">비교: ${esc(r.prevLabel)}</div>
     </div>
 
     <!-- 매출 -->
-    <div style="margin-bottom:20px">
+    <div class="mb-20">
       <div style="font-size:14px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:6px">💰 매출 현황</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-radius:12px;padding:16px;text-align:center">
@@ -428,7 +423,7 @@ function renderReportContent(el, r, period) {
     </div>
 
     <!-- 환자 -->
-    <div style="margin-bottom:20px">
+    <div class="mb-20">
       <div style="font-size:14px;font-weight:800;margin-bottom:10px">🦷 환자 현황</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         ${[
@@ -437,34 +432,34 @@ function renderReportContent(el, r, period) {
           { label: '구환', value: fmtNum(pat.existing), sub: '', color: '#06b6d4' },
         ].map(c => `
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);font-weight:600">${c.label}</div>
+            <div class="mod-muted-xs-bold">${c.label}</div>
             <div style="font-size:20px;font-weight:900;color:${c.color};margin:4px 0">${c.value}</div>
-            ${c.sub ? `<div style="font-size:10px;color:var(--text-muted)">${c.sub}</div>` : ''}
+            ${c.sub ? `<div class="mod-muted-xs">${c.sub}</div>` : ''}
           </div>
         `).join('')}
       </div>
     </div>
 
     <!-- 상담 -->
-    <div style="margin-bottom:20px">
+    <div class="mb-20">
       <div style="font-size:14px;font-weight:800;margin-bottom:10px">💬 상담 성과</div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="grid-2 mb-12">
           <div>
-            <div style="font-size:10px;color:var(--text-muted);font-weight:600">전환율</div>
+            <div class="mod-muted-xs-bold">전환율</div>
             <div style="font-size:26px;font-weight:900;color:${con.confirmRate >= 70 ? '#22c55e' : con.confirmRate >= 50 ? '#f59e0b' : '#ef4444'}">${fmtPct(con.confirmRate)}</div>
-            <div style="font-size:10px">${changeArrow(con.confirmRate - con.prevConfirmRate)} <span style="color:var(--text-muted)">전기 ${fmtPct(con.prevConfirmRate)}</span></div>
+            <div style="font-size:10px">${changeArrow(con.confirmRate - con.prevConfirmRate)} <span class="text-muted">전기 ${fmtPct(con.prevConfirmRate)}</span></div>
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text-muted);font-weight:600">상담 건수</div>
+            <div class="mod-muted-xs-bold">상담 건수</div>
             <div style="font-size:26px;font-weight:900;color:#8b5cf6">${fmtNum(con.total)}</div>
-            <div style="font-size:10px">${changeArrow(con.change)} <span style="color:var(--text-muted)">확정 ${fmtNum(con.confirmed)}건</span></div>
+            <div style="font-size:10px">${changeArrow(con.change)} <span class="text-muted">확정 ${fmtNum(con.confirmed)}건</span></div>
           </div>
         </div>
         <div style="display:flex;gap:12px;padding-top:12px;border-top:1px solid var(--border-light);font-size:12px">
-          <div style="flex:1"><span style="color:var(--text-muted)">제안액</span> <strong>${fmtMoney(con.planned)}</strong></div>
-          <div style="flex:1"><span style="color:var(--text-muted)">동의액</span> <strong>${fmtMoney(con.agreed)}</strong></div>
-          <div style="flex:1"><span style="color:var(--text-muted)">할인율</span> <strong>${fmtPct(con.discountRate)}</strong></div>
+          <div class="flex-1"><span class="text-muted">제안액</span> <strong>${fmtMoney(con.planned)}</strong></div>
+          <div class="flex-1"><span class="text-muted">동의액</span> <strong>${fmtMoney(con.agreed)}</strong></div>
+          <div class="flex-1"><span class="text-muted">할인율</span> <strong>${fmtPct(con.discountRate)}</strong></div>
         </div>
       </div>
     </div>
@@ -485,7 +480,7 @@ function renderReportContent(el, r, period) {
         <div style="font-size:11px;display:flex;flex-direction:column;gap:3px">
           <div style="display:flex;justify-content:space-between"><span>총</span><strong>${fmtNum(comp.total)}</strong></div>
           <div style="display:flex;justify-content:space-between"><span>해결</span><strong style="color:#22c55e">${fmtNum(comp.resolved)}</strong></div>
-          <div style="display:flex;justify-content:space-between"><span>심각</span><strong style="color:#ef4444">${fmtNum(comp.severe)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span>심각</span><strong class="text-danger">${fmtNum(comp.severe)}</strong></div>
           <div style="display:flex;justify-content:space-between"><span>해결률</span><strong style="color:#22c55e">${fmtPct(comp.resolveRate)}</strong></div>
         </div>
       </div>
@@ -493,7 +488,7 @@ function renderReportContent(el, r, period) {
 
     <!-- TOP 성과 -->
     ${doctors.length || counselors.length ? `
-    <div style="margin-bottom:20px">
+    <div class="mb-20">
       <div style="font-size:14px;font-weight:800;margin-bottom:10px">🏆 성과 TOP</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${doctors.length ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">

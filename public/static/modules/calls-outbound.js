@@ -19,13 +19,13 @@ async function renderCallsOutbound(body, actions) {
     <button class="btn btn-sm" id="callOutStatsBtn" style="margin-left:6px">📊 통계</button>
   `;
   
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   let filters = { search: '', staff: '', reservation: '', purpose: '' };
   
   async function loadRecords(month) {
     currentMonth = month;
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     
     const params = new URLSearchParams({ type: 'outbound', month });
     if (filters.search) params.set('search', filters.search);
@@ -69,23 +69,23 @@ async function renderCallsOutbound(body, actions) {
       
       <!-- 요약 카드 -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:16px">
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">총 콜</div>
           <div style="font-size:24px;font-weight:900;color:#8b5cf6">${records.length}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">✅ 예약</div>
           <div style="font-size:24px;font-weight:900;color:#22c55e">${totalReserved}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">❌ 미예약</div>
           <div style="font-size:24px;font-weight:900;color:#ef4444">${totalNotReserved}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">📵 부재중</div>
           <div style="font-size:24px;font-weight:900;color:#f59e0b">${totalNoAnswer}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div class="card-sm">
           <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">예약률</div>
           <div style="font-size:24px;font-weight:900;color:${resRate>=30?'#22c55e':'#ef4444'}">${resRate}%</div>
         </div>
@@ -108,15 +108,15 @@ async function renderCallsOutbound(body, actions) {
           <input type="text" id="coSearch" placeholder="🔍 환자명, 연락처, 코멘트 검색..." value="${esc(filters.search)}"
             style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--bg-card)">
         </div>
-        <select id="coFilterStaff" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="coFilterStaff" class="input-sm">
           <option value="">응대자 전체</option>
           ${STAFF_OUTBOUND.map(s => `<option value="${esc(s)}" ${filters.staff===s?'selected':''}>${esc(s)}</option>`).join('')}
         </select>
-        <select id="coFilterPurpose" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="coFilterPurpose" class="input-sm">
           <option value="">목적 전체</option>
           ${CALL_PURPOSES.map(p => `<option value="${p.key}" ${filters.purpose===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
         </select>
-        <select id="coFilterRes" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+        <select id="coFilterRes" class="input-sm">
           <option value="">예약여부 전체</option>
           ${RESERVATION_STATUS.map(r => `<option value="${r.key}" ${filters.reservation===r.key?'selected':''}>${r.icon} ${r.label}</option>`).join('')}
         </select>
@@ -127,15 +127,15 @@ async function renderCallsOutbound(body, actions) {
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1000px">
           <thead>
             <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">날짜</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">환자명</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">연락처</th>
+              <th class="tbl-header">날짜</th>
+              <th class="tbl-header">환자명</th>
+              <th class="tbl-header">연락처</th>
               <th style="padding:10px 8px;text-align:center;font-weight:700;font-size:11px;color:var(--text-muted)">신/구환</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">응대자</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">관심진료</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">통화목적</th>
+              <th class="tbl-header">응대자</th>
+              <th class="tbl-header">관심진료</th>
+              <th class="tbl-header">통화목적</th>
               <th style="padding:10px 8px;text-align:center;font-weight:700;font-size:11px;color:var(--text-muted)">예약여부</th>
-              <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">예약일</th>
+              <th class="tbl-header">예약일</th>
               <th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted);max-width:220px">코멘트</th>
             </tr>
           </thead>
@@ -151,11 +151,11 @@ async function renderCallsOutbound(body, actions) {
                 <td style="padding:8px;font-size:11px;white-space:nowrap">${fmtDate(r.call_date)}</td>
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name||'-')}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.phone||'-')}</td>
-                <td style="padding:8px;text-align:center"><span style="background:${ptColor}15;color:${ptColor};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${ptLabel}</span></td>
+                <td class="tbl-cell-center"><span style="background:${ptColor}15;color:${ptColor};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${ptLabel}</span></td>
                 <td style="padding:8px;font-size:11px">${esc(r.staff_name||'-')}</td>
                 <td style="padding:8px"><span style="background:${treat.color}20;color:${treat.color};padding:2px 6px;border-radius:6px;font-size:10px;font-weight:600">${esc(treat.label)}</span></td>
                 <td style="padding:8px;font-size:11px">${purpose.icon} ${esc(purpose.label)}</td>
-                <td style="padding:8px;text-align:center"><span style="color:${res.color};font-weight:700;font-size:12px">${res.icon}</span> <span style="font-size:10px;color:${res.color}">${res.label}</span></td>
+                <td class="tbl-cell-center"><span style="color:${res.color};font-weight:700;font-size:12px">${res.icon}</span> <span style="font-size:10px;color:${res.color}">${res.label}</span></td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${fmtDate(r.reservation_date)}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.comment||'-')}</td>
               </tr>`;

@@ -8,7 +8,7 @@ async function renderCommunity(body, actions, boardType) {
   const emojis = { notice:'📢', free:'💬', praise:'💛', mistake:'📝' };
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addPostBtn">${ICONS.plus} 글쓰기</button>`;
 
-  body.innerHTML = `<div id="postList" style="max-width:800px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="postList" style="max-width:800px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadPosts() {
     const container = document.getElementById('postList');
@@ -23,8 +23,8 @@ async function renderCommunity(body, actions, boardType) {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
             ${p.is_pinned ? '<span style="color:var(--danger);font-size:11px;font-weight:700">📌 고정</span>' : ''}
             ${boardType==='praise' && p.target_name ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">To. ${esc(p.target_name)}</span>` : ''}
-            <span style="font-size:11px;color:var(--text-muted)">${p.is_anonymous ? '익명' : esc(p.author_name)}</span>
-            <span style="font-size:11px;color:var(--text-muted)">${timeAgo(p.created_at)}</span>
+            <span class="mod-muted-sm">${p.is_anonymous ? '익명' : esc(p.author_name)}</span>
+            <span class="mod-muted-sm">${timeAgo(p.created_at)}</span>
           </div>
           <div style="font-weight:600;font-size:15px;color:var(--text)">${esc(p.title)}</div>
           ${p.content ? `<div style="font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:pre-line;max-height:60px;overflow:hidden">${esc(p.content)}</div>` : ''}
@@ -80,7 +80,7 @@ async function renderCommunity(body, actions, boardType) {
 
 async function openPostDetail(postId, boardType, reload) {
   const modal = document.getElementById('modalContent');
-  modal.innerHTML = `<div class="modal-body" style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  modal.innerHTML = `<div class="modal-body" class="mod-empty"><span class="loading-spinner"></span></div>`;
   showModal();
   try {
     const posts = await api('/api/protected/posts?board=' + boardType);
@@ -110,7 +110,7 @@ async function openPostDetail(postId, boardType, reload) {
           </div>
         `).join('')}</div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input class="form-input" id="commentInput" placeholder="댓글을 입력하세요" style="flex:1">
+          <input class="form-input" id="commentInput" placeholder="댓글을 입력하세요" class="flex-1">
           <button class="btn btn-primary btn-sm" id="commentBtn">등록</button>
         </div>
       </div>`;

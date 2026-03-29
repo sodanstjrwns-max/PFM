@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Bindings, Variables } from './lib/types'
 import { authMiddleware, securityHeaders, sanitizeString, safeJsonParse } from './lib/middleware'
+import { apiCacheMiddleware } from './lib/middleware'
 import { hashPassword, verifyPassword } from './lib/crypto'
 
 // Route imports
@@ -70,6 +71,9 @@ app.use('/api/*', cors({
 
 /* ═══ Auth Middleware ═══ */
 authMiddleware(app as any)
+
+/* ═══ API Cache Middleware ═══ */
+apiCacheMiddleware(app as any)
 
 /* ═══ Route Registration ═══ */
 // Auth (public)
@@ -228,7 +232,7 @@ function getHTML(): string {
 </head>
 <body>
 <div id="app"></div>
-<script src="/static/dist/bundle.js"><` + `/script>
+<script src="/static/dist/core.js"><` + `/script>
 </body>
 </html>`
 }

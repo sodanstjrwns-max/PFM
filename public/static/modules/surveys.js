@@ -12,7 +12,7 @@ async function renderSurveys(body, actions) {
     return;
   }
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="createSurveyBtn">${ICONS.plus} 설문 만들기</button>`;
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   try {
     const surveys = await api('/api/protected/surveys');
@@ -79,7 +79,7 @@ function openCreateSurvey() {
         <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px">
           <div style="font-weight:700;font-size:14px;margin-bottom:12px">📝 질문 구성</div>
           <div id="questionList"></div>
-          <button type="button" class="btn btn-secondary btn-sm" id="addQuestionBtn" style="margin-top:8px">${ICONS.plus} 질문 추가</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="addQuestionBtn" class="mt-8">${ICONS.plus} 질문 추가</button>
         </div>
       </form>
     </div>
@@ -109,7 +109,7 @@ function openCreateSurvey() {
           <button type="button" class="btn-icon qRemove" data-idx="${i}" style="font-size:11px;color:var(--danger)">${ICONS.trash}</button>
         </div>
         <input class="form-input qLabel" data-idx="${i}" value="${esc(q.label)}" placeholder="질문 내용" style="font-size:13px;margin-bottom:6px">
-        ${q.type === 'choice' ? `<input class="form-input qOptions" data-idx="${i}" value="${(q.options||[]).join(', ')}" placeholder="선택지 (쉼표 구분)" style="font-size:12px">` : ''}
+        ${q.type === 'choice' ? `<input class="form-input qOptions" data-idx="${i}" value="${(q.options||[]).join(', ')}" placeholder="선택지 (쉼표 구분)" class="text-base">` : ''}
       </div>
     `).join('');
 
@@ -228,13 +228,13 @@ function renderSurveyDetail(el, survey, a, surveyId) {
 
     <!-- 최근 응답 -->
     ${(a.recentResponses || []).length ? `
-    <div style="margin-bottom:16px">
+    <div class="mb-16">
       <div style="font-size:13px;font-weight:700;margin-bottom:10px">💬 최근 응답</div>
       ${a.recentResponses.slice(0, 5).map(r => `
         <div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
             <strong>${esc(r.patient_name || '환자')}</strong>
-            <span style="color:var(--text-muted)">${r.nps_score != null ? 'NPS ' + r.nps_score : ''}</span>
+            <span class="text-muted">${r.nps_score != null ? 'NPS ' + r.nps_score : ''}</span>
           </div>
           ${r.answers && r.answers.feedback ? `<div style="color:#64748b;font-size:11px">"${esc(r.answers.feedback)}"</div>` : ''}
         </div>
@@ -243,8 +243,8 @@ function renderSurveyDetail(el, survey, a, surveyId) {
 
     <!-- 액션 버튼 -->
     <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" id="sendSurveyBtn" style="flex:1">📨 수동 발송</button>
-      <button class="btn btn-secondary btn-sm" id="toggleActiveBtn" style="flex:1">${survey.is_active ? '⏸️ 비활성화' : '▶️ 활성화'}</button>
+      <button class="btn btn-primary btn-sm" id="sendSurveyBtn" class="flex-1">📨 수동 발송</button>
+      <button class="btn btn-secondary btn-sm" id="toggleActiveBtn" class="flex-1">${survey.is_active ? '⏸️ 비활성화' : '▶️ 활성화'}</button>
     </div>`;
 
   document.getElementById('sendSurveyBtn').addEventListener('click', () => openSendSurvey(surveyId));
@@ -271,9 +271,9 @@ function openSendSurvey(surveyId) {
         </div>
         <div id="recipientList">
           <div class="rcpt-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-            <input class="form-input rcpt-name" placeholder="환자명" style="font-size:12px">
-            <input class="form-input rcpt-phone" placeholder="010-0000-0000" style="font-size:12px">
-            <input class="form-input rcpt-doctor" placeholder="담당의 (선택)" style="font-size:12px">
+            <input class="form-input rcpt-name" placeholder="환자명" class="text-base">
+            <input class="form-input rcpt-phone" placeholder="010-0000-0000" class="text-base">
+            <input class="form-input rcpt-doctor" placeholder="담당의 (선택)" class="text-base">
           </div>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" id="addRcptBtn">${ICONS.plus} 수신자 추가</button>
@@ -292,9 +292,9 @@ function openSendSurvey(surveyId) {
       row.className = 'rcpt-row';
       row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px';
       row.innerHTML = `
-        <input class="form-input rcpt-name" placeholder="환자명" style="font-size:12px">
-        <input class="form-input rcpt-phone" placeholder="010-0000-0000" style="font-size:12px">
-        <input class="form-input rcpt-doctor" placeholder="담당의 (선택)" style="font-size:12px">`;
+        <input class="form-input rcpt-name" placeholder="환자명" class="text-base">
+        <input class="form-input rcpt-phone" placeholder="010-0000-0000" class="text-base">
+        <input class="form-input rcpt-doctor" placeholder="담당의 (선택)" class="text-base">`;
       list.appendChild(row);
     });
 
@@ -328,16 +328,16 @@ async function renderSmsConfig(container) {
   try {
     const cfg = await api('/api/protected/surveys/sms-config');
     container.innerHTML = `
-      <div style="padding:16px">
+      <div class="p-16">
         <div style="margin-bottom:16px;padding:12px;background:${cfg.configured ? '#f0fdf4' : '#fef3c7'};border-radius:8px;font-size:12px;color:${cfg.configured ? '#166534' : '#92400e'}">
           ${cfg.configured ? '✅ Aligo SMS 연동 완료' : '⚠️ SMS 자동 발송을 위해 Aligo API 설정이 필요합니다'}
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
           <a href="https://smartsms.aligo.in" target="_blank" style="color:var(--primary)">Aligo 스마트문자</a> 가입 후 API 키를 입력하세요
         </div>
-        <div class="form-group"><label style="font-size:12px">Aligo User ID</label><input class="form-input" id="smsUserId" value="${esc(cfg.user_id)}" placeholder="Aligo 아이디"></div>
-        <div class="form-group"><label style="font-size:12px">API Key</label><input class="form-input" id="smsApiKey" type="password" placeholder="${cfg.has_api_key ? '●●●● (설정됨)' : 'API Key 입력'}"></div>
-        <div class="form-group"><label style="font-size:12px">발신번호</label><input class="form-input" id="smsSender" value="${esc(cfg.sender)}" placeholder="02-000-0000"></div>
+        <div class="form-group"><label class="text-base">Aligo User ID</label><input class="form-input" id="smsUserId" value="${esc(cfg.user_id)}" placeholder="Aligo 아이디"></div>
+        <div class="form-group"><label class="text-base">API Key</label><input class="form-input" id="smsApiKey" type="password" placeholder="${cfg.has_api_key ? '●●●● (설정됨)' : 'API Key 입력'}"></div>
+        <div class="form-group"><label class="text-base">발신번호</label><input class="form-input" id="smsSender" value="${esc(cfg.sender)}" placeholder="02-000-0000"></div>
         <button class="btn btn-primary btn-sm" id="saveSmsBtn">저장</button>
       </div>`;
     document.getElementById('saveSmsBtn').addEventListener('click', async () => {

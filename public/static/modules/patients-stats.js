@@ -99,10 +99,10 @@ async function renderPatientsStats(body, actions) {
   var init = getPeriodDates(currentPreset);
   currentFrom = init.from; currentTo = init.to; currentPeriod = init.period;
 
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   async function loadStats() {
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
       var params = new URLSearchParams({ period: currentPeriod });
       if (currentFrom) params.set('from', currentFrom);
@@ -141,7 +141,7 @@ async function renderPatientsStats(body, actions) {
     else periodLabel = (currentFrom || '~') + ' ~ ' + (currentTo || '~');
 
     body.innerHTML =
-      '<div style="margin-bottom:20px">' +
+      '<div class="mb-20">' +
         '<h3 style="margin:0 0 16px;font-size:20px;font-weight:900">📊 환자 통계</h3>' +
 
         // 기간 선택
@@ -157,10 +157,10 @@ async function renderPatientsStats(body, actions) {
 
         // 직접 선택 (custom일 때)
         '<div id="psCustomRange" style="display:' + (currentPreset === 'custom' ? 'flex' : 'none') + ';gap:8px;align-items:center;margin-bottom:12px">' +
-          '<input type="date" id="psFrom" value="' + currentFrom + '" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
-          '<span style="color:var(--text-muted)">~</span>' +
-          '<input type="date" id="psTo" value="' + currentTo + '" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
-          '<select id="psPeriod" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">' +
+          '<input type="date" id="psFrom" value="' + currentFrom + '" class="input-sm">' +
+          '<span class="text-muted">~</span>' +
+          '<input type="date" id="psTo" value="' + currentTo + '" class="input-sm">' +
+          '<select id="psPeriod" class="input-sm">' +
             '<option value="daily"' + (currentPeriod==='daily'?' selected':'') + '>일간</option>' +
             '<option value="weekly"' + (currentPeriod==='weekly'?' selected':'') + '>주간</option>' +
             '<option value="monthly"' + (currentPeriod==='monthly'?' selected':'') + '>월간</option>' +
@@ -204,7 +204,7 @@ async function renderPatientsStats(body, actions) {
 
       // ═══ 트렌드 차트 (텍스트 기반 미니 바) ═══
       (data.trend && data.trend.length > 1 ? '<div style="' + cardS() + '">' +
-        '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📈 기간별 추이</h4>' +
+        '<h4 class="mod-title">📈 기간별 추이</h4>' +
         '<div style="overflow-x:auto">' +
           '<div style="display:flex;gap:2px;align-items:flex-end;min-height:120px;padding-bottom:24px;position:relative">' +
             data.trend.map(function(t) {
@@ -239,7 +239,7 @@ async function renderPatientsStats(body, actions) {
 
         // 내원경로별
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🚪 내원 경로별</h4>' +
+          '<h4 class="mod-title">🚪 내원 경로별</h4>' +
           (data.bySource.length > 0 ?
             data.bySource.map(function(s) {
               var label = VISIT_SOURCES[s.visit_source] || s.visit_source || '미입력';
@@ -253,7 +253,7 @@ async function renderPatientsStats(body, actions) {
 
         // 진료과목별
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🏥 진료 과목별</h4>' +
+          '<h4 class="mod-title">🏥 진료 과목별</h4>' +
           (data.byTreatmentArea.length > 0 ?
             data.byTreatmentArea.map(function(a) {
               var label = TREATMENT_AREAS[a.treatment_area] || a.treatment_area || '미입력';
@@ -266,7 +266,7 @@ async function renderPatientsStats(body, actions) {
 
         // 지역별 (시/도)
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📍 내원 지역별 (시/도)</h4>' +
+          '<h4 class="mod-title">📍 내원 지역별 (시/도)</h4>' +
           (data.bySido.length > 0 ?
             data.bySido.map(function(s) {
               return renderBar(s.addr_sido, s.c, data.total, '#06b6d4', maxSido);
@@ -277,7 +277,7 @@ async function renderPatientsStats(body, actions) {
 
         // 지역별 (시/군/구) Top 20
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📍 내원 지역별 (시/군/구)</h4>' +
+          '<h4 class="mod-title">📍 내원 지역별 (시/군/구)</h4>' +
           (data.bySigungu.length > 0 ?
             data.bySigungu.map(function(s) {
               var label = (s.addr_sido || '').replace(/특별시|광역시|특별자치시|특별자치도/g, '').slice(0,2) + ' ' + s.addr_sigungu;
@@ -289,7 +289,7 @@ async function renderPatientsStats(body, actions) {
 
         // 담당 원장별
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">👨‍⚕️ 담당 원장별</h4>' +
+          '<h4 class="mod-title">👨‍⚕️ 담당 원장별</h4>' +
           (data.byDoctor.length > 0 ?
             data.byDoctor.map(function(d) {
               return renderBar(d.primary_doctor, d.c, data.total, '#f59e0b', maxDoctor);
@@ -300,7 +300,7 @@ async function renderPatientsStats(body, actions) {
 
         // 담당 상담사별
         '<div style="' + cardS() + '">' +
-          '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">👩‍💼 담당 상담사별</h4>' +
+          '<h4 class="mod-title">👩‍💼 담당 상담사별</h4>' +
           (data.byCounselor.length > 0 ?
             data.byCounselor.map(function(c) {
               return renderBar(c.assigned_counselor, c.c, data.total, '#ec4899', maxCounselor);

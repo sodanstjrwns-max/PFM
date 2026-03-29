@@ -64,11 +64,11 @@ async function renderCallsStats(body, actions) {
   let currentMonth = now.toISOString().slice(0, 7);
 
   actions.innerHTML = '';
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   async function loadStats(month) {
     currentMonth = month;
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
     try {
       const [inStats, outStats] = await Promise.all([
@@ -154,7 +154,7 @@ async function renderCallsStats(body, actions) {
                 return '<div style="flex:1;min-width:70px;background:' + rs.color + '10;border:1px solid ' + rs.color + '30;border-radius:10px;padding:10px;text-align:center">' +
                   '<div style="font-size:16px">' + rs.icon + '</div>' +
                   '<div style="font-size:20px;font-weight:900;color:' + rs.color + '">' + r.c + '</div>' +
-                  '<div style="font-size:10px;color:var(--text-muted)">' + rs.label + ' (' + pct + '%)</div>' +
+                  '<div class="mod-muted-xs">' + rs.label + ' (' + pct + '%)</div>' +
                 '</div>';
               }).join('')}
             </div>
@@ -162,7 +162,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 인바운드 콜 목적별 -->
           ${(inStats.byPurpose && inStats.byPurpose.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📅 인바운드 콜 목적별</h4>' +
+            '<h4 class="mod-title">📅 인바운드 콜 목적별</h4>' +
             '<div>' + inStats.byPurpose.map(function(p) {
               var purp = getPurposeIn(p.call_purpose);
               return renderBar(purp.icon + ' ' + purp.label, p.c, inStats.total, purp.color);
@@ -171,7 +171,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 인바운드 상담원별 -->
           ${(inStats.byStaff && inStats.byStaff.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">👤 인바운드 상담원별</h4>' +
+            '<h4 class="mod-title">👤 인바운드 상담원별</h4>' +
             '<div>' + inStats.byStaff.slice(0, 15).map(function(s) {
               return renderBar(s.staff_name, s.c, inStats.total, '#3b82f6');
             }).join('') + '</div>' +
@@ -179,7 +179,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 인바운드 관심진료별 -->
           ${(inStats.byTreatment && inStats.byTreatment.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🏥 인바운드 관심 진료별</h4>' +
+            '<h4 class="mod-title">🏥 인바운드 관심 진료별</h4>' +
             '<div>' + inStats.byTreatment.map(function(t) {
               var shared = getShared();
               var treat = (shared.getTreatment ? shared.getTreatment(t.treatment_interest) : { label: t.treatment_interest, color: '#6b7280' });
@@ -201,7 +201,7 @@ async function renderCallsStats(body, actions) {
                 return '<div style="flex:1;min-width:70px;background:' + rs.color + '10;border:1px solid ' + rs.color + '30;border-radius:10px;padding:10px;text-align:center">' +
                   '<div style="font-size:16px">' + rs.icon + '</div>' +
                   '<div style="font-size:20px;font-weight:900;color:' + rs.color + '">' + r.c + '</div>' +
-                  '<div style="font-size:10px;color:var(--text-muted)">' + rs.label + ' (' + pct + '%)</div>' +
+                  '<div class="mod-muted-xs">' + rs.label + ' (' + pct + '%)</div>' +
                 '</div>';
               }).join('')}
             </div>
@@ -209,7 +209,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 아웃바운드 통화목적별 -->
           ${(outStats.byPurpose && outStats.byPurpose.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">📱 아웃바운드 통화 목적별</h4>' +
+            '<h4 class="mod-title">📱 아웃바운드 통화 목적별</h4>' +
             '<div>' + outStats.byPurpose.map(function(p) {
               var purp = getPurposeOut(p.call_purpose);
               return renderBar(purp.icon + ' ' + purp.label, p.c, outStats.total, purp.color);
@@ -218,7 +218,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 아웃바운드 응대자별 -->
           ${(outStats.byStaff && outStats.byStaff.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">👤 아웃바운드 응대자별</h4>' +
+            '<h4 class="mod-title">👤 아웃바운드 응대자별</h4>' +
             '<div>' + outStats.byStaff.slice(0, 15).map(function(s) {
               return renderBar(s.staff_name, s.c, outStats.total, '#8b5cf6');
             }).join('') + '</div>' +
@@ -226,7 +226,7 @@ async function renderCallsStats(body, actions) {
 
           <!-- 아웃바운드 관심진료별 -->
           ${(outStats.byTreatment && outStats.byTreatment.length > 0) ? '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">' +
-            '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🏥 아웃바운드 관심 진료별</h4>' +
+            '<h4 class="mod-title">🏥 아웃바운드 관심 진료별</h4>' +
             '<div>' + outStats.byTreatment.map(function(t) {
               var shared = getShared();
               var treat = (shared.getTreatment ? shared.getTreatment(t.treatment_interest) : { label: t.treatment_interest, color: '#6b7280' });
@@ -239,7 +239,7 @@ async function renderCallsStats(body, actions) {
 
       <!-- 신/구환 비율 (인바운드 + 아웃바운드 합산) -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px">
-        <h4 style="margin:0 0 14px;font-size:14px;font-weight:800">🏷️ 신/구환 분포</h4>
+        <h4 class="mod-title">🏷️ 신/구환 분포</h4>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:700">📞 인바운드</div>

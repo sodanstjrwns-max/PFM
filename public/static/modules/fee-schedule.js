@@ -13,7 +13,7 @@ async function renderFeeSchedule(body, actions) {
     actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addCatBtn">➕ 카테고리 추가</button>`;
   }
 
-  body.innerHTML = `<div id="feeContent" style="max-width:900px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="feeContent" style="max-width:900px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   const [categories, items] = await Promise.all([
     api('/api/protected/fee/categories'),
@@ -89,15 +89,15 @@ function renderFeeContent(body, categories, items, isManager) {
   content.innerHTML = `
     <div style="display:flex;gap:12px;margin-bottom:20px">
       <div style="flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted)">카테고리</div>
+        <div class="mod-muted-sm">카테고리</div>
         <div style="font-size:24px;font-weight:800;color:var(--primary)">${categories.length}</div>
       </div>
       <div style="flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted)">총 항목</div>
+        <div class="mod-muted-sm">총 항목</div>
         <div style="font-size:24px;font-weight:800;color:#8b5cf6">${totalItems}</div>
       </div>
       <div style="flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted)">평균 수가</div>
+        <div class="mod-muted-sm">평균 수가</div>
         <div style="font-size:24px;font-weight:800;color:#f59e0b">${formatPrice(avgPrice)}</div>
       </div>
     </div>
@@ -109,7 +109,7 @@ function renderFeeContent(body, categories, items, isManager) {
             <span style="font-size:24px">${cat.icon}</span>
             <div>
               <div style="font-weight:800;font-size:15px;color:${cat.color}">${esc(cat.name)}</div>
-              <div style="font-size:11px;color:var(--text-muted)">${cat.items.length}개 항목</div>
+              <div class="mod-muted-sm">${cat.items.length}개 항목</div>
             </div>
           </div>
           <div style="display:flex;gap:6px">

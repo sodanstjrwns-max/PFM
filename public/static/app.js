@@ -119,6 +119,8 @@ function toast(msg, type = 'info') {
 /* ─── Router ─── */
 function navigate(page) {
   state.currentPage = page;
+  // Stop any active polling when navigating
+  if (window._pfmStopPolling) window._pfmStopPolling();
   renderApp();
 }
 
@@ -164,36 +166,36 @@ function renderAuth() {
       </div>
       <div class="auth-error" id="authError"></div>
       <form id="authForm" class="auth-form">
-        <div class="form-group" id="regHospitalField" style="display:none">
+        <div class="form-group" id="regHospitalField" class="hidden">
           <label>병원명 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regHospital" placeholder="예: 서울비디치과">
         </div>
-        <div class="form-group" id="regBusinessField" style="display:none">
+        <div class="form-group" id="regBusinessField" class="hidden">
           <label>사업자등록번호</label>
           <input class="form-input" type="text" id="regBusinessNumber" placeholder="000-00-00000" maxlength="12">
         </div>
-        <div class="form-group" id="regHospitalPhoneField" style="display:none">
+        <div class="form-group" id="regHospitalPhoneField" class="hidden">
           <label>병원 전화번호</label>
           <input class="form-input" type="tel" id="regHospitalPhone" placeholder="02-000-0000">
         </div>
-        <div class="form-group" id="regAddressField" style="display:none">
+        <div class="form-group" id="regAddressField" class="hidden">
           <label>병원 주소</label>
           <input class="form-input" type="text" id="regAddress" placeholder="예: 서울시 강남구 테헤란로 123">
         </div>
-        <div class="form-group" id="regNameField" style="display:none">
+        <div class="form-group" id="regNameField" class="hidden">
           <label>이름 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regName" placeholder="대표원장 성함">
         </div>
-        <div class="form-group" id="regPhoneField" style="display:none">
+        <div class="form-group" id="regPhoneField" class="hidden">
           <label>원장 연락처</label>
           <input class="form-input" type="tel" id="regPhone" placeholder="010-0000-0000">
         </div>
-        <div class="form-group" id="inviteCodeField" style="display:none">
+        <div class="form-group" id="inviteCodeField" class="hidden">
           <label>초대 코드</label>
           <input class="form-input" type="text" id="inviteCode" placeholder="관리자에게 받은 코드" style="text-transform:uppercase">
           <div id="inviteInfo" style="font-size:12px;color:var(--primary);margin-top:4px"></div>
         </div>
-        <div class="form-group" id="regNameField" style="display:none">
+        <div class="form-group" id="regNameField" class="hidden">
           <label>이름</label>
           <input class="form-input" type="text" id="regName" placeholder="이름">
         </div>
@@ -205,11 +207,11 @@ function renderAuth() {
           <label>비밀번호</label>
           <input class="form-input" type="password" id="authPassword" placeholder="••••••••" required>
         </div>
-        <div class="form-group" id="joinPhoneField" style="display:none">
+        <div class="form-group" id="joinPhoneField" class="hidden">
           <label>연락처</label>
           <input class="form-input" type="tel" id="joinPhone" placeholder="010-0000-0000">
         </div>
-        <div id="joinPositionTeam" style="display:none" class="form-grid">
+        <div id="joinPositionTeam" class="hidden" class="form-grid">
           <div class="form-group">
             <label>직급</label>
             <select class="form-input" id="joinPosition">
@@ -233,7 +235,7 @@ function renderAuth() {
             </select>
           </div>
         </div>
-        <div id="joinScheduleField" style="display:none">
+        <div id="joinScheduleField" class="hidden">
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:8px">근무 스케줄</label>
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px" id="scheduleGrid">
           </div>
@@ -283,7 +285,7 @@ function renderAuth() {
     const grid = document.getElementById('scheduleGrid');
     if (!grid) return;
     grid.innerHTML = dayLabels.map((d, i) => `
-      <div style="text-align:center">
+      <div class="text-center">
         <label style="display:flex;align-items:center;gap:2px;margin-bottom:4px;justify-content:center;cursor:pointer">
           <input type="checkbox" class="sched-day" data-day="${dayKeys[i]}" ${i < 5 ? 'checked' : ''}>
           <span style="font-weight:600">${d}</span>
@@ -459,6 +461,7 @@ function getNavConfig() {
       children: [
         { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
         { id: 'kpi_stats', label: 'KPI 통계', icon: ICONS.chart },
+        { id: 'kpi_benchmark', label: '🏆 벤치마킹', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
       ]
@@ -536,7 +539,7 @@ function renderApp() {
             <div class="sidebar-user-name">${state.user.name || '사용자'}</div>
             <div class="sidebar-user-role">${state.user.role === 'admin' ? '관리자' : state.user.role === 'manager' ? '실장' : '스태프'}</div>
           </div>
-          <span style="color:var(--text-muted)" id="userMenuChevron">${ICONS.chevronDown}</span>
+          <span class="text-muted" id="userMenuChevron">${ICONS.chevronDown}</span>
         </div>
         <div class="user-popup-menu" id="userPopupMenu">
           <button class="user-popup-item" id="menuProfile">
@@ -555,7 +558,7 @@ function renderApp() {
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     <div class="main-content">
       <header class="main-header">
-        <button class="btn-icon" id="menuToggle" style="display:none">${ICONS.menu}</button>
+        <button class="btn-icon" id="menuToggle" class="hidden">${ICONS.menu}</button>
         <div class="main-header-title" id="headerTitle"></div>
         <div class="main-header-actions" id="headerActions"></div>
       </header>
@@ -806,6 +809,7 @@ function renderPage() {
     calls_stats: ['📊 콜 통계', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
     kpi_stats: ['📊 KPI 통계', ICONS.chart],
+    kpi_benchmark: ['🏆 병원 벤치마킹', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
     kpi_targets: ['🎯 목표 설정', ICONS.star],
     reservations: ['📅 예약 관리', ICONS.calendar],
@@ -867,6 +871,7 @@ function renderPage() {
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
     case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
     case 'kpi_stats': M.kpiStats.renderKpiStats(body, actions); break;
+    case 'kpi_benchmark': M.kpiStats.renderBenchmark(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
     case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
     case 'reservations': M.reservations.renderReservations(body, actions); break;
@@ -890,6 +895,57 @@ function canManage() { return state.user && (state.user.role === 'admin' || stat
 function isAdmin() { return state.user && state.user.role === 'admin'; }
 function canSeeFinancials() { return canManage(); }
 
+/* ─── Skeleton UI Factory ─── */
+function showSkeleton(container, type) {
+  const templates = {
+    dashboard: `<div style="padding:4px">
+      <div class="funnel-summary-grid" style="margin-bottom:20px">
+        <div class="skeleton skeleton-stat"></div><div class="skeleton skeleton-stat"></div>
+        <div class="skeleton skeleton-stat"></div><div class="skeleton skeleton-stat"></div>
+      </div>
+      <div class="skeleton skeleton-card" style="height:200px"></div>
+      <div class="skeleton skeleton-card" style="height:120px;margin-top:12px"></div>
+    </div>`,
+    list: `<div style="padding:4px">
+      <div class="skeleton" style="height:36px;width:200px;margin-bottom:16px"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>`,
+    table: `<div style="padding:4px">
+      <div class="skeleton" style="height:36px;margin-bottom:12px"></div>
+      <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+    </div>`,
+    default: `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`,
+  };
+  if (container) container.innerHTML = templates[type] || templates.default;
+}
+
+/* ─── Error Boundary Wrapper ─── */
+async function withErrorBoundary(container, asyncFn, skeletonType) {
+  if (skeletonType) showSkeleton(container, skeletonType);
+  try {
+    await asyncFn();
+  } catch(e) {
+    console.error('[ErrorBoundary]', e);
+    if (container) {
+      container.innerHTML = `
+        <div class="error-boundary">
+          <div class="error-boundary-icon">⚠️</div>
+          <div class="error-boundary-title">데이터를 불러올 수 없습니다</div>
+          <div class="error-boundary-msg">${esc(e.message || '알 수 없는 오류')}</div>
+          <button class="error-boundary-btn" onclick="PFM.renderPage()">🔄 다시 시도</button>
+        </div>
+      `;
+    }
+  }
+}
+
 /* ─── PFM Global Namespace (모듈 간 공유) ─── */
 window.PFM = {
   // State & Core
@@ -899,6 +955,8 @@ window.PFM = {
   // UI Helpers
   showModal, closeModal, renderCatTabs, formatPrice,
   esc, debounce, timeAgo, openPresentation, initKanbanDnD,
+  // Skeleton & Error Boundary
+  showSkeleton, withErrorBoundary,
   // Permission helpers
   canManage, isAdmin, canSeeFinancials,
   // Page rendering (모듈이 다른 모듈 호출 시 필요)

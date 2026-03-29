@@ -72,14 +72,14 @@ async function renderConsultRecords(body, actions) {
     <button class="btn btn-sm" onclick="PFM.navigate('consult_dashboard')" style="margin-left:6px">📊 분석</button>
   `;
   
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   let staffData = null;
   try { staffData = await api('/api/protected/consult-records/staff'); } catch(e) {}
   
   async function loadRecords(month) {
     currentMonth = month;
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     const records = await api(`/api/protected/consult-records?month=${month}`);
     renderRecordsList(body, records, month, loadRecords, staffData, isManager);
   }
@@ -282,22 +282,22 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
       <!-- 요약 카드 -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px">
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center${hasAnyFilter ? ';border-left:3px solid #f59e0b' : ''}">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">총 상담${hasAnyFilter ? ' (필터)' : ''}</div>
+          <div class="mod-muted-sm-bold">총 상담${hasAnyFilter ? ' (필터)' : ''}</div>
           <div style="font-size:24px;font-weight:900;color:#3b82f6">${total}건</div>
-          <div style="font-size:10px;color:var(--text-muted)">신환 ${newP} / 구환 ${total - newP}${hasAnyFilter ? ' <span style="color:#f59e0b">/ 전체 ' + records.length + '</span>' : ''}</div>
+          <div class="mod-muted-xs">신환 ${newP} / 구환 ${total - newP}${hasAnyFilter ? ' <span style="color:#f59e0b">/ 전체 ' + records.length + '</span>' : ''}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">확정률</div>
+        <div class="card-sm">
+          <div class="mod-muted-sm-bold">확정률</div>
           <div style="font-size:24px;font-weight:900;color:${rate >= 80 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444'}">${rate}%</div>
-          <div style="font-size:10px;color:var(--text-muted)">✅${confirmed} ❌${rejected} ⏳${pending}</div>
+          <div class="mod-muted-xs">✅${confirmed} ❌${rejected} ⏳${pending}</div>
         </div>
         ${isManager ? `
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">비용계획</div>
+        <div class="card-sm">
+          <div class="mod-muted-sm-bold">비용계획</div>
           <div style="font-size:20px;font-weight:900;color:#8b5cf6">${fmtMan(totalPlanned)}</div>
         </div>
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600">동의금액</div>
+        <div class="card-sm">
+          <div class="mod-muted-sm-bold">동의금액</div>
           <div style="font-size:20px;font-weight:900;color:#3b82f6">${fmtMan(totalAgreed)}</div>
         </div>` : ''}
       </div>
@@ -347,11 +347,11 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.desk_name||'')}</td>
                 <td style="padding:8px;text-align:right;color:var(--text-muted)">${r.planned_amount ? fmtWon(r.planned_amount) : '-'}</td>
                 <td style="padding:8px;text-align:right;font-weight:700;color:#3b82f6">${r.agreed_amount ? fmtWon(r.agreed_amount) : '-'}</td>
-                <td style="padding:8px;text-align:center">${ptBadge}</td>
-                <td style="padding:8px;text-align:center"><span style="background:${catColor}18;color:${catColor};padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">${catLabel}</span></td>
-                <td style="padding:8px;text-align:center">${confBadge}</td>
-                <td style="padding:8px;text-align:center">${srcLabel ? `<span style="color:${srcColor};font-size:10px;font-weight:600">${srcLabel.replace(/^.\\s/,'')}</span>` : '<span style="color:#cbd5e1">-</span>'}</td>
-                <td style="padding:8px;text-align:center">${apptBadge}</td>
+                <td class="tbl-cell-center">${ptBadge}</td>
+                <td class="tbl-cell-center"><span style="background:${catColor}18;color:${catColor};padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">${catLabel}</span></td>
+                <td class="tbl-cell-center">${confBadge}</td>
+                <td class="tbl-cell-center">${srcLabel ? `<span style="color:${srcColor};font-size:10px;font-weight:600">${srcLabel.replace(/^.\\s/,'')}</span>` : '<span style="color:#cbd5e1">-</span>'}</td>
+                <td class="tbl-cell-center">${apptBadge}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -367,8 +367,8 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
         </table>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 4px">
-        <div style="font-size:11px;color:var(--text-muted)">${hasAnyFilter ? `🔍 필터 결과 <strong>${filtered.length}</strong>건 / 전체 ${records.length}건` : `📋 총 <strong>${records.length}</strong>건`}</div>
-        <div style="font-size:10px;color:var(--text-muted)">💡 헤더를 클릭하면 정렬됩니다</div>
+        <div class="mod-muted-sm">${hasAnyFilter ? `🔍 필터 결과 <strong>${filtered.length}</strong>건 / 전체 ${records.length}건` : `📋 총 <strong>${records.length}</strong>건`}</div>
+        <div class="mod-muted-xs">💡 헤더를 클릭하면 정렬됩니다</div>
       </div>
     `;
     
@@ -490,7 +490,7 @@ function openRecordForm(record, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#3b82f6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">기본</span> 환자 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${labelStyle}">📅 날짜</label>
               <input type="date" name="record_date" value="${r.record_date || new Date().toISOString().slice(0,10)}" required style="${inputStyle}">
@@ -501,7 +501,7 @@ function openRecordForm(record, staffData, onSave) {
             </div>
           </div>
           <div style="position:relative">
-            <label style="${labelStyle}">👤 환자 성함 <span style="color:#ef4444">*</span> <span style="font-size:9px;color:var(--primary);font-weight:500">(환자DB 자동검색)</span></label>
+            <label style="${labelStyle}">👤 환자 성함 <span class="text-danger">*</span> <span style="font-size:9px;color:var(--primary);font-weight:500">(환자DB 자동검색)</span></label>
             <input type="text" name="patient_name" value="${esc(r.patient_name||'')}" required placeholder="환자명 또는 차트번호 입력" style="${inputStyle};font-weight:700" id="crPatientName" autocomplete="off">
             <div id="crAutoSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto;margin-top:2px"></div>
             <input type="hidden" name="patient_id" id="crPatientId" value="${r.patient_id||''}">
@@ -541,7 +541,7 @@ function openRecordForm(record, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#f59e0b;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">금액</span> 비용 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${labelStyle}">💰 비용계획 (원)</label>
               <input type="number" name="planned_amount" value="${r.planned_amount||''}" placeholder="0" style="${inputStyle}">
@@ -588,7 +588,7 @@ function openRecordForm(record, staffData, onSave) {
           
           <!-- 내원 경로 (필수!) -->
           <div>
-            <label style="${labelStyle}">🛤️ 내원 경로 <span style="color:#ef4444">*</span></label>
+            <label style="${labelStyle}">🛤️ 내원 경로 <span class="text-danger">*</span></label>
             <select name="visit_source" required style="${selectStyle};border-color:${r.visit_source ? 'var(--border)' : '#f59e0b'};font-weight:600">
               <option value="" ${!r.visit_source?'selected':''} disabled>-- 내원 경로를 선택하세요 --</option>
               ${Object.entries(VISIT_SOURCES).map(([k,v]) => `<option value="${k}" ${r.visit_source===k?'selected':''}>${v}</option>`).join('')}
@@ -721,7 +721,7 @@ function openRecordForm(record, staffData, onSave) {
           suggestBox.innerHTML = acResults.map((pt, i) => {
             const typeTag = pt.patient_type === 'new' ? '<span style="color:#3b82f6;font-weight:700;font-size:10px">신환</span>' : '<span style="color:#22c55e;font-weight:700;font-size:10px">구환</span>';
             return `<div class="cr-ac-item" data-idx="${i}" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
-              <div style="flex:1">
+              <div class="flex-1">
                 <strong style="font-size:13px">${esc(pt.patient_name)}</strong>
                 ${pt.chart_number ? `<span style="color:var(--text-muted);font-size:11px;margin-left:6px">#${esc(pt.chart_number)}</span>` : ''}
                 <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${pt.phone||''} ${pt.treatment_area||''}</div>
@@ -801,11 +801,11 @@ async function renderConsultDashboard(body, actions) {
   let currentMonth = now.toISOString().slice(0,7);
   
   actions.innerHTML = `<button class="btn btn-sm" onclick="PFM.navigate('consult_records')">📋 기록</button>`;
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   async function loadDashboard(month) {
     currentMonth = month;
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     const data = await api(`/api/protected/consult-records/dashboard?month=${month}`);
     renderDashboardContent(body, data, month, isManager, loadDashboard);
   }
@@ -838,24 +838,24 @@ function renderDashboardContent(body, data, month, isManager, reload) {
     <!-- 핵심 지표 -->
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">총 상담</div>
+        <div class="mod-muted-sm-bold">총 상담</div>
         <div style="font-size:28px;font-weight:900;color:#3b82f6">${s.total}</div>
-        <div style="font-size:10px;color:var(--text-muted)">신환 ${s.newPatients} / 구환 ${s.existingPatients}</div>
+        <div class="mod-muted-xs">신환 ${s.newPatients} / 구환 ${s.existingPatients}</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">확정률</div>
+        <div class="mod-muted-sm-bold">확정률</div>
         <div style="font-size:28px;font-weight:900;color:${rateColor}">${s.confirmRate}%</div>
-        <div style="font-size:10px;color:var(--text-muted)">✅${s.confirmed} ❌${s.rejected} ⏳${s.pending}</div>
+        <div class="mod-muted-xs">✅${s.confirmed} ❌${s.rejected} ⏳${s.pending}</div>
       </div>
       ${isManager && s.totalPlanned !== null ? `
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">비용계획</div>
+        <div class="mod-muted-sm-bold">비용계획</div>
         <div style="font-size:22px;font-weight:900;color:#8b5cf6">${fmtMan(s.totalPlanned)}</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">동의금액</div>
+        <div class="mod-muted-sm-bold">동의금액</div>
         <div style="font-size:22px;font-weight:900;color:#3b82f6">${fmtMan(s.totalAgreed)}</div>
-        <div style="font-size:10px;color:var(--text-muted)">할인율 ${s.discountRate}%</div>
+        <div class="mod-muted-xs">할인율 ${s.discountRate}%</div>
       </div>` : ''}
     </div>
     
@@ -866,11 +866,11 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         <thead>
           <tr style="background:var(--bg-hover)">
             <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)">상담사</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">상담</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">확정</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">미확정</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">확정률</th>
-            ${isManager ? '<th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">비용계획</th><th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">동의금액</th>' : ''}
+            <th class="tbl-cell">상담</th>
+            <th class="tbl-cell">확정</th>
+            <th class="tbl-cell">미확정</th>
+            <th class="tbl-cell">확정률</th>
+            ${isManager ? '<th class="tbl-cell">비용계획</th><th class="tbl-cell">동의금액</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -900,11 +900,11 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         <thead>
           <tr style="background:var(--bg-hover)">
             <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)">상담의</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">상담</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">확정</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">미확정</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">확정률</th>
-            ${isManager ? '<th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">비용계획</th><th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">동의금액</th>' : ''}
+            <th class="tbl-cell">상담</th>
+            <th class="tbl-cell">확정</th>
+            <th class="tbl-cell">미확정</th>
+            <th class="tbl-cell">확정률</th>
+            ${isManager ? '<th class="tbl-cell">비용계획</th><th class="tbl-cell">동의금액</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -952,7 +952,7 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         const pct = s.total > 0 ? Math.round(v.total / s.total * 100) : 0;
         return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;border-top:3px solid ' + color + '">' +
           '<div style="font-size:12px;font-weight:800;color:' + color + ';margin-bottom:6px">' + label + '</div>' +
-          '<div style="font-size:20px;font-weight:900">' + v.total + '건 <span style="font-size:11px;color:var(--text-muted)">(' + pct + '%)</span></div>' +
+          '<div style="font-size:20px;font-weight:900">' + v.total + '건 <span class="mod-muted-sm">(' + pct + '%)</span></div>' +
           '<div style="font-size:11px;margin-top:4px;color:var(--text-muted)">확정률 <strong style="color:' + (r >= 80 ? '#22c55e' : '#f59e0b') + '">' + r + '%</strong></div>' +
         '</div>';
       }).join('')}

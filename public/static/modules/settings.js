@@ -151,7 +151,7 @@ function renderMyProfile(profile) {
       </div>
     </div>
 
-    <div style="margin-top:8px">
+    <div class="mt-8">
       <label style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;display:block">근무 스케줄</label>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px" id="mySchedGrid">
         ${dayKeys.map((d, i) => {
@@ -177,7 +177,7 @@ function renderMyProfile(profile) {
     <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light)">
       <button class="btn btn-primary" id="myProfileSaveBtn">💾 내 정보 저장</button>
       <button class="btn btn-outline" id="changePasswordBtn" data-action="change-password">🔑 비밀번호 변경</button>
-      <span id="myProfileSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+      <span id="myProfileSaveStatus" class="mod-muted-sm"></span>
     </div>`;
 
   // 스케줄 체크박스 토글
@@ -288,7 +288,7 @@ function renderHospitalInfo(info) {
         <input class="form-input" type="text" id="hiAddress" value="${esc(info.address || '')}" ${!isAdmin?'disabled':''} placeholder="서울특별시 강남구...">
       </div>
     </div>
-    ${isAdmin ? `<button class="btn btn-primary btn-sm" id="hiSaveBtn" style="margin-top:12px">💾 병원 정보 저장</button>` : ''}`;
+    ${isAdmin ? `<button class="btn btn-primary btn-sm" id="hiSaveBtn" class="mt-12">💾 병원 정보 저장</button>` : ''}`;
 
   if (isAdmin) {
     document.getElementById('hiSaveBtn').addEventListener('click', async () => {
@@ -333,7 +333,7 @@ function renderOperatingHours(settings) {
   ];
 
   section.innerHTML = `
-    <div style="margin-bottom:16px">
+    <div class="mb-16">
       <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
         병원의 진료시간과 정기 휴무일을 설정합니다.<br>
         이 정보는 <strong>HR 대시보드, 직원 출퇴근, 대기 안내</strong> 등에 활용됩니다.
@@ -408,7 +408,7 @@ function renderOperatingHours(settings) {
           </label>`;
         }).join('')}
       </div>
-      <div style="margin-top:8px">
+      <div class="mt-8">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">휴무 안내 문구 (선택)</label>
         <input class="form-input" id="ohHolidayNotice" value="${esc(notice)}" placeholder="예: 공휴일, 일요일 휴진 / 토요일 오후 휴진" style="font-size:12px;padding:6px 10px">
       </div>
@@ -417,7 +417,7 @@ function renderOperatingHours(settings) {
     <!-- 저장 -->
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn btn-primary btn-sm" id="ohSaveBtn">💾 진료시간 저장</button>
-      <span id="ohSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+      <span id="ohSaveStatus" class="mod-muted-sm"></span>
     </div>
   `;
 
@@ -477,7 +477,7 @@ function renderFloorMap(settings) {
 
   function renderFloorList() {
     section.innerHTML = `
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
           병원의 층별/공간 구성을 설정합니다. 각 층에 어떤 공간이 있는지 등록하면<br>
           <strong>진료보드, 체어 배정, 환자 동선</strong> 관리에 활용됩니다.
@@ -491,7 +491,7 @@ function renderFloorMap(settings) {
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="font-size:22px;font-weight:800;color:var(--primary)">${esc(f.name)}</span>
-                <span style="font-size:11px;color:var(--text-muted)">${spaces.length}개 공간</span>
+                <span class="mod-muted-sm">${spaces.length}개 공간</span>
               </div>
               <div style="display:flex;gap:6px">
                 <button class="btn-icon fm-add-space-btn" data-fi="${fi}" title="공간 추가">➕</button>
@@ -506,7 +506,7 @@ function renderFloorMap(settings) {
                     <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${st.color}0a;border:1px solid ${st.color}33;border-radius:20px;font-size:12px">
                       <span>${st.icon}</span>
                       <span style="font-weight:600">${esc(sp.name)}</span>
-                      ${sp.chairs ? `<span style="font-size:10px;color:var(--text-muted)">(${terms.chair||'체어'} ${sp.chairs}개)</span>` : ''}
+                      ${sp.chairs ? `<span class="mod-muted-xs">(${terms.chair||'체어'} ${sp.chairs}개)</span>` : ''}
                       <button class="btn-icon fm-del-space-btn" data-fi="${fi}" data-si="${si}" title="삭제" style="width:18px;height:18px;font-size:10px">&times;</button>
                     </div>`;
                 }).join('')}
@@ -534,7 +534,7 @@ function renderFloorMap(settings) {
       <!-- 저장 -->
       <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
         <button class="btn btn-primary btn-sm" id="fmSaveBtn">💾 층별 구성 저장</button>
-        <span id="fmSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+        <span id="fmSaveStatus" class="mod-muted-sm"></span>
       </div>
     `;
 
@@ -658,7 +658,7 @@ function renderLocationTerms(settings) {
       <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
         <button class="btn btn-primary btn-sm" id="ltSaveBtn">💾 용어 저장</button>
         <button class="btn btn-secondary btn-sm" id="ltResetBtn">↩️ 기본값으로</button>
-        <span id="ltSaveStatus" style="font-size:11px;color:var(--text-muted)"></span>
+        <span id="ltSaveStatus" class="mod-muted-sm"></span>
       </div>
     ` : '<div style="font-size:11px;color:var(--text-muted);margin-top:12px">* 용어 변경은 원장/실장만 가능합니다</div>'}`;
 
@@ -707,7 +707,7 @@ function renderLocationPresets(settings) {
           ${presets.map((p, i) => `
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border-light)">
               <span style="font-size:14px">📍</span>
-              <div style="flex:1">
+              <div class="flex-1">
                 <span style="font-weight:700;font-size:13px">${esc(p.label)}</span>
                 <span style="font-size:11px;color:var(--text-muted);margin-left:8px">
                   ${p.floor ? (terms.floor||'층')+': '+esc(p.floor)+' ' : ''}${p.room ? (terms.room||'진료실')+': '+esc(p.room) : ''}
@@ -795,7 +795,7 @@ function renderCoreTreatments(settings) {
       ${treatments.map((t, i) => `
         <div style="display:flex;align-items:center;gap:10px;padding:14px;background:var(--bg-hover);border-radius:10px;border:1px solid var(--border-light)">
           <div style="min-width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${i+1}</div>
-          <div style="flex:1">
+          <div class="flex-1">
             <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px">${esc(t.label)}</div>
             <input type="text" class="form-input ct-input" data-idx="${i}" value="${esc(t.name || '')}" placeholder="예: ${examples[i] || '진료명 입력'}" style="width:100%;padding:8px 12px;font-size:14px;font-weight:600">
           </div>
@@ -862,10 +862,10 @@ function renderCoreRegions(settings) {
     <div style="display:flex;flex-direction:column;gap:12px">
       ${regions.map((r, i) => `
         <div style="display:flex;align-items:center;gap:10px;padding:14px;background:var(--bg-hover);border-radius:10px;border-left:4px solid ${colors[i]}">
-          <div style="flex:1">
+          <div class="flex-1">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
               <span style="font-size:11px;font-weight:700;color:${colors[i]}">${esc(r.label)}</span>
-              <span style="font-size:10px;color:var(--text-muted)">${descriptions[i]}</span>
+              <span class="mod-muted-xs">${descriptions[i]}</span>
             </div>
             <input type="text" class="form-input cr-input" data-idx="${i}" value="${esc(r.name || '')}" placeholder="지역명 입력" style="width:100%;padding:8px 12px;font-size:14px;font-weight:600">
           </div>

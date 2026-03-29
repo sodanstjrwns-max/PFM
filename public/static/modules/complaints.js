@@ -56,7 +56,7 @@ async function renderComplaints(body, actions) {
   document.getElementById('addComplaint').onclick = function() { showComplaintForm(null); };
 
   async function loadList() {
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     var params = new URLSearchParams({ page: 1, limit: 9999 });
     if (filters.part) params.set('part', filters.part);
     if (filters.status) params.set('status', filters.status);
@@ -101,7 +101,7 @@ async function renderComplaints(body, actions) {
     var html = '';
 
     // ═══ 검색 + 필터 바 (환자 DB 스타일) ═══
-    html += '<div style="margin-bottom:16px">';
+    html += '<div class="mb-16">';
     html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
     // 검색바
     html += '<div style="flex:1;min-width:200px;position:relative">';
@@ -114,9 +114,9 @@ async function renderComplaints(body, actions) {
     if (activeFilters.length > 0) html += '<span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px">'+activeFilters.length+'</span>';
     html += '</button>';
     // 기간 선택
-    html += '<input type="date" id="cmpFrom" value="'+esc(filters.from)+'" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
+    html += '<input type="date" id="cmpFrom" value="'+esc(filters.from)+'" class="input-sm">';
     html += '<span style="color:var(--text-muted);font-size:12px">~</span>';
-    html += '<input type="date" id="cmpTo" value="'+esc(filters.to)+'" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
+    html += '<input type="date" id="cmpTo" value="'+esc(filters.to)+'" class="input-sm">';
     html += '<button class="btn btn-primary btn-sm" id="cmpApply" style="border-radius:8px">조회</button>';
     html += '</div>';
 
@@ -179,10 +179,10 @@ async function renderComplaints(body, actions) {
     html += renderSortTh('patient_name', '환자명');
     html += renderSortTh('part', '파트');
     html += renderSortTh('category', '세부분류');
-    html += '<th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">내용</th>';
+    html += '<th class="tbl-header">내용</th>';
     html += renderSortTh('responder', '응대자');
     html += renderSortTh('resolver', '해결자');
-    html += '<th style="padding:10px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--text-muted)">해결 내용</th>';
+    html += '<th class="tbl-header">해결 내용</th>';
     html += renderSortTh('status', '상태');
     html += renderSortTh('severity', '심각도');
     html += '</tr></thead>';
@@ -218,7 +218,7 @@ async function renderComplaints(body, actions) {
       if (c.severity === 'critical') html += badge(sevLabel, sevColor);
       else if (c.severity === 'high') html += badge(sevLabel, sevColor);
       else if (c.severity === 'low') html += '<span style="font-size:10px;color:#22c55e">'+esc(sevLabel)+'</span>';
-      else html += '<span style="font-size:10px;color:var(--text-muted)">'+esc(sevLabel)+'</span>';
+      else html += '<span class="mod-muted-xs">'+esc(sevLabel)+'</span>';
       html += '</td>';
       html += '</tr>';
     });
@@ -227,13 +227,13 @@ async function renderComplaints(body, actions) {
     // ═══ 페이지네이션 ═══
     if (totalPages > 1) {
       html += '<div style="display:flex;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap">';
-      html += '<button class="btn btn-sm cmp-page-nav" data-dir="prev" '+(currentPage<=1?'disabled':'')+' style="font-size:12px">◀ 이전</button>';
+      html += '<button class="btn btn-sm cmp-page-nav" data-dir="prev" '+(currentPage<=1?'disabled':'')+' class="text-base">◀ 이전</button>';
       var startP = Math.max(1, Math.min(currentPage - 4, totalPages - 9));
       var endP = Math.min(totalPages, startP + 9);
       for (var p = startP; p <= endP; p++) {
         html += '<button class="btn btn-sm cmp-page-btn" data-page="'+p+'" style="font-size:12px;min-width:36px;'+(p===currentPage?'background:var(--primary);color:#fff;font-weight:700':'')+'">'+p+'</button>';
       }
-      html += '<button class="btn btn-sm cmp-page-nav" data-dir="next" '+(currentPage>=totalPages?'disabled':'')+' style="font-size:12px">다음 ▶</button>';
+      html += '<button class="btn btn-sm cmp-page-nav" data-dir="next" '+(currentPage>=totalPages?'disabled':'')+' class="text-base">다음 ▶</button>';
       html += '</div>';
     }
 
@@ -349,51 +349,51 @@ async function renderComplaints(body, actions) {
     html += '<form id="cmpForm" style="display:flex;flex-direction:column;gap:14px">';
     
     // 날짜 + 환자명
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">발생일 *</label>';
-    html += '<input type="date" name="complaint_date" value="'+esc(record?record.complaint_date:today)+'" required style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">환자 성함</label>';
-    html += '<input type="text" name="patient_name" value="'+esc(record?record.patient_name:'')+'" placeholder="환자명" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
+    html += '<div class="grid-2">';
+    html += '<div><label class="mod-label">발생일 *</label>';
+    html += '<input type="date" name="complaint_date" value="'+esc(record?record.complaint_date:today)+'" required class="input-md"></div>';
+    html += '<div><label class="mod-label">환자 성함</label>';
+    html += '<input type="text" name="patient_name" value="'+esc(record?record.patient_name:'')+'" placeholder="환자명" class="input-md"></div>';
     html += '</div>';
 
     // 파트 + 세부분류
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">파트 *</label>';
-    html += '<select name="part" required style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"><option value="">선택</option>';
+    html += '<div class="grid-2">';
+    html += '<div><label class="mod-label">파트 *</label>';
+    html += '<select name="part" required class="input-md"><option value="">선택</option>';
     Object.keys(PARTS).forEach(function(k) { html += '<option value="'+k+'"'+((record&&record.part===k)?' selected':'')+'>'+PART_ICONS[k]+' '+PARTS[k]+'</option>'; });
     html += '</select></div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">세부분류</label>';
-    html += '<select name="category" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"><option value="">선택</option>';
+    html += '<div><label class="mod-label">세부분류</label>';
+    html += '<select name="category" class="input-md"><option value="">선택</option>';
     CATEGORIES.forEach(function(cat) { html += '<option value="'+esc(cat)+'"'+((record&&record.category===cat)?' selected':'')+'>'+esc(cat)+'</option>'; });
     html += '</select></div>';
     html += '</div>';
 
     // 응대자 + 해결자
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">응대자</label>';
-    html += '<input type="text" name="responder" value="'+esc(record?record.responder:'')+'" placeholder="최초 접수 직원" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">해결자</label>';
-    html += '<input type="text" name="resolver" value="'+esc(record?record.resolver:'')+'" placeholder="해결한 직원" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)"></div>';
+    html += '<div class="grid-2">';
+    html += '<div><label class="mod-label">응대자</label>';
+    html += '<input type="text" name="responder" value="'+esc(record?record.responder:'')+'" placeholder="최초 접수 직원" class="input-md"></div>';
+    html += '<div><label class="mod-label">해결자</label>';
+    html += '<input type="text" name="resolver" value="'+esc(record?record.resolver:'')+'" placeholder="해결한 직원" class="input-md"></div>';
     html += '</div>';
 
     // 상태 + 심각도
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">상태</label>';
-    html += '<select name="status" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)">';
+    html += '<div class="grid-2">';
+    html += '<div><label class="mod-label">상태</label>';
+    html += '<select name="status" class="input-md">';
     Object.keys(STATUSES).forEach(function(k) { html += '<option value="'+k+'"'+((record&&record.status===k)?' selected':'')+'>'+STATUSES[k]+'</option>'; });
     html += '</select></div>';
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">심각도</label>';
-    html += '<select name="severity" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card)">';
+    html += '<div><label class="mod-label">심각도</label>';
+    html += '<select name="severity" class="input-md">';
     Object.keys(SEVERITIES).forEach(function(k) { html += '<option value="'+k+'"'+((record&&record.severity===k)?' selected':(k==='normal'&&!record?' selected':''))+'>'+SEVERITIES[k]+'</option>'; });
     html += '</select></div>';
     html += '</div>';
 
     // 내용 정리
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">내용 정리</label>';
+    html += '<div><label class="mod-label">내용 정리</label>';
     html += '<textarea name="description" rows="3" placeholder="컴플레인 상세 내용" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card);resize:vertical">'+esc(record?record.description:'')+'</textarea></div>';
 
     // 해결 내용
-    html += '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">해결 내용</label>';
+    html += '<div><label class="mod-label">해결 내용</label>';
     html += '<textarea name="resolution" rows="3" placeholder="어떻게 해결했는지" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-card);resize:vertical">'+esc(record?record.resolution:'')+'</textarea></div>';
 
     // 버튼
@@ -441,10 +441,10 @@ async function renderComplaintsStats(body, actions) {
   var now = new Date();
   var currentFrom = '', currentTo = '', currentPreset = 'all';
 
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   async function loadStats() {
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+    body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     var params = new URLSearchParams();
     if (currentFrom) params.set('from', currentFrom);
     if (currentTo) params.set('to', currentTo);
@@ -456,7 +456,7 @@ async function renderComplaintsStats(body, actions) {
     var html = '';
 
     // 제목 + 기간 프리셋
-    html += '<div style="margin-bottom:20px">';
+    html += '<div class="mb-20">';
     html += '<h3 style="margin:0 0 16px;font-size:20px;font-weight:900">컴플레인 통계</h3>';
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">';
     var presets = [
@@ -476,7 +476,7 @@ async function renderComplaintsStats(body, actions) {
     // 커스텀
     html += '<div id="csCustom" style="display:'+(currentPreset==='custom'?'flex':'none')+';gap:8px;align-items:center;margin-bottom:12px">';
     html += '<input type="date" id="csFrom" value="'+currentFrom+'" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
-    html += '<span style="color:var(--text-muted)">~</span>';
+    html += '<span class="text-muted">~</span>';
     html += '<input type="date" id="csTo" value="'+currentTo+'" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">';
     html += '<button class="btn btn-primary btn-sm" id="csApply" style="border-radius:8px">조회</button>';
     html += '</div>';
@@ -491,7 +491,7 @@ async function renderComplaintsStats(body, actions) {
     // ═══ 파트별 분포 ═══
     if (data.byPart && data.byPart.length > 0) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">파트별 분포</h4>';
+      html += '<h4 class="mod-title">파트별 분포</h4>';
       html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:16px">';
       data.byPart.forEach(function(item) {
         var label = PARTS[item.part] || item.part;
@@ -500,9 +500,9 @@ async function renderComplaintsStats(body, actions) {
         var pct = data.total > 0 ? Math.round(item.c / data.total * 100) : 0;
         html += '<div style="background:var(--bg);border-radius:10px;padding:14px;text-align:center;border-left:3px solid '+color+'">';
         html += '<div style="font-size:22px;margin-bottom:4px">'+icon+'</div>';
-        html += '<div style="font-size:10px;color:var(--text-muted);font-weight:600">'+esc(label)+'</div>';
+        html += '<div class="mod-muted-xs-bold">'+esc(label)+'</div>';
         html += '<div style="font-size:24px;font-weight:900;color:'+color+'">'+item.c+'</div>';
-        html += '<div style="font-size:10px;color:var(--text-muted)">'+pct+'%</div>';
+        html += '<div class="mod-muted-xs">'+pct+'%</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -517,7 +517,7 @@ async function renderComplaintsStats(body, actions) {
     // ═══ 세부분류별 ═══
     if (data.byCategory && data.byCategory.length > 0) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">세부분류별</h4>';
+      html += '<h4 class="mod-title">세부분류별</h4>';
       var maxCat = Math.max.apply(null, data.byCategory.map(function(i){ return i.c; }));
       data.byCategory.forEach(function(item) {
         var catColor = '#3b82f6';
@@ -533,7 +533,7 @@ async function renderComplaintsStats(body, actions) {
     // ═══ 요일별 ═══
     if (data.byDayOfWeek && data.byDayOfWeek.length > 0) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">요일별 분포</h4>';
+      html += '<h4 class="mod-title">요일별 분포</h4>';
       var dowMap = {};
       data.byDayOfWeek.forEach(function(d) { dowMap[d.dow] = d.c; });
       var maxDow = Math.max.apply(null, data.byDayOfWeek.map(function(i){ return i.c; }));
@@ -547,7 +547,7 @@ async function renderComplaintsStats(body, actions) {
     // ═══ 월별 트렌드 ═══
     if (data.monthlyTrend && data.monthlyTrend.length > 1) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">월별 추이</h4>';
+      html += '<h4 class="mod-title">월별 추이</h4>';
       var maxMonth = Math.max.apply(null, data.monthlyTrend.map(function(m){ return m.c; }));
       html += '<div style="display:flex;gap:2px;align-items:flex-end;min-height:160px;padding-bottom:28px">';
       data.monthlyTrend.forEach(function(m) {
@@ -567,14 +567,14 @@ async function renderComplaintsStats(body, actions) {
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
     if (data.byResponder && data.byResponder.length > 0) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">응대자 TOP</h4>';
+      html += '<h4 class="mod-title">응대자 TOP</h4>';
       var maxResp = data.byResponder[0].c;
       data.byResponder.slice(0,10).forEach(function(item) { html += barH(item.responder, item.c, maxResp, '#3b82f6'); });
       html += '</div>';
     }
     if (data.byResolver && data.byResolver.length > 0) {
       html += '<div style="'+cardS()+'">';
-      html += '<h4 style="margin:0 0 14px;font-size:14px;font-weight:800">해결자 TOP</h4>';
+      html += '<h4 class="mod-title">해결자 TOP</h4>';
       var maxRes = data.byResolver[0].c;
       data.byResolver.slice(0,10).forEach(function(item) { html += barH(item.resolver, item.c, maxRes, '#22c55e'); });
       html += '</div>';

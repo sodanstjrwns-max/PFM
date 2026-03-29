@@ -39,7 +39,7 @@ async function renderKpiDashboard(body, actions) {
     <button class="btn btn-primary btn-sm" onclick="PFM.navigate('kpi_targets')">🎯 목표 설정</button>
   ` : `<button class="btn btn-primary btn-sm" onclick="PFM.navigate('kpi_daily')">📝 일간 기록</button>`;
   
-  body.innerHTML = `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  body.innerHTML = `<div class="mod-empty"><span class="loading-spinner"></span></div>`;
   
   async function loadDashboard(month) {
     currentMonth = month;
@@ -91,27 +91,27 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px">
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">💰</div>
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">누적 매출</div>
+        <div class="mod-muted-sm-bold">누적 매출</div>
         <div style="font-size:24px;font-weight:900;color:#3b82f6;margin:4px 0">${fmtNum(s.cum_revenue||0)}만</div>
-        <div style="font-size:11px;color:var(--text-muted)">목표 ${fmtNum(t.target_revenue||0)}만</div>
+        <div class="mod-muted-sm">목표 ${fmtNum(t.target_revenue||0)}만</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">🎯</div>
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">달성률</div>
+        <div class="mod-muted-sm-bold">달성률</div>
         <div style="font-size:24px;font-weight:900;color:${rateColor};margin:4px 0">${s.achieve_rate||0}%</div>
-        <div style="font-size:11px;color:var(--text-muted)">${s.days_recorded||0}일 기록</div>
+        <div class="mod-muted-sm">${s.days_recorded||0}일 기록</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">${s.cum_diff >= 0 ? '📈' : '📉'}</div>
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">목표 대비</div>
+        <div class="mod-muted-sm-bold">목표 대비</div>
         <div style="font-size:24px;font-weight:900;color:${s.cum_diff >= 0 ? '#22c55e' : '#ef4444'};margin:4px 0">${s.cum_diff >= 0 ? '+' : ''}${fmtNum(s.cum_diff||0)}만</div>
-        <div style="font-size:11px;color:var(--text-muted)">차이 누계</div>
+        <div class="mod-muted-sm">차이 누계</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">👥</div>
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">누적 신환</div>
+        <div class="mod-muted-sm-bold">누적 신환</div>
         <div style="font-size:24px;font-weight:900;color:#8b5cf6;margin:4px 0">${s.cum_new_patients||0}명</div>
-        <div style="font-size:11px;color:var(--text-muted)">비급여 ${fmtNum(s.cum_non_insurance||0)}만</div>
+        <div class="mod-muted-sm">비급여 ${fmtNum(s.cum_non_insurance||0)}만</div>
       </div>
     </div>
 
@@ -158,7 +158,7 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px">
         <span style="font-weight:700">${fmtNum(s.cum_revenue||0)}만</span>
-        <span style="color:var(--text-muted)">목표 ${fmtNum(t.target_revenue||0)}만</span>
+        <span class="text-muted">목표 ${fmtNum(t.target_revenue||0)}만</span>
       </div>
       <div style="background:var(--border-light);border-radius:8px;height:24px;overflow:hidden;position:relative">
         <div style="background:linear-gradient(90deg,#3b82f6,#8b5cf6);height:100%;border-radius:8px;width:${Math.min(100, s.achieve_rate||0)}%;transition:width .5s"></div>
@@ -173,13 +173,13 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
         <thead>
           <tr style="background:var(--bg-hover)">
             <th style="padding:10px 12px;text-align:left;font-weight:700;border-bottom:2px solid var(--border)">날짜</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">목표</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">실제</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">차이</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">누적</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">신환</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">상담</th>
-            <th style="padding:10px 8px;text-align:right;border-bottom:2px solid var(--border)">리뷰</th>
+            <th class="tbl-cell">목표</th>
+            <th class="tbl-cell">실제</th>
+            <th class="tbl-cell">차이</th>
+            <th class="tbl-cell">누적</th>
+            <th class="tbl-cell">신환</th>
+            <th class="tbl-cell">상담</th>
+            <th class="tbl-cell">리뷰</th>
           </tr>
         </thead>
         <tbody>
@@ -371,7 +371,7 @@ async function renderKpiDaily(body, actions) {
   const today = new Date().toISOString().slice(0,10);
   let selectedDate = today;
   
-  body.innerHTML = `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  body.innerHTML = `<div class="mod-empty"><span class="loading-spinner"></span></div>`;
   
   async function loadRecord(date) {
     selectedDate = date;
@@ -520,7 +520,7 @@ async function renderKpiTargets(body, actions) {
   let selectedMonth = now.toISOString().slice(0,7);
   let hospitalConfig = null;
   
-  body.innerHTML = `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`;
+  body.innerHTML = `<div class="mod-empty"><span class="loading-spinner"></span></div>`;
   
   try {
     hospitalConfig = await api('/api/protected/hospital/settings');

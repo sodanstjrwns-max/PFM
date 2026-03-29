@@ -271,6 +271,117 @@ export async function verifyOwnershipViaParent(
 }
 
 /* ═══ File Upload Validation ═══ */
+
+/* ═══ API Response Cache (Worker-compatible) ═══ */
+// In-memory cache for GET requests (per-isolate, resets on deployment)
+// Designed to be swappable with KV for production
+const _cache = new Map<string, { data: string; headers: Record<string, string>; exp: number }>()
+const MAX_CACHE_ENTRIES = 1000
+const CACHE_CLEANUP_THRESHOLD = 800
+
+function cleanCache() {
+  if (_cache.size < CACHE_CLEANUP_THRESHOLD) return
+  const now = Date.now()
+  for (const [key, val] of _cache) {
+    if (val.exp < now) _cache.delete(key)
+  }
+  // If still too big, remove oldest half
+  if (_cache.size > MAX_CACHE_ENTRIES) {
+    const entries = [..._cache.entries()].sort((a, b) => a[1].exp - b[1].exp)
+    entries.slice(0, Math.floor(entries.length / 2)).forEach(([k]) => _cache.delete(k))
+  }
+}
+
+// Cache TTLs for different endpoint patterns (seconds)
+const CACHE_RULES: Array<{ pattern: RegExp; ttl: number }> = [
+  // Dashboard/stats - cache 30s (frequently changes)
+  { pattern: /\/dashboard$/, ttl: 30 },
+  { pattern: /\/briefing$/, ttl: 60 },
+  // KPI/stats - cache 60s
+  { pattern: /\/kpi\/dashboard/, ttl: 60 },
+  { pattern: /\/kpi\/stats/, ttl: 60 },
+  { pattern: /\/stats/, ttl: 45 },
+  // Funnel analytics - cache 120s
+  { pattern: /\/funnel\/analytics/, ttl: 120 },
+  // Hospital settings - cache 300s (rarely changes)
+  { pattern: /\/hospital\/settings/, ttl: 300 },
+  // Categories - cache 300s (rarely changes)
+  { pattern: /\/categories\//, ttl: 300 },
+  // Gamification ranking - cache 60s
+  { pattern: /\/gamification\/ranking/, ttl: 60 },
+  // Review dashboard - cache 60s
+  { pattern: /\/review-mgmt\/dashboard/, ttl: 60 },
+]
+
+function getCacheTTL(path: string): number {
+  for (const rule of CACHE_RULES) {
+    if (rule.pattern.test(path)) return rule.ttl
+  }
+  return 0 // No caching for unmatched routes
+}
+
+export function apiCacheMiddleware(app: AppType) {
+  app.use('/api/protected/*', async (c, next) => {
+    // Only cache GET requests
+    if (c.req.method !== 'GET') {
+      // Invalidate cache for this hospital on write operations
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(c.req.method)) {
+        const user = (c as any).get('user')
+        if (user?.hospitalId) {
+          invalidateCacheForHospital(user.hospitalId)
+        }
+      }
+      await next()
+      return
+    }
+
+    const ttl = getCacheTTL(c.req.path)
+    if (ttl === 0) {
+      await next()
+      return
+    }
+
+    const user = (c as any).get('user')
+    const hospitalId = user?.hospitalId || 'anon'
+    const cacheKey = `${hospitalId}:${c.req.path}:${c.req.url.split('?')[1] || ''}`
+    
+    // Check cache
+    const cached = _cache.get(cacheKey)
+    if (cached && cached.exp > Date.now()) {
+      c.header('X-Cache', 'HIT')
+      c.header('Content-Type', 'application/json')
+      return c.body(cached.data)
+    }
+
+    // Pass through and capture response
+    await next()
+
+    // Cache the response
+    try {
+      const body = await (c.res as any).clone().text()
+      if (c.res.status === 200 && body) {
+        cleanCache()
+        _cache.set(cacheKey, {
+          data: body,
+          headers: { 'Content-Type': 'application/json' },
+          exp: Date.now() + ttl * 1000,
+        })
+        c.header('X-Cache', 'MISS')
+      }
+    } catch(e) {
+      // Silently fail caching
+    }
+  })
+}
+
+function invalidateCacheForHospital(hospitalId: string) {
+  const prefix = hospitalId + ':'
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) _cache.delete(key)
+  }
+}
+
+/* ═══ File Upload Validation (below) ═══ */
 const ALLOWED_FILE_TYPES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],

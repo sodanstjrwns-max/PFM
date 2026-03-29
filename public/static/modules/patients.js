@@ -36,7 +36,7 @@ function renderAddressSelector(prefix, sido, sigungu, detail, styles) {
   const { ls, ss, is } = styles;
   const sigunguList = sido ? (ADDR_DATA[sido] || []) : [];
   return `
-    <div style="margin-bottom:12px">
+    <div class="mb-12">
       <label style="${ls}">📍 주소지</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <select id="${prefix}_sido" name="addr_sido" style="${ss}">
@@ -133,7 +133,7 @@ async function renderPatients(body, actions) {
     ${isManager ? '<button class="btn btn-primary btn-sm" id="addPatientBtn">➕ 환자 등록</button>' : ''}
   `;
   
-  body.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   // 스태프 프리셋 로드
   let staffData = null;
@@ -181,7 +181,7 @@ async function renderPatients(body, actions) {
     const activeFilters = Object.entries(filters).filter(([k,v]) => v && k !== 'status');
     
     body.innerHTML = `
-      <div style="margin-bottom:16px">
+      <div class="mb-16">
         <!-- 검색 + 필터 바 -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
           <div style="flex:1;min-width:200px;position:relative">
@@ -193,7 +193,7 @@ async function renderPatients(body, actions) {
           <button class="btn btn-sm" id="ptFilterToggle" style="white-space:nowrap">
             🎛️ 필터 ${activeFilters.length > 0 ? `<span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px">${activeFilters.length}</span>` : ''}
           </button>
-          <select id="ptStatusFilter" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-card)">
+          <select id="ptStatusFilter" class="input-sm">
             <option value="active" ${filters.status==='active'?'selected':''}>활성 환자</option>
             <option value="" ${!filters.status?'selected':''}>전체</option>
             <option value="inactive" ${filters.status==='inactive'?'selected':''}>비활성</option>
@@ -333,12 +333,12 @@ async function renderPatients(body, actions) {
       <!-- 페이지네이션 -->
       ${totalPages > 1 ? `
       <div style="display:flex;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap">
-        <button class="btn btn-sm" id="ptPagePrev" ${page===0?'disabled':''} style="font-size:12px">◀ 이전</button>
+        <button class="btn btn-sm" id="ptPagePrev" ${page===0?'disabled':''} class="text-base">◀ 이전</button>
         ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
           const pg = totalPages <= 10 ? i : Math.max(0, Math.min(page - 4, totalPages - 10)) + i;
           return `<button class="btn btn-sm pt-page-btn" data-page="${pg}" style="font-size:12px;${pg===page?'background:var(--primary);color:#fff':''}">${pg+1}</button>`;
         }).join('')}
-        <button class="btn btn-sm" id="ptPageNext" ${page>=totalPages-1?'disabled':''} style="font-size:12px">다음 ▶</button>
+        <button class="btn btn-sm" id="ptPageNext" ${page>=totalPages-1?'disabled':''} class="text-base">다음 ▶</button>
       </div>` : ''}
     `;
     
@@ -476,9 +476,9 @@ function openPatientForm(patient, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#3b82f6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">기본</span> 환자 기본 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
-              <label style="${ls}">👤 환자 성함 <span style="color:#ef4444">*</span></label>
+              <label style="${ls}">👤 환자 성함 <span class="text-danger">*</span></label>
               <input type="text" name="patient_name" value="${esc(p.patient_name||'')}" required placeholder="환자명" style="${is};font-weight:700">
             </div>
             <div>
@@ -486,7 +486,7 @@ function openPatientForm(patient, staffData, onSave) {
               <input type="text" name="chart_number" value="${esc(p.chart_number||'')}" placeholder="예: 741003" style="${is}">
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">📞 연락처</label>
               <input type="tel" name="phone" value="${esc(p.phone||'')}" placeholder="010-0000-0000" style="${is}">
@@ -496,7 +496,7 @@ function openPatientForm(patient, staffData, onSave) {
               <input type="date" name="birth_date" value="${p.birth_date||''}" style="${is}">
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="grid-2">
             <div>
               <label style="${ls}">⚧ 성별</label>
               <select name="gender" style="${ss}">
@@ -506,7 +506,7 @@ function openPatientForm(patient, staffData, onSave) {
               </select>
             </div>
             <div>
-              <label style="${ls}">🏷️ 환자 구분 <span style="color:#ef4444">*</span></label>
+              <label style="${ls}">🏷️ 환자 구분 <span class="text-danger">*</span></label>
               <select name="patient_type" style="${ss};font-weight:700;${!isEdit?'border-color:#3b82f6':''}">
                 <option value="new" ${(p.patient_type||'new')==='new'?'selected':''}>🔵 신환</option>
                 <option value="existing" ${p.patient_type==='existing'?'selected':''}>🟢 구환</option>
@@ -520,7 +520,7 @@ function openPatientForm(patient, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#22c55e;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">내원</span> 내원 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">📅 최초 내원일</label>
               <input type="date" name="first_visit_date" value="${p.first_visit_date || new Date().toISOString().slice(0,10)}" style="${is}">
@@ -530,8 +530,8 @@ function openPatientForm(patient, staffData, onSave) {
               <input type="date" name="last_visit_date" value="${p.last_visit_date || ''}" style="${is}">
             </div>
           </div>
-          <div style="margin-bottom:12px">
-            <label style="${ls}">🛤️ 내원 경로 <span style="color:#ef4444">*</span></label>
+          <div class="mb-12">
+            <label style="${ls}">🛤️ 내원 경로 <span class="text-danger">*</span></label>
             <select name="visit_source" style="${ss};border-color:${p.visit_source ? 'var(--border)' : '#f59e0b'};font-weight:600">
               <option value="">-- 내원 경로 선택 --</option>
               <optgroup label="👥 소개">
@@ -545,7 +545,7 @@ function openPatientForm(patient, staffData, onSave) {
               </optgroup>
             </select>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">📝 경로 상세</label>
               <input type="text" name="visit_source_detail" value="${esc(p.visit_source_detail||'')}" placeholder="예: 네이버 '강남 임플란트'" style="${is}">
@@ -574,7 +574,7 @@ function openPatientForm(patient, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#8b5cf6;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">진료</span> 진료 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">🏥 진료 영역</label>
               <select name="treatment_area" style="${ss}">
@@ -589,7 +589,7 @@ function openPatientForm(patient, staffData, onSave) {
               </select>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">👩‍⚕️ 담당 상담사</label>
               <select name="assigned_counselor" style="${ss}">
@@ -610,7 +610,7 @@ function openPatientForm(patient, staffData, onSave) {
           <div style="font-size:13px;font-weight:800;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px">
             <span style="background:#06b6d4;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px">기타</span> 추가 정보
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="grid-2 mb-12">
             <div>
               <label style="${ls}">💛 카카오 등록</label>
               <select name="kakao_registered" style="${ss}">
@@ -685,7 +685,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
   showModal();
   const mc = document.getElementById('modalContent');
   mc.style.maxWidth = '640px';
-  mc.innerHTML = '<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>';
+  mc.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   try {
     const p = await api(`/api/protected/patients/${patientId}`);
@@ -709,20 +709,20 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
         <!-- 기본 정보 -->
         <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:12px">
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;font-size:12px">
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">차트번호</span><strong>${esc(p.chart_number||'-')}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">연락처</span><strong>${esc(p.phone||'-')}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">생년월일</span><strong>${fmtDate(p.birth_date)||'-'}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">성별</span><strong>${p.gender==='male'?'남성':p.gender==='female'?'여성':'-'}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">진료 영역</span><strong>${esc(areaLabel)}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">내원 경로</span><strong>${esc(sourceLabel)}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">📍 주소지</span><strong>${esc(addrFull)}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">상담의</span><strong>${esc(p.primary_doctor||'-')}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">상담사</span><strong>${esc(p.assigned_counselor||'-')}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">데스크</span><strong>${esc(p.desk_staff||'-')}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">최초내원</span><strong>${fmtDate(p.first_visit_date)}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">최근내원</span><strong>${fmtDate(p.last_visit_date)}</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">내원횟수</span><strong>${p.visit_count||1}회</strong></div>
-            <div><span style="color:var(--text-muted);display:block;font-size:10px;margin-bottom:2px">카카오</span><strong>${p.kakao_registered||'-'}</strong></div>
+            <div><span class="mod-sub">차트번호</span><strong>${esc(p.chart_number||'-')}</strong></div>
+            <div><span class="mod-sub">연락처</span><strong>${esc(p.phone||'-')}</strong></div>
+            <div><span class="mod-sub">생년월일</span><strong>${fmtDate(p.birth_date)||'-'}</strong></div>
+            <div><span class="mod-sub">성별</span><strong>${p.gender==='male'?'남성':p.gender==='female'?'여성':'-'}</strong></div>
+            <div><span class="mod-sub">진료 영역</span><strong>${esc(areaLabel)}</strong></div>
+            <div><span class="mod-sub">내원 경로</span><strong>${esc(sourceLabel)}</strong></div>
+            <div><span class="mod-sub">📍 주소지</span><strong>${esc(addrFull)}</strong></div>
+            <div><span class="mod-sub">상담의</span><strong>${esc(p.primary_doctor||'-')}</strong></div>
+            <div><span class="mod-sub">상담사</span><strong>${esc(p.assigned_counselor||'-')}</strong></div>
+            <div><span class="mod-sub">데스크</span><strong>${esc(p.desk_staff||'-')}</strong></div>
+            <div><span class="mod-sub">최초내원</span><strong>${fmtDate(p.first_visit_date)}</strong></div>
+            <div><span class="mod-sub">최근내원</span><strong>${fmtDate(p.last_visit_date)}</strong></div>
+            <div><span class="mod-sub">내원횟수</span><strong>${p.visit_count||1}회</strong></div>
+            <div><span class="mod-sub">카카오</span><strong>${p.kakao_registered||'-'}</strong></div>
           </div>
           ${p.visit_reason ? `<div style="margin-top:12px;font-size:12px"><span style="color:var(--text-muted);font-size:10px">방문 이유</span><br><strong>${esc(p.visit_reason)}</strong></div>` : ''}
           ${p.referrer_name ? `<div style="margin-top:8px;font-size:12px"><span style="color:var(--text-muted);font-size:10px">소개자</span><br><strong>${esc(p.referrer_name)}</strong></div>` : ''}
@@ -730,7 +730,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
         </div>
         
         <!-- 상담 이력 -->
-        <div style="margin-bottom:12px">
+        <div class="mb-12">
           <h4 style="font-size:14px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:6px">
             📋 상담 이력 <span style="font-size:11px;font-weight:500;color:var(--text-muted)">${consults.length}건</span>
           </h4>
@@ -742,7 +742,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
                 <th style="padding:8px;text-align:left">상담의</th>
                 <th style="padding:8px;text-align:left">상담사</th>
                 <th style="padding:8px;text-align:right">비용계획</th>
-                <th style="padding:8px;text-align:center">확정</th>
+                <th class="tbl-cell-center">확정</th>
               </tr></thead>
               <tbody>
                 ${consults.map(c => `<tr style="border-bottom:1px solid var(--border)">
@@ -750,7 +750,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
                   <td style="padding:6px 8px">${esc(c.doctor_name||'-')}</td>
                   <td style="padding:6px 8px">${esc(c.counselor_name||'-')}</td>
                   <td style="padding:6px 8px;text-align:right">${c.planned_amount ? (c.planned_amount/10000).toLocaleString()+'만' : '-'}</td>
-                  <td style="padding:6px 8px;text-align:center">${c.treatment_confirmed==='O'?'<span style="color:#22c55e;font-weight:700">O</span>':c.treatment_confirmed==='X'?'<span style="color:#ef4444">X</span>':'-'}</td>
+                  <td style="padding:6px 8px;text-align:center">${c.treatment_confirmed==='O'?'<span style="color:#22c55e;font-weight:700">O</span>':c.treatment_confirmed==='X'?'<span class="text-danger">X</span>':'-'}</td>
                 </tr>`).join('')}
               </tbody>
             </table>

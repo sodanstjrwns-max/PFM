@@ -7,7 +7,7 @@ async function renderScripts(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addScriptBtn">${ICONS.plus} 스크립트 추가</button>`;
   body.innerHTML = `
     <div class="category-tabs" id="scrCatTabs"></div>
-    <div id="scrContent"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+    <div id="scrContent"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   let cats = [];
   let selectedCat = '';

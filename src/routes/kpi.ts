@@ -365,4 +365,184 @@ kpi.delete('/staff-presets/:id', requireRole('admin','manager'), async (c) => {
   return c.json({ success: true })
 })
 
+/* ══════════════════════════════════════
+   🏆 병원 벤치마킹 — 동일 규모 병원 대비 KPI 비교
+   ══════════════════════════════════════ */
+kpi.get('/benchmark', async (c) => {
+  const user = c.get('user')!
+  const yearMonth = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0, 7), 10)
+
+  // 1) 우리 병원 통계
+  const myStats: any = await c.env.DB.prepare(`
+    SELECT 
+      COUNT(*) as days_recorded,
+      COALESCE(SUM(revenue_non_insurance + revenue_insurance), 0) as total_revenue,
+      COALESCE(SUM(new_patients), 0) as new_patients,
+      COALESCE(SUM(existing_patients), 0) as existing_patients,
+      COALESCE(SUM(total_consultations), 0) as total_consult,
+      COALESCE(SUM(core_treat_1_consult), 0) as t1_consult,
+      COALESCE(SUM(core_treat_1_agree), 0) as t1_agree,
+      COALESCE(SUM(core_treat_2_consult), 0) as t2_consult,
+      COALESCE(SUM(core_treat_2_agree), 0) as t2_agree,
+      COALESCE(SUM(inbound_calls), 0) as inbound_calls,
+      COALESCE(SUM(outbound_calls), 0) as outbound_calls,
+      COALESCE(SUM(cancel_count), 0) as cancel_count,
+      COALESCE(SUM(complaint_count), 0) as complaint_count,
+      COALESCE(SUM(referral_new), 0) as referral_new,
+      COALESCE(SUM(naver_reviews), 0) as naver_reviews,
+      ROUND(AVG(CASE WHEN avg_wait_time > 0 THEN avg_wait_time END), 1) as avg_wait_time
+    FROM daily_records WHERE hospital_id = ? AND record_date LIKE ?
+  `).bind(user.hospitalId, yearMonth + '%').first()
+
+  // 2) 전체 병원 집계 (익명)
+  const allStats: any = await c.env.DB.prepare(`
+    SELECT 
+      COUNT(DISTINCT hospital_id) as hospital_count,
+      ROUND(AVG(monthly_revenue)) as avg_revenue,
+      ROUND(AVG(monthly_new_patients), 1) as avg_new_patients,
+      ROUND(AVG(monthly_total_patients), 1) as avg_total_patients,
+      ROUND(AVG(monthly_consult), 1) as avg_consult,
+      ROUND(AVG(conv_rate), 1) as avg_conv_rate,
+      ROUND(AVG(avg_wait), 1) as avg_wait,
+      ROUND(AVG(monthly_cancel), 1) as avg_cancel,
+      ROUND(AVG(monthly_complaint), 1) as avg_complaint,
+      ROUND(AVG(monthly_referral), 1) as avg_referral,
+      ROUND(AVG(monthly_reviews), 1) as avg_reviews,
+      ROUND(AVG(monthly_inbound), 1) as avg_inbound,
+      ROUND(AVG(monthly_outbound), 1) as avg_outbound
+    FROM (
+      SELECT 
+        hospital_id,
+        SUM(revenue_non_insurance + revenue_insurance) as monthly_revenue,
+        SUM(new_patients) as monthly_new_patients,
+        SUM(existing_patients + new_patients) as monthly_total_patients,
+        SUM(total_consultations) as monthly_consult,
+        CASE WHEN SUM(total_consultations) > 0 
+          THEN ROUND(SUM(core_treat_1_agree + core_treat_2_agree + core_treat_3_agree) * 100.0 / SUM(total_consultations), 1)
+          ELSE 0 END as conv_rate,
+        AVG(CASE WHEN avg_wait_time > 0 THEN avg_wait_time END) as avg_wait,
+        SUM(cancel_count) as monthly_cancel,
+        SUM(complaint_count) as monthly_complaint,
+        SUM(referral_new) as monthly_referral,
+        SUM(naver_reviews) as monthly_reviews,
+        SUM(inbound_calls) as monthly_inbound,
+        SUM(outbound_calls) as monthly_outbound
+      FROM daily_records WHERE record_date LIKE ?
+      GROUP BY hospital_id
+      HAVING COUNT(*) >= 5
+    )
+  `).bind(yearMonth + '%').first()
+
+  // 3) 우리 병원의 전환율 계산
+  const myTotalConsult = (myStats?.t1_consult || 0) + (myStats?.t2_consult || 0)
+  const myTotalAgree = (myStats?.t1_agree || 0) + (myStats?.t2_agree || 0)
+  const myConvRate = myTotalConsult > 0 ? Math.round(myTotalAgree / myTotalConsult * 1000) / 10 : 0
+
+  // 4) 퍼센타일 계산 (우리 병원이 전체 중 어디에 위치하는지)
+  const revenueRank: any = await c.env.DB.prepare(`
+    SELECT COUNT(*) as below_count FROM (
+      SELECT hospital_id, SUM(revenue_non_insurance + revenue_insurance) as rev
+      FROM daily_records WHERE record_date LIKE ?
+      GROUP BY hospital_id HAVING COUNT(*) >= 5
+    ) WHERE rev < ?
+  `).bind(yearMonth + '%', myStats?.total_revenue || 0).first()
+
+  const hospitalCount = allStats?.hospital_count || 1
+  const percentile = hospitalCount > 1 
+    ? Math.round(((revenueRank?.below_count || 0) / hospitalCount) * 100) 
+    : 50
+
+  // 5) 비교 데이터 구성
+  const myDays = myStats?.days_recorded || 1
+  const indicators = [
+    {
+      key: 'revenue',
+      label: '월 매출',
+      myValue: myStats?.total_revenue || 0,
+      avgValue: allStats?.avg_revenue || 0,
+      format: 'money',
+      higherIsBetter: true,
+    },
+    {
+      key: 'new_patients',
+      label: '신환 수',
+      myValue: myStats?.new_patients || 0,
+      avgValue: allStats?.avg_new_patients || 0,
+      format: 'number',
+      higherIsBetter: true,
+    },
+    {
+      key: 'total_patients',
+      label: '총 환자 수',
+      myValue: (myStats?.new_patients || 0) + (myStats?.existing_patients || 0),
+      avgValue: allStats?.avg_total_patients || 0,
+      format: 'number',
+      higherIsBetter: true,
+    },
+    {
+      key: 'conv_rate',
+      label: '상담 전환율',
+      myValue: myConvRate,
+      avgValue: allStats?.avg_conv_rate || 0,
+      format: 'percent',
+      higherIsBetter: true,
+    },
+    {
+      key: 'wait_time',
+      label: '평균 대기시간',
+      myValue: myStats?.avg_wait_time || 0,
+      avgValue: allStats?.avg_wait || 0,
+      format: 'minutes',
+      higherIsBetter: false,
+    },
+    {
+      key: 'cancel',
+      label: '취소/노쇼',
+      myValue: myStats?.cancel_count || 0,
+      avgValue: allStats?.avg_cancel || 0,
+      format: 'number',
+      higherIsBetter: false,
+    },
+    {
+      key: 'complaint',
+      label: '컴플레인',
+      myValue: myStats?.complaint_count || 0,
+      avgValue: allStats?.avg_complaint || 0,
+      format: 'number',
+      higherIsBetter: false,
+    },
+    {
+      key: 'referral',
+      label: '소개 환자',
+      myValue: myStats?.referral_new || 0,
+      avgValue: allStats?.avg_referral || 0,
+      format: 'number',
+      higherIsBetter: true,
+    },
+    {
+      key: 'reviews',
+      label: '네이버 리뷰',
+      myValue: myStats?.naver_reviews || 0,
+      avgValue: allStats?.avg_reviews || 0,
+      format: 'number',
+      higherIsBetter: true,
+    },
+  ]
+
+  // Calculate diff percentage for each indicator
+  const enrichedIndicators = indicators.map(ind => {
+    const diff = ind.avgValue > 0 ? Math.round((ind.myValue - ind.avgValue) / ind.avgValue * 100) : 0
+    const isGood = ind.higherIsBetter ? diff >= 0 : diff <= 0
+    return { ...ind, diff, isGood }
+  })
+
+  return c.json({
+    month: yearMonth,
+    hospitalCount,
+    percentile,
+    daysRecorded: myDays,
+    indicators: enrichedIndicators,
+  })
+})
+
 export default kpi

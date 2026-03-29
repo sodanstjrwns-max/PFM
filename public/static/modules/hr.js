@@ -26,7 +26,7 @@ const statusLabel = {
 /* ─── HR Dashboard ─── */
 async function renderHRDashboard(body, actions) {
   actions.innerHTML = `<button class="btn btn-primary btn-sm" id="hrCheckBtn">⏰ 출퇴근 체크</button>`;
-  body.innerHTML = `<div id="hrDash" style="max-width:1100px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="hrDash" style="max-width:1100px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadDashboard() {
     const container = document.getElementById('hrDash');
@@ -42,7 +42,7 @@ async function renderHRDashboard(body, actions) {
         </div>
 
         <!-- 전체 요약 카드 -->
-        <div class="dashboard-grid" style="margin-bottom:24px">
+        <div class="dashboard-grid" class="mb-24">
           <div class="stat-card">
             <div class="stat-card-icon teal">${ICONS.users}</div>
             <div class="stat-card-body">
@@ -91,8 +91,8 @@ async function renderHRDashboard(body, actions) {
         </div>
 
         <!-- 팀별 현황 -->
-        <div style="margin-bottom:24px">
-          <div class="section-title" style="margin-bottom:12px">${ICONS.users}<span>팀별 현황</span></div>
+        <div class="mb-24">
+          <div class="section-title" class="mb-12">${ICONS.users}<span>팀별 현황</span></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px" id="teamCards">
             ${Object.entries(data.teams).map(([team, t]) => {
               const tl = teamLabels[team] || team;
@@ -120,7 +120,7 @@ async function renderHRDashboard(body, actions) {
 
         <!-- 직원 리스트 -->
         <div>
-          <div class="section-title" style="margin-bottom:12px">${ICONS.users}<span>직원 출근 현황</span></div>
+          <div class="section-title" class="mb-12">${ICONS.users}<span>직원 출근 현황</span></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px" id="memberCards">
             ${data.members.map(m => {
               const pe = positionEmoji[m.position] || '👤';
@@ -168,7 +168,7 @@ async function renderStaffManagement(body, actions) {
   const isAdmin = PFM.canManage();
   actions.innerHTML = isAdmin ? `<button class="btn btn-primary btn-sm" id="inviteStaffBtn">${ICONS.plus} 직원 초대</button>` : '';
 
-  body.innerHTML = `<div id="staffMgmt" style="max-width:1000px"><div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div></div>`;
+  body.innerHTML = `<div id="staffMgmt" style="max-width:1000px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
   async function loadStaff() {
     const container = document.getElementById('staffMgmt');
@@ -201,7 +201,7 @@ async function renderStaffManagement(body, actions) {
         </div>
 
         ${Object.entries(byTeam).map(([t, members]) => `
-          <div style="margin-bottom:20px">
+          <div class="mb-20">
             <div style="font-weight:700;font-size:14px;color:${teamColors[t]||'#6b7280'};margin-bottom:8px;padding-left:4px;border-left:3px solid ${teamColors[t]||'#6b7280'}">&nbsp;${teamLabels[t]||t} (${members.length}명)</div>
             <div style="display:grid;gap:6px">
               ${members.map(m => {
@@ -300,7 +300,7 @@ async function renderStaffManagement(body, actions) {
           const modal2 = document.getElementById('modalContent');
           modal2.innerHTML = `
             <div class="modal-header"><h3>✅ 초대 링크 생성 완료</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
-            <div class="modal-body" style="text-align:center">
+            <div class="modal-body" class="text-center">
               <div style="font-size:36px;font-weight:900;letter-spacing:6px;color:var(--primary);background:var(--primary-bg);padding:20px;border-radius:12px;margin:20px 0;font-family:monospace">${result.invite_code}</div>
               <div style="margin:16px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:flex;align-items:center;gap:8px">
                 <input class="form-input" id="invLinkInput" value="${inviteLink}" readonly style="flex:1;font-size:12px;background:transparent;border:none;padding:0;color:var(--text)">
@@ -392,7 +392,7 @@ function openStaffEditor(staffId, allStaff, reload) {
           ${dayKeys.map((d, i) => {
             const on = !!schedule[d];
             const s = schedule[d] || {start:'09:00',end:'18:00'};
-            return `<div style="text-align:center">
+            return `<div class="text-center">
               <label style="display:flex;align-items:center;gap:2px;margin-bottom:4px;justify-content:center;cursor:pointer">
                 <input type="checkbox" class="ed-sched-day" data-day="${d}" ${on?'checked':''}>
                 <span style="font-weight:600;font-size:12px">${dayLabels[i]}</span>
