@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "pfm-production",
-      "database_id": "local-dev"
+      "database_id": "6c00b105-d4da-42b4-81b3-428f3dedf86e"
     }
   ],
   "r2_buckets": [
