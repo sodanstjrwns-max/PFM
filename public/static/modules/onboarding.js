@@ -268,17 +268,18 @@ function renderSpecialties(el) {
   el.innerHTML = `
     <div class="ob-chip-grid">
       ${SPECIALTIES.map(s => `
-        <label class="ob-chip ${wizardData.specialties.includes(s.id) ? 'selected' : ''}" data-id="${s.id}">
-          <input type="checkbox" ${wizardData.specialties.includes(s.id) ? 'checked' : ''} style="display:none">
+        <div class="ob-chip ${wizardData.specialties.includes(s.id) ? 'selected' : ''}" data-id="${s.id}">
           <span class="ob-chip-icon">${s.icon}</span>
           <span>${s.label}</span>
-        </label>
+        </div>
       `).join('')}
     </div>
     <div class="ob-tip">💡 3~5개 선택을 추천합니다. 상담 스크립트, 비용 안내, 마케팅 분석에 활용됩니다.</div>`;
   
   el.querySelectorAll('.ob-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const id = chip.dataset.id;
       const idx = wizardData.specialties.indexOf(id);
       if (idx >= 0) { wizardData.specialties.splice(idx, 1); chip.classList.remove('selected'); }
@@ -294,10 +295,9 @@ function renderRegion(el) {
       <label class="ob-label">주요 환자 유입 지역 (복수 선택)</label>
       <div class="ob-chip-grid ob-chip-sm">
         ${REGIONS.map(r => `
-          <label class="ob-chip ob-chip-small ${wizardData.subRegions.includes(r) ? 'selected' : ''}" data-region="${r}">
-            <input type="checkbox" ${wizardData.subRegions.includes(r) ? 'checked' : ''} style="display:none">
+          <div class="ob-chip ob-chip-small ${wizardData.subRegions.includes(r) ? 'selected' : ''}" data-region="${r}">
             <span>${r}</span>
-          </label>
+          </div>
         `).join('')}
       </div>
     </div>
@@ -306,18 +306,19 @@ function renderRegion(el) {
       <label class="ob-label">타겟 환자층 (복수 선택)</label>
       <div class="ob-chip-grid">
         ${PATIENT_TARGETS.map(t => `
-          <label class="ob-chip ${wizardData.targetPatients.includes(t.id) ? 'selected' : ''}" data-target="${t.id}">
-            <input type="checkbox" ${wizardData.targetPatients.includes(t.id) ? 'checked' : ''} style="display:none">
+          <div class="ob-chip ${wizardData.targetPatients.includes(t.id) ? 'selected' : ''}" data-target="${t.id}">
             <span class="ob-chip-icon">${t.icon}</span>
             <span>${t.label}</span>
-          </label>
+          </div>
         `).join('')}
       </div>
     </div>
     <div class="ob-tip">💡 마케팅 유입 분석, 히트맵, 환자 퍼널 분석에 활용됩니다.</div>`;
   
   el.querySelectorAll('.ob-chip[data-region]').forEach(chip => {
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const r = chip.dataset.region;
       const idx = wizardData.subRegions.indexOf(r);
       if (idx >= 0) { wizardData.subRegions.splice(idx, 1); chip.classList.remove('selected'); }
@@ -326,7 +327,9 @@ function renderRegion(el) {
   });
   
   el.querySelectorAll('.ob-chip[data-target]').forEach(chip => {
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const t = chip.dataset.target;
       const idx = wizardData.targetPatients.indexOf(t);
       if (idx >= 0) { wizardData.targetPatients.splice(idx, 1); chip.classList.remove('selected'); }
