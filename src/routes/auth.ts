@@ -26,7 +26,7 @@ auth.post('/register', async (c) => {
   ).bind(uid, hid, sanitizeString(email, 200), hash, sanitizeString(name, 100), 'admin', 1, 'doctor', 'clinical', sanitizeString(phone||'', 20), hireDate, defaultSchedule).run()
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' }, secret)
-  return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName } })
+  return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName, onboardingCompleted: false } })
 })
 
 /* ─── Staff Join (invite code) ─── */
@@ -79,7 +79,7 @@ auth.post('/login', async (c) => {
   const { email, password } = await c.req.json()
   if (!email || !password) return c.json({ error: '이메일과 비밀번호를 입력해주세요' }, 400)
 
-  const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(sanitizeString(email, 200)).first()
+  const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name, h.onboarding_completed FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(sanitizeString(email, 200)).first()
   if (!row) {
     recordLoginFailure(ip)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
@@ -94,7 +94,7 @@ auth.post('/login', async (c) => {
   clearLoginAttempts(ip)
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
-  return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name } })
+  return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name, onboardingCompleted: !!row.onboarding_completed } })
 })
 
 export default auth

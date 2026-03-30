@@ -523,6 +523,13 @@ function getNavConfig() {
 /* ─── Render Main App ─── */
 function renderApp() {
   if (!state.user) { renderAuth(); return; }
+  
+  // Check onboarding for admin users
+  if (state.user.role === 'admin' && state.user.onboardingCompleted === false) {
+    renderOnboardingScreen();
+    return;
+  }
+  
   document.body.classList.add('app-loaded');
   const app = document.getElementById('app');
   const nav = getNavConfig();
@@ -999,6 +1006,40 @@ async function withErrorBoundary(container, asyncFn, skeletonType) {
 }
 
 /* ─── PFM Global Namespace (모듈 간 공유) ─── */
+/* ─── Onboarding Screen ─── */
+async function renderOnboardingScreen() {
+  document.body.classList.remove('app-loaded');
+  const app = document.getElementById('app');
+  app.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:linear-gradient(135deg,#f0fdfa,#e0f2fe,#faf5ff)"><span class="loading-spinner"></span></div>';
+  
+  // Load onboarding chunk
+  const chunkPath = '/static/dist/chunks/onboarding.js';
+  try {
+    if (!window.PFM?.onboarding) {
+      const script = document.createElement('script');
+      script.src = chunkPath;
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+    if (window.PFM?.onboarding?.renderOnboarding) {
+      window.PFM.onboarding.renderOnboarding(app);
+    } else {
+      console.error('Onboarding module not loaded');
+      state.user.onboardingCompleted = true;
+      localStorage.setItem('pfm_user', JSON.stringify(state.user));
+      renderApp();
+    }
+  } catch(e) {
+    console.error('Failed to load onboarding:', e);
+    state.user.onboardingCompleted = true;
+    localStorage.setItem('pfm_user', JSON.stringify(state.user));
+    renderApp();
+  }
+}
+
 window.PFM = {
   // State & Core
   state, api, apiForm, toast, showToast: toast, navigate, logout,

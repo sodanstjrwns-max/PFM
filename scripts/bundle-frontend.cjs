@@ -27,6 +27,7 @@ const CHUNK_FILES = [
   'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
   'modules/heatmap.js', 'modules/briefing.js', 'modules/gamification.js', 'modules/reviews.js',
   'modules/chat.js',
+  'modules/onboarding.js',
 ];
 
 // Module-to-page mapping (which pages need which module)
@@ -61,6 +62,7 @@ const MODULE_PAGE_MAP = {
   'modules/gamification.js': ['gamification'],
   'modules/reviews.js': ['review_mgmt'],
   'modules/chat.js': ['messenger'],
+  'modules/onboarding.js': ['onboarding'],
 };
 
 // Reverse map: page → chunk file

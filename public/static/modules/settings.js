@@ -70,11 +70,30 @@ async function renderSettings(body) {
 
       <div class="section-title">${ICONS.users}<span>계정</span></div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+        ${isAdmin ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light)">
+          <div>
+            <strong style="font-size:14px">🎓 온보딩 다시 실행</strong>
+            <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0">병원 기본 설정을 처음부터 다시 진행합니다</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="rerunOnboarding">온보딩 재실행</button>
+        </div>
+        ` : ''}
         <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">로그아웃하면 다시 로그인해야 합니다.</p>
         <button class="btn btn-danger" id="settingsLogout">${ICONS.logout} 로그아웃</button>
       </div>
     </div>`;
   document.getElementById('settingsLogout').addEventListener('click', logout);
+  document.getElementById('rerunOnboarding')?.addEventListener('click', async () => {
+    if (!confirm('온보딩을 다시 실행하시겠습니까?')) return;
+    try {
+      await api('/api/protected/onboarding/reset', { method: 'POST', json: {} });
+      state.user.onboardingCompleted = false;
+      localStorage.setItem('pfm_user', JSON.stringify(state.user));
+      toast('온보딩을 재실행합니다', 'info');
+      PFM.renderApp();
+    } catch(e) { toast('오류: ' + e.message, 'error'); }
+  });
 
   // 데이터 로드
   try {

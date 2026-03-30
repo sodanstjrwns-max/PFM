@@ -29,6 +29,7 @@ import briefing from './routes/briefing'
 import gamification from './routes/gamification'
 import reviewMgmt from './routes/review-management'
 import chat from './routes/chat'
+import onboarding from './routes/onboarding'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -103,6 +104,7 @@ app.route('/api/protected/briefing', briefing)       // 일일 브리핑
 app.route('/api/protected/gamification', gamification) // 게이미피케이션
 app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
 app.route('/api/protected/chat', chat)               // 원내 메신저
+app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
 
 /* ═══ Me routes (moved from HR for cleaner API) ═══ */
 app.get('/api/protected/me', async (c) => {
