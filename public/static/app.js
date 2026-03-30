@@ -121,7 +121,14 @@ function navigate(page) {
   state.currentPage = page;
   // Stop any active polling when navigating
   if (window._pfmStopPolling) window._pfmStopPolling();
-  renderApp();
+  // Re-render sidebar to show active state, then load page
+  const nav = getNavConfig();
+  const navEl = document.getElementById('sidebarNav');
+  if (navEl) renderSidebar(nav);
+  renderPage(); // async - loads chunk if needed then renders
+  // Close mobile sidebar
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) sidebar.classList.remove('open');
 }
 
 /* ─── Auth ─── */
@@ -568,7 +575,7 @@ function renderApp() {
   <div id="presentationOverlay"></div>`;
 
   renderSidebar(nav);
-  renderPage();
+  renderPage(); // async but fire-and-forget is OK here
 
   // User popup menu
   const userEl = document.getElementById('sidebarUser');
@@ -767,8 +774,44 @@ function openPresentation(urls, startIdx) {
   document.addEventListener('keydown', onKey);
 }
 
+/* ─── Lazy Module Loader ─── */
+const _chunkLoaded = {};
+const _chunkLoading = {};
+const PAGE_CHUNK_MAP = {};  // Will be populated by build script via window._PAGE_CHUNK_MAP
+
+async function loadModuleForPage(page) {
+  const map = window._PAGE_CHUNK_MAP || PAGE_CHUNK_MAP;
+  const chunk = map[page];
+  if (!chunk || _chunkLoaded[chunk]) return;
+  if (_chunkLoading[chunk]) return _chunkLoading[chunk];
+  _chunkLoading[chunk] = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/static/dist/chunks/' + chunk + '.js';
+    script.onload = () => { _chunkLoaded[chunk] = true; delete _chunkLoading[chunk]; resolve(); };
+    script.onerror = () => { delete _chunkLoading[chunk]; reject(new Error('모듈 로드 실패: ' + chunk)); };
+    document.head.appendChild(script);
+  });
+  return _chunkLoading[chunk];
+}
+
 /* ─── Page Router (모듈 기반) ─── */
-function renderPage() {
+async function renderPage() {
+  const page = state.currentPage;
+  const body = document.getElementById('mainBody');
+  const actions = document.getElementById('headerActions');
+
+  // Lazy load module if needed
+  const map = window._PAGE_CHUNK_MAP || {};
+  if (page !== 'dashboard' && map[page] && !_chunkLoaded[map[page]]) {
+    if (body) body.innerHTML = '<div style="padding:24px"><div class="skeleton skeleton-stat" style="margin-bottom:16px"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>';
+    try {
+      await loadModuleForPage(page);
+    } catch(e) {
+      if (body) body.innerHTML = '<div class="error-boundary"><div class="error-boundary-icon">⚠️</div><div class="error-boundary-title">모듈 로드 실패</div><div class="error-boundary-msg">' + esc(e.message) + '</div><button class="error-boundary-btn" onclick="PFM.renderPage()">🔄 다시 시도</button></div>';
+      return;
+    }
+  }
+
   const M = window.PFM.modules;
   const titles = {
     dashboard: ['대시보드', ICONS.dashboard],
@@ -827,9 +870,6 @@ function renderPage() {
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
   document.getElementById('headerTitle').innerHTML = `${icon}<span>${title}</span>`;
-
-  const body = document.getElementById('mainBody');
-  const actions = document.getElementById('headerActions');
   actions.innerHTML = '';
 
   switch (state.currentPage) {

@@ -92,50 +92,10 @@ async function build() {
     totalInput += content.length;
   }
 
-  // Add lazy loader to core
+  // Add page-to-chunk map for lazy loader (app.js reads window._PAGE_CHUNK_MAP)
   const lazyLoaderCode = `
-/* ═══ Lazy Module Loader ═══ */
-(function() {
-  const _loaded = {};
-  const _loading = {};
-  const PAGE_CHUNK_MAP = ${JSON.stringify(pageToChunk)};
-  
-  window.PFM._loadModule = async function(page) {
-    const chunk = PAGE_CHUNK_MAP[page];
-    if (!chunk || _loaded[chunk]) return true;
-    if (_loading[chunk]) return _loading[chunk];
-    
-    _loading[chunk] = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = '/static/dist/chunks/' + chunk + '.js';
-      script.onload = () => { _loaded[chunk] = true; delete _loading[chunk]; resolve(true); };
-      script.onerror = () => { delete _loading[chunk]; reject(new Error('모듈 로드 실패: ' + chunk)); };
-      document.head.appendChild(script);
-    });
-    return _loading[chunk];
-  };
-
-  // Override renderPage to lazy-load
-  const _origRenderPage = window.PFM.renderPage;
-  window.PFM.renderPage = async function() {
-    const page = window.PFM.state.currentPage;
-    const body = document.getElementById('mainBody');
-    const actions = document.getElementById('headerActions');
-    
-    if (page !== 'dashboard' && PAGE_CHUNK_MAP[page] && !_loaded[PAGE_CHUNK_MAP[page]]) {
-      // Show skeleton while loading
-      if (body) body.innerHTML = '<div style="padding:24px"><div class="skeleton skeleton-stat" style="margin-bottom:16px"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>';
-      try {
-        await window.PFM._loadModule(page);
-      } catch(e) {
-        if (body) body.innerHTML = '<div class="error-boundary"><div class="error-boundary-icon">⚠️</div><div class="error-boundary-title">모듈 로드 실패</div><div class="error-boundary-msg">' + e.message + '</div><button class="error-boundary-btn" onclick="PFM.renderPage()">다시 시도</button></div>';
-        return;
-      }
-    }
-    // Call original
-    _origRenderPage.call(window.PFM);
-  };
-})();
+/* ═══ Page-to-Chunk Map ═══ */
+window._PAGE_CHUNK_MAP = ${JSON.stringify(pageToChunk)};
 `;
 
   coreBundle += lazyLoaderCode;
