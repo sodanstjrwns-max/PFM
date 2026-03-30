@@ -151,6 +151,7 @@ function logout() {
 
 /* ─── Render Auth Screen ─── */
 function renderAuth() {
+  document.body.classList.remove('app-loaded');
   const app = document.getElementById('app');
   app.innerHTML = `
   <div class="auth-screen">
@@ -166,39 +167,36 @@ function renderAuth() {
       </div>
       <div class="auth-error" id="authError"></div>
       <form id="authForm" class="auth-form">
-        <div class="form-group" id="regHospitalField" class="hidden">
+        <div class="form-group hidden" id="regHospitalField">
           <label>병원명 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regHospital" placeholder="예: 서울비디치과">
         </div>
-        <div class="form-group" id="regBusinessField" class="hidden">
+        <div class="form-group hidden" id="regBusinessField">
           <label>사업자등록번호</label>
           <input class="form-input" type="text" id="regBusinessNumber" placeholder="000-00-00000" maxlength="12">
         </div>
-        <div class="form-group" id="regHospitalPhoneField" class="hidden">
+        <div class="form-group hidden" id="regHospitalPhoneField">
           <label>병원 전화번호</label>
           <input class="form-input" type="tel" id="regHospitalPhone" placeholder="02-000-0000">
         </div>
-        <div class="form-group" id="regAddressField" class="hidden">
+        <div class="form-group hidden" id="regAddressField">
           <label>병원 주소</label>
           <input class="form-input" type="text" id="regAddress" placeholder="예: 서울시 강남구 테헤란로 123">
         </div>
-        <div class="form-group" id="regNameField" class="hidden">
+        <div class="form-group hidden" id="regNameField">
           <label>이름 <span style="color:var(--danger)">*</span></label>
           <input class="form-input" type="text" id="regName" placeholder="대표원장 성함">
         </div>
-        <div class="form-group" id="regPhoneField" class="hidden">
+        <div class="form-group hidden" id="regPhoneField">
           <label>원장 연락처</label>
           <input class="form-input" type="tel" id="regPhone" placeholder="010-0000-0000">
         </div>
-        <div class="form-group" id="inviteCodeField" class="hidden">
+        <div class="form-group hidden" id="inviteCodeField">
           <label>초대 코드</label>
           <input class="form-input" type="text" id="inviteCode" placeholder="관리자에게 받은 코드" style="text-transform:uppercase">
           <div id="inviteInfo" style="font-size:12px;color:var(--primary);margin-top:4px"></div>
         </div>
-        <div class="form-group" id="regNameField" class="hidden">
-          <label>이름</label>
-          <input class="form-input" type="text" id="regName" placeholder="이름">
-        </div>
+
         <div class="form-group">
           <label>이메일</label>
           <input class="form-input" type="email" id="authEmail" placeholder="admin@hospital.com" required>
@@ -207,11 +205,11 @@ function renderAuth() {
           <label>비밀번호</label>
           <input class="form-input" type="password" id="authPassword" placeholder="••••••••" required>
         </div>
-        <div class="form-group" id="joinPhoneField" class="hidden">
+        <div class="form-group hidden" id="joinPhoneField">
           <label>연락처</label>
           <input class="form-input" type="tel" id="joinPhone" placeholder="010-0000-0000">
         </div>
-        <div id="joinPositionTeam" class="hidden" class="form-grid">
+        <div id="joinPositionTeam" class="hidden form-grid">
           <div class="form-group">
             <label>직급</label>
             <select class="form-input" id="joinPosition">
@@ -254,11 +252,9 @@ function renderAuth() {
 
   // 초대 링크로 진입 시 직원가입 화면 자동 표시
   if (joinMatch) {
-    document.getElementById('inviteCodeField').style.display = '';
-    document.getElementById('regNameField').style.display = '';
-    document.getElementById('joinPhoneField').style.display = '';
-    document.getElementById('joinPositionTeam').style.display = '';
-    document.getElementById('joinScheduleField').style.display = '';
+    ['inviteCodeField','regNameField','joinPhoneField','joinPositionTeam','joinScheduleField'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.classList.remove('hidden');
+    });
     document.getElementById('authSubmitBtn').textContent = '직원 가입';
     document.getElementById('inviteCode').value = joinMatch[1].toUpperCase();
     // 탭 숨기고 헤더 변경
@@ -308,16 +304,17 @@ function renderAuth() {
     tab.addEventListener('click', () => {
       mode = tab.dataset.tab;
       tabs.forEach(t => t.classList.toggle('active', t === tab));
-      document.getElementById('regHospitalField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regBusinessField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regHospitalPhoneField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regAddressField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('regNameField').style.display = mode !== 'login' ? '' : 'none';
-      document.getElementById('regPhoneField').style.display = mode === 'register' ? '' : 'none';
-      document.getElementById('inviteCodeField').style.display = mode === 'join' ? '' : 'none';
-      document.getElementById('joinPhoneField').style.display = mode === 'join' ? '' : 'none';
-      document.getElementById('joinPositionTeam').style.display = mode === 'join' ? '' : 'none';
-      document.getElementById('joinScheduleField').style.display = mode === 'join' ? '' : 'none';
+      const toggle = (id, show) => { const el = document.getElementById(id); if(el) { if(show) el.classList.remove('hidden'); else el.classList.add('hidden'); } };
+      toggle('regHospitalField', mode === 'register');
+      toggle('regBusinessField', mode === 'register');
+      toggle('regHospitalPhoneField', mode === 'register');
+      toggle('regAddressField', mode === 'register');
+      toggle('regNameField', mode !== 'login');
+      toggle('regPhoneField', mode === 'register');
+      toggle('inviteCodeField', mode === 'join');
+      toggle('joinPhoneField', mode === 'join');
+      toggle('joinPositionTeam', mode === 'join');
+      toggle('joinScheduleField', mode === 'join');
       document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : '🏥 병원 등록하기';
       document.getElementById('authError').classList.remove('show');
       if (mode === 'join') buildScheduleGrid();
@@ -518,6 +515,7 @@ function getNavConfig() {
 /* ─── Render Main App ─── */
 function renderApp() {
   if (!state.user) { renderAuth(); return; }
+  document.body.classList.add('app-loaded');
   const app = document.getElementById('app');
   const nav = getNavConfig();
 
@@ -558,7 +556,7 @@ function renderApp() {
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     <div class="main-content">
       <header class="main-header">
-        <button class="btn-icon" id="menuToggle" class="hidden">${ICONS.menu}</button>
+        <button class="btn-icon" id="menuToggle">${ICONS.menu}</button>
         <div class="main-header-title" id="headerTitle"></div>
         <div class="main-header-actions" id="headerActions"></div>
       </header>

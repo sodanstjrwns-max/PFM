@@ -53,6 +53,10 @@ html, body {
   background: var(--bg);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  height: 100%;
+}
+
+body.app-loaded {
   overflow: hidden;
   height: 100vh;
 }
@@ -66,10 +70,12 @@ html, body {
 /* ─── Auth Screen ─── */
 .auth-screen {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
   background: linear-gradient(135deg, #0f766e 0%, #0d5f59 50%, #134e4a 100%);
   align-items: center;
   justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
 }
 .auth-card {
   background: white;
