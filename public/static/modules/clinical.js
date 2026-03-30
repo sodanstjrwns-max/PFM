@@ -646,6 +646,14 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs, T) {
         ${item.treatment_started_at ? `<span>🦷 시작: ${new Date(item.treatment_started_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
         ${item.completed_at ? `<span>✅ 완료: ${new Date(item.completed_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}
       </div>
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">💬 빠른 메시지</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="tbQuickMsgBtns">
+          ${(doctors||[]).map(d => `<button class="btn btn-secondary btn-sm" data-doctor-id="${d.id}" style="font-size:11px">💬 ${esc(d.name)}에게</button>`).join('')}
+          <button class="btn btn-secondary btn-sm" id="tbOpenChatBtn" style="font-size:11px;border-color:#0f766e;color:#0f766e">💬 메신저 열기</button>
+        </div>
+      </div>
     </div>`;
   showModal();
   document.getElementById('modalClose').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
@@ -674,6 +682,20 @@ function openTreatmentDetail(itemId, items, reload, doctors, chairs, T) {
       toast((statusFlow.find(s=>s.id===btn.dataset.status)?.label||btn.dataset.status) + ' 처리됨', 'success');
       modal.style.maxWidth=''; closeModal(); reload();
     });
+  });
+  // 퀵 메시지 → 원장에게 DM
+  modal.querySelectorAll('#tbQuickMsgBtns [data-doctor-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (PFM.modules.chat) {
+        await PFM.modules.chat.sendBoardMessage(btn.dataset.doctorId, item);
+        modal.style.maxWidth=''; closeModal();
+      }
+    });
+  });
+  // 메신저 열기
+  document.getElementById('tbOpenChatBtn')?.addEventListener('click', () => {
+    modal.style.maxWidth=''; closeModal();
+    if (PFM.modules.chat) PFM.modules.chat.openChatPanel();
   });
 }
 

@@ -514,6 +514,7 @@ function getNavConfig() {
         { id: 'mistake', label: '실수노트', icon: ICONS.shield },
       ]
     },
+    { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
     { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
   ];
   return nav;
@@ -566,6 +567,10 @@ function renderApp() {
         <button class="btn-icon" id="menuToggle">${ICONS.menu}</button>
         <div class="main-header-title" id="headerTitle"></div>
         <div class="main-header-actions" id="headerActions"></div>
+        <button class="chat-header-btn" id="chatHeaderBtn" title="원내 메신저">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="chat-header-badge" id="chatUnreadBadge" style="display:none">0</span>
+        </button>
       </header>
       <div class="main-body" id="mainBody"></div>
     </div>
@@ -576,6 +581,13 @@ function renderApp() {
 
   renderSidebar(nav);
   renderPage(); // async but fire-and-forget is OK here
+
+  // Chat header button
+  document.getElementById('chatHeaderBtn')?.addEventListener('click', () => {
+    if (window.PFM.modules.chat) window.PFM.modules.chat.openChatPanel();
+  });
+  // Init chat (unread badge polling)
+  setTimeout(() => { if (window.PFM.modules.chat) window.PFM.modules.chat.initChat(); }, 1000);
 
   // User popup menu
   const userEl = document.getElementById('sidebarUser');
@@ -866,6 +878,7 @@ async function renderPage() {
     briefing: ['📋 일일 브리핑', ICONS.dashboard],
     gamification: ['🏆 성과 게이미피케이션', ICONS.star],
     review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
+    messenger: ['💬 원내 메신저', ICONS.message],
     settings: ['설정', ICONS.settings],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
@@ -923,6 +936,7 @@ async function renderPage() {
     case 'briefing': M.briefing.renderBriefing(body, actions); break;
     case 'gamification': M.gamification.renderGamification(body, actions); break;
     case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
+    case 'messenger': M.chat.renderMessenger(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }
