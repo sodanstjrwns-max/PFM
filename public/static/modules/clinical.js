@@ -55,6 +55,7 @@ async function renderTreatmentBoard(body, actions) {
 
   body.innerHTML = `
     <div class="tb-doctor-bar" id="tbDoctorBar"></div>
+    <div class="tb-staff-bar" id="tbStaffBar"></div>
     <div class="tb-summary" id="tbSummary"></div>
     <div class="kb-board" id="treatmentBoard" style="min-height:500px"></div>`;
 
@@ -69,14 +70,16 @@ async function renderTreatmentBoard(body, actions) {
     const container = document.getElementById('treatmentBoard');
     const summary = document.getElementById('tbSummary');
     const doctorBar = document.getElementById('tbDoctorBar');
+    const staffBar = document.getElementById('tbStaffBar');
     if (!container) { stopPolling(); return; } // Page changed, stop polling
     try {
-      const [items, chairList, doctorList, dutyList, settings] = await Promise.all([
+      const [items, chairList, doctorList, dutyList, settings, staffList] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
         api('/api/protected/chairs'),
         api('/api/protected/doctors'),
         api('/api/protected/doctors/on-duty?date=' + boardDate),
-        api('/api/protected/hospital/settings')
+        api('/api/protected/hospital/settings'),
+        api('/api/protected/staff/on-duty?date=' + boardDate),
       ]);
       
       // Change detection: skip render if nothing changed (during polling only)
@@ -109,12 +112,13 @@ async function renderTreatmentBoard(body, actions) {
             <span style="font-size:12px;font-weight:600;color:var(--primary);background:var(--primary)12;padding:2px 8px;border-radius:12px">${onDutyCount}명 근무</span>
             <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${boardDate === today ? new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'}) : boardDate}</span>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
             ${dutyList.map(d => {
               const cfg = statusConfig[d.status] || statusConfig.scheduled;
               const patientCount = items.filter(i => i.assigned_doctor === d.id && !['completed','cancelled','no_show'].includes(i.status)).length;
               const scheduleStr = d.today_schedule ? d.today_schedule.start + '~' + d.today_schedule.end : '';
-              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:${cfg.bg};border:1.5px solid ${cfg.border};min-width:140px;transition:all 0.2s" title="${h(d.name)} ${d.role==='admin'?'원장':'선생'} · ${cfg.label}${scheduleStr?' · '+scheduleStr:''}">
+              const isOffDuty = d.status === 'day_off' || d.status === 'vacation';
+              return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:${cfg.bg};border:1.5px solid ${cfg.border};min-width:140px;transition:all 0.2s;position:relative" title="${h(d.name)} ${d.role==='admin'?'원장':'선생'} · ${cfg.label}${scheduleStr?' · '+scheduleStr:''}">
                 <div style="width:36px;height:36px;border-radius:50%;background:${cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:${cfg.color};border:2px solid ${cfg.color}44">
                   ${d.name.charAt(0)}
                 </div>
@@ -127,11 +131,180 @@ async function renderTreatmentBoard(body, actions) {
                     ${patientCount > 0 ? `<span style="font-size:9px;background:${cfg.color}22;color:${cfg.color};padding:0 5px;border-radius:8px;font-weight:700;margin-left:2px">${patientCount}명</span>` : ''}
                   </div>
                 </div>
+                ${isOffDuty ? `<button class="tb-add-duty-btn" data-doctor-id="${d.id}" data-action="add-duty" title="오늘 출근 처리" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:#22c55e;color:white;border:2px solid white;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">+</button>` : ''}
               </div>`;
             }).join('')}
+            <button id="tbAddDoctorBtn" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:white;border:2px dashed var(--primary);color:var(--primary);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;min-width:120px;justify-content:center" onmouseover="this.style.background='var(--primary)';this.style.color='white'" onmouseout="this.style.background='white';this.style.color='var(--primary)'">
+              <span style="font-size:16px">+</span> 원장 추가
+            </button>
             ${dutyList.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:8px">등록된 원장이 없습니다</div>' : ''}
           </div>
         </div>`;
+
+      // ── 직원 현황 바 ──
+      const positionLabels = { doctor:'원장', director:'실장', hygienist:'위생사', desk:'데스크', sterilization:'소독', management:'경영지원', temp:'알바/임시' };
+      const positionColors = { doctor:'#0f766e', director:'#6366f1', hygienist:'#3b82f6', desk:'#f59e0b', sterilization:'#8b5cf6', management:'#94a3b8', temp:'#ef4444' };
+      const teamLabels = { clinical:'진료팀', front:'프론트', support:'지원팀', management:'경영지원' };
+      const presentStaff = staffList.filter(s => s.status === 'present' || s.status === 'scheduled');
+      const tempStaff = staffList.filter(s => s.is_temp);
+      const totalPresent = presentStaff.length + tempStaff.filter(t => !presentStaff.some(p => p.id === t.id)).length;
+
+      if (staffBar) {
+        staffBar.innerHTML = `
+        <div style="background:linear-gradient(135deg,#f8fafc,#fef3c7);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:18px">👥</span>
+            <span style="font-size:14px;font-weight:800;color:var(--text)">오늘 출근 직원</span>
+            <span style="font-size:12px;font-weight:600;color:#f59e0b;background:#f59e0b12;padding:2px 8px;border-radius:12px">${totalPresent}명</span>
+            ${tempStaff.length > 0 ? `<span style="font-size:11px;font-weight:600;color:#ef4444;background:#ef444412;padding:2px 8px;border-radius:12px">알바 ${tempStaff.length}명</span>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            ${presentStaff.map(s => {
+              const posColor = positionColors[s.position] || '#94a3b8';
+              const statusIcon = s.status === 'present' ? '🟢' : s.status === 'vacation' ? '🟡' : s.status === 'day_off' ? '⚪' : '🔵';
+              return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:white;border:1px solid ${posColor}33;font-size:12px;transition:all 0.2s" title="${positionLabels[s.position]||s.position} · ${teamLabels[s.team]||s.team||''}${s.check_in ? ' · '+s.check_in.slice(11,16)+' 출근':''}">
+                <span style="font-size:10px">${statusIcon}</span>
+                <span style="font-weight:700;color:var(--text)">${esc(s.name)}</span>
+                <span style="font-size:10px;padding:1px 6px;border-radius:6px;background:${posColor}15;color:${posColor};font-weight:600">${positionLabels[s.position]||s.position||''}</span>
+              </div>`;
+            }).join('')}
+            ${tempStaff.map(t => `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;font-size:12px;position:relative">
+              <span style="font-size:10px">⭐</span>
+              <span style="font-weight:700;color:var(--text)">${esc(t.name)}</span>
+              <span style="font-size:10px;padding:1px 6px;border-radius:6px;background:#ef444415;color:#ef4444;font-weight:600">${esc(t.position||'알바')}</span>
+              <button data-remove-temp="${t.id}" style="width:16px;height:16px;border-radius:50%;background:#ef4444;color:white;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:2px" title="제거">✕</button>
+            </div>`).join('')}
+            <button id="tbAddTempStaffBtn" style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;background:white;border:2px dashed #f59e0b;color:#f59e0b;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='#f59e0b';this.style.color='white'" onmouseout="this.style.background='white';this.style.color='#f59e0b'">
+              <span style="font-size:14px">+</span> 알바/직원 추가
+            </button>
+            ${presentStaff.length === 0 && tempStaff.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:4px">출근한 직원이 없습니다</div>' : ''}
+          </div>
+        </div>`;
+
+        // ── 직원 추가 이벤트 ──
+        staffBar.querySelectorAll('[data-remove-temp]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const tempId = btn.getAttribute('data-remove-temp');
+            try {
+              await api('/api/protected/staff/temp/' + tempId, { method:'DELETE' });
+              toast('임시 직원 제거됨', 'success'); loadBoard();
+            } catch(err) { toast(err.message, 'error'); }
+          });
+        });
+
+        const addTempBtn = document.getElementById('tbAddTempStaffBtn');
+        if (addTempBtn) {
+          addTempBtn.addEventListener('click', () => {
+            const modal = document.getElementById('modalContent');
+            modal.style.maxWidth = '420px';
+            modal.innerHTML = `
+              <div class="modal-header"><h3>👥 알바/임시 직원 추가</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+              <div class="modal-body">
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">오늘 하루 임시로 근무하는 직원을 추가합니다.</p>
+                <div class="form-group"><label>이름 *</label><input class="form-input" id="tempName" placeholder="예: 김알바"></div>
+                <div class="form-grid">
+                  <div class="form-group"><label>직급</label>
+                    <select class="form-input" id="tempPosition">
+                      <option value="알바">알바</option>
+                      <option value="hygienist">치과위생사</option>
+                      <option value="desk">데스크</option>
+                      <option value="sterilization">소독</option>
+                      <option value="기타">기타</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label>소속팀</label>
+                    <select class="form-input" id="tempTeam">
+                      <option value="">미지정</option>
+                      <option value="clinical">진료팀</option>
+                      <option value="front">프론트</option>
+                      <option value="support">지원팀</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="tempSubmitBtn">추가</button></div>`;
+            showModal();
+            document.getElementById('modalClose').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
+            document.getElementById('modalCancelBtn').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
+            document.getElementById('tempSubmitBtn').addEventListener('click', async () => {
+              const name = document.getElementById('tempName').value.trim();
+              if (!name) { toast('이름을 입력해주세요', 'error'); return; }
+              try {
+                await api('/api/protected/staff/temp', { method:'POST', json:{
+                  name,
+                  position: document.getElementById('tempPosition').value,
+                  team: document.getElementById('tempTeam').value,
+                  date: boardDate,
+                }});
+                toast(name + ' 추가됨!', 'success'); modal.style.maxWidth=''; closeModal(); loadBoard();
+              } catch(err) { toast(err.message, 'error'); }
+            });
+          });
+        }
+      }
+
+      // ── 원장 추가 버튼 이벤트 ──
+      const addDocBtn = document.getElementById('tbAddDoctorBtn');
+      if (addDocBtn) {
+        addDocBtn.addEventListener('click', () => {
+          // 현재 근무중이 아닌 원장 목록 (휴무/휴가 + 등록된 의사 중 on-duty 목록에 없는)
+          const offDutyDoctors = dutyList.filter(d => d.status === 'day_off' || d.status === 'vacation');
+          const allDocIds = new Set(dutyList.map(d => d.id));
+          const unlistedDoctors = doctorList.filter(d => !allDocIds.has(d.id));
+
+          const modal = document.getElementById('modalContent');
+          modal.style.maxWidth = '420px';
+          modal.innerHTML = `
+            <div class="modal-header"><h3>👨‍⚕️ 원장 추가 (임시 출근)</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">오늘 추가로 출근하는 원장을 선택해주세요. 근무스케줄과 별개로 오늘 하루 출근 처리됩니다.</p>
+              ${offDutyDoctors.length > 0 ? `
+                <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">📋 휴무/휴가 중인 원장</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+                  ${offDutyDoctors.map(d => `<button class="btn btn-secondary" data-add-doctor="${d.id}" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:12px 16px;font-size:13px">
+                    <span style="width:32px;height:32px;border-radius:50%;background:var(--primary)15;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary)">${d.name.charAt(0)}</span>
+                    <span style="font-weight:700">${esc(d.name)}</span>
+                    <span style="font-size:10px;color:var(--text-muted)">${d.role==='admin'?'원장':'선생'}</span>
+                    <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:${d.status==='vacation'?'#fef3c7':'#f1f5f9'};color:${d.status==='vacation'?'#f59e0b':'#94a3b8'};margin-left:auto">${d.status==='vacation'?'휴가':'휴무'}</span>
+                  </button>`).join('')}
+                </div>` : ''}
+              ${unlistedDoctors.length > 0 ? `
+                <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">📋 기타 등록된 원장</div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  ${unlistedDoctors.map(d => `<button class="btn btn-secondary" data-add-doctor="${d.id}" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:12px 16px;font-size:13px">
+                    <span style="width:32px;height:32px;border-radius:50%;background:#6366f115;display:flex;align-items:center;justify-content:center;font-weight:800;color:#6366f1">${d.name.charAt(0)}</span>
+                    <span style="font-weight:700">${esc(d.name)}</span>
+                    <span style="font-size:10px;color:var(--text-muted)">${d.role==='admin'?'원장':'선생'}</span>
+                  </button>`).join('')}
+                </div>` : ''}
+              ${offDutyDoctors.length === 0 && unlistedDoctors.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">추가할 수 있는 원장이 없습니다.<br>모든 원장이 이미 출근 상태입니다.</div>' : ''}
+            </div>`;
+          showModal();
+          document.getElementById('modalClose').addEventListener('click', () => { modal.style.maxWidth=''; closeModal(); });
+          modal.querySelectorAll('[data-add-doctor]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const docId = btn.getAttribute('data-add-doctor');
+              try {
+                await api('/api/protected/doctors/on-duty/add', { method:'POST', json:{ doctor_id: docId, date: boardDate }});
+                toast('원장 출근 처리 완료!', 'success'); modal.style.maxWidth=''; closeModal(); loadBoard();
+              } catch(err) { toast(err.message, 'error'); }
+            });
+          });
+        });
+      }
+
+      // 휴무 원장 출근 처리 버튼 (인라인)
+      doctorBar.querySelectorAll('[data-action="add-duty"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const docId = btn.getAttribute('data-doctor-id');
+          try {
+            await api('/api/protected/doctors/on-duty/add', { method:'POST', json:{ doctor_id: docId, date: boardDate }});
+            toast('출근 처리 완료!', 'success'); loadBoard();
+          } catch(err) { toast(err.message, 'error'); }
+        });
+      });
 
       // 원장별 환자 분류
       const waitingItems = items.filter(i => !i.assigned_doctor && !['completed','cancelled','no_show'].includes(i.status));

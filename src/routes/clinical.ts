@@ -68,6 +68,97 @@ clinical.get('/doctors/on-duty', async (c) => {
   return c.json(result)
 })
 
+/* ─── Add Temporary Doctor On-Duty ─── */
+clinical.post('/doctors/on-duty/add', async (c) => {
+  const user = c.get('user')!
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    doctor_id: { type: 'string', max: 100 },
+    date: { type: 'string', max: 10 },
+  })
+  if (!b.doctor_id) return c.json({ error: '원장을 선택해주세요' }, 400)
+  const date = b.date || new Date().toISOString().slice(0, 10)
+  // Check if attendance already exists
+  const existing = await c.env.DB.prepare('SELECT id FROM attendance WHERE user_id=? AND date=?').bind(b.doctor_id, date).first()
+  if (existing) {
+    // Update to present
+    await c.env.DB.prepare('UPDATE attendance SET status=?, check_in=? WHERE id=?').bind('present', new Date().toISOString(), (existing as any).id).run()
+  } else {
+    const id = crypto.randomUUID()
+    await c.env.DB.prepare('INSERT INTO attendance (id, hospital_id, user_id, date, check_in, status) VALUES (?,?,?,?,?,?)').bind(id, user.hospitalId, b.doctor_id, date, new Date().toISOString(), 'present').run()
+  }
+  return c.json({ success: true })
+})
+
+/* ─── Remove Doctor from On-Duty ─── */
+clinical.delete('/doctors/on-duty/:doctorId', async (c) => {
+  const user = c.get('user')!
+  const doctorId = c.req.param('doctorId')
+  const date = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0, 10), 10)
+  await c.env.DB.prepare('DELETE FROM attendance WHERE user_id=? AND date=? AND hospital_id=?').bind(doctorId, date, user.hospitalId).run()
+  return c.json({ success: true })
+})
+
+/* ─── Today's Staff Status ─── */
+clinical.get('/staff/on-duty', async (c) => {
+  const user = c.get('user')!
+  const date = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0, 10), 10)
+  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
+  const dayOfWeek = dayNames[new Date(date + 'T00:00:00').getDay()]
+  const [staffRows, attRows, leaveRows, tempRows] = await Promise.all([
+    c.env.DB.prepare(`SELECT id, name, role, position, team, work_schedule, is_doctor FROM users WHERE hospital_id=? AND is_active=1 AND work_status='active' AND is_doctor=0 ORDER BY team, position, name`).bind(user.hospitalId).all(),
+    c.env.DB.prepare(`SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`).bind(user.hospitalId, date).all(),
+    c.env.DB.prepare(`SELECT user_id FROM leave_requests WHERE hospital_id=? AND status='approved' AND start_date<=? AND end_date>=?`).bind(user.hospitalId, date, date).all(),
+    c.env.DB.prepare(`SELECT id, name, position, team, check_in FROM temp_staff WHERE hospital_id=? AND date=?`).bind(user.hospitalId, date).all(),
+  ])
+  const staff = staffRows.results as any[]
+  const attMap: Record<string, any> = {}
+  for (const a of attRows.results as any[]) attMap[a.user_id] = a
+  const onLeaveSet = new Set((leaveRows.results as any[]).map((r: any) => r.user_id))
+  const result = staff.map((s: any) => {
+    let schedule: any = {}; try { schedule = JSON.parse(s.work_schedule || '{}') } catch(e) {}
+    const todaySchedule = schedule[dayOfWeek] || null
+    const isScheduledOff = todaySchedule === null
+    const isOnLeave = onLeaveSet.has(s.id)
+    const att = attMap[s.id]
+    const isPresent = att && ['present','late','half_day'].includes(att.status)
+    let status = 'scheduled'
+    if (isScheduledOff) status = 'day_off'
+    else if (isOnLeave) status = 'vacation'
+    else if (isPresent) status = 'present'
+    return { id: s.id, name: s.name, role: s.role, position: s.position, team: s.team, status, check_in: att?.check_in || null, today_schedule: todaySchedule, is_temp: false }
+  })
+  // Add temp staff
+  const temps = (tempRows.results as any[]).map((t: any) => ({
+    id: t.id, name: t.name, role: 'temp', position: t.position || '알바', team: t.team || '', status: 'present', check_in: t.check_in, today_schedule: null, is_temp: true
+  }))
+  return c.json([...result, ...temps])
+})
+
+/* ─── Add Temp Staff ─── */
+clinical.post('/staff/temp', async (c) => {
+  const user = c.get('user')!
+  const raw = await c.req.json()
+  const b = sanitizeBody(raw, {
+    name: { type: 'string', max: 100 },
+    position: { type: 'string', max: 50 },
+    team: { type: 'string', max: 50 },
+    date: { type: 'string', max: 10 },
+  })
+  if (!b.name) return c.json({ error: '이름을 입력해주세요' }, 400)
+  const id = crypto.randomUUID()
+  const date = b.date || new Date().toISOString().slice(0, 10)
+  await c.env.DB.prepare('INSERT INTO temp_staff (id, hospital_id, name, position, team, date, check_in) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.name, b.position||'알바', b.team||'', date, new Date().toISOString()).run()
+  return c.json({ id })
+})
+
+/* ─── Remove Temp Staff ─── */
+clinical.delete('/staff/temp/:id', async (c) => {
+  const user = c.get('user')!
+  await c.env.DB.prepare('DELETE FROM temp_staff WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  return c.json({ success: true })
+})
+
 /* ─── Treatment Board ─── */
 clinical.get('/treatment-board', async (c) => {
   const user = c.get('user')!
