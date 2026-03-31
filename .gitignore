@@ -3,3 +3,14 @@ dist/
 .wrangler/
 .dev.vars
 *.log
+
+# Seed data chunks (generated, large)
+seed-chunks/
+seed-mega/
+seed-excel-full.sql
+*.log
+upload_*.sh
+core
+
+seed-part-*.sql
+test-small.sql
