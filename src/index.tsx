@@ -77,6 +77,15 @@ authMiddleware(app as any)
 /* ═══ API Cache Middleware ═══ */
 apiCacheMiddleware(app as any)
 
+/* ═══ Temporary password reset endpoint (remove in production) ═══ */
+app.post('/api/reset-pw', async (c) => {
+  const { email, newPassword, secret } = await c.req.json()
+  if (secret !== 'pfm-reset-2026') return c.json({ error: 'Unauthorized' }, 403)
+  const hash = await hashPassword(newPassword)
+  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE email = ?').bind(hash, email).run()
+  return c.json({ success: true, message: 'Password updated' })
+})
+
 /* ═══ Route Registration ═══ */
 // Auth (public)
 app.route('/api/auth', auth)
