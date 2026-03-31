@@ -74,6 +74,7 @@ const DAYS = [
 ];
 
 let currentStep = 0;
+let isSaving = false; // Prevent double-click
 let wizardData = {
   specialties: [],
   region: '',
@@ -115,9 +116,22 @@ async function renderOnboarding(container) {
   renderWizard(container);
 }
 
+function setButtonsDisabled(disabled) {
+  const ids = ['obPrev', 'obNext', 'obComplete', 'obSkip'];
+  ids.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.disabled = disabled;
+      if (disabled) btn.style.opacity = '0.6';
+      else btn.style.opacity = '';
+    }
+  });
+}
+
 function renderWizard(container) {
   const step = STEPS[currentStep];
   const progress = Math.round((currentStep / (STEPS.length - 1)) * 100);
+  isSaving = false;
   
   container.innerHTML = `
   <div class="ob-wrapper">
@@ -129,7 +143,10 @@ function renderWizard(container) {
         </div>
         <div class="ob-steps">
           ${STEPS.map((s, i) => `
-            <div class="ob-step-dot ${i < currentStep ? 'done' : ''} ${i === currentStep ? 'active' : ''}" title="${s.title}">
+            <div class="ob-step-dot ${i < currentStep ? 'done' : ''} ${i === currentStep ? 'active' : ''}" 
+                 title="${s.title}" 
+                 data-step="${i}" 
+                 style="cursor:${i < currentStep ? 'pointer' : 'default'}">
               ${i < currentStep ? '✓' : i + 1}
             </div>
           `).join('')}
@@ -143,17 +160,17 @@ function renderWizard(container) {
         <p class="ob-desc">${step.desc}</p>
       </div>
       
-      <!-- Content -->
+      <!-- Content (scrollable) -->
       <div class="ob-content" id="obContent"></div>
       
-      <!-- Actions -->
+      <!-- Actions (sticky at bottom) -->
       <div class="ob-actions">
-        ${currentStep > 0 ? `<button class="btn btn-secondary ob-btn" id="obPrev">← 이전</button>` : '<div></div>'}
+        ${currentStep > 0 ? `<button class="btn btn-secondary ob-btn" id="obPrev" type="button">← 이전</button>` : '<div></div>'}
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn ob-skip-btn" id="obSkip" title="나중에 설정에서 수정 가능합니다">건너뛰기</button>
+          <button class="btn ob-skip-btn" id="obSkip" type="button" title="나중에 설정에서 수정 가능합니다">건너뛰기</button>
           ${currentStep < STEPS.length - 1 
-            ? `<button class="btn btn-primary ob-btn" id="obNext">다음 →</button>` 
-            : `<button class="btn btn-primary ob-btn" id="obComplete">🚀 시작하기!</button>`
+            ? `<button class="btn btn-primary ob-btn" id="obNext" type="button">다음 →</button>` 
+            : `<button class="btn btn-primary ob-btn" id="obComplete" type="button">🚀 시작하기!</button>`
           }
         </div>
       </div>
@@ -166,42 +183,100 @@ function renderWizard(container) {
   
   renderStepContent(document.getElementById('obContent'));
   
-  document.getElementById('obPrev')?.addEventListener('click', () => {
-    if (currentStep > 0) { currentStep--; renderWizard(container); }
+  // Step dot click - jump to completed steps
+  container.querySelectorAll('.ob-step-dot[data-step]').forEach(dot => {
+    dot.addEventListener('click', async () => {
+      const targetStep = parseInt(dot.dataset.step);
+      if (targetStep < currentStep) {
+        await saveCurrentStep();
+        currentStep = targetStep;
+        renderWizard(container);
+      }
+    });
   });
   
-  document.getElementById('obNext')?.addEventListener('click', async () => {
-    await saveCurrentStep();
-    currentStep++;
-    renderWizard(container);
-  });
+  // Previous button
+  const prevBtn = document.getElementById('obPrev');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      if (isSaving) return;
+      if (currentStep > 0) { currentStep--; renderWizard(container); }
+    });
+  }
   
-  document.getElementById('obComplete')?.addEventListener('click', async () => {
-    await saveCurrentStep();
-    try {
-      await api('/api/protected/onboarding/complete', { method: 'POST', json: {} });
-      state.user.onboardingCompleted = true;
-      localStorage.setItem('pfm_user', JSON.stringify(state.user));
-      toast('온보딩 완료! 환영합니다 🎉', 'success');
-      PFM.renderApp();
-    } catch (e) {
-      toast('오류: ' + e.message, 'error');
-    }
-  });
-  
-  document.getElementById('obSkip')?.addEventListener('click', async () => {
-    if (confirm('온보딩을 건너뛰시겠습니까?\n\n나중에 설정 메뉴에서 모든 항목을 설정할 수 있습니다.')) {
+  // Next button
+  const nextBtn = document.getElementById('obNext');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', async () => {
+      if (isSaving) return;
+      isSaving = true;
+      setButtonsDisabled(true);
+      nextBtn.textContent = '저장 중...';
       try {
-        await api('/api/protected/onboarding/skip', { method: 'POST', json: {} });
+        await saveCurrentStep();
+        currentStep++;
+        renderWizard(container);
+      } catch (e) {
+        toast('저장 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+        isSaving = false;
+        setButtonsDisabled(false);
+        nextBtn.textContent = '다음 →';
+      }
+    });
+  }
+  
+  // Complete button
+  const completeBtn = document.getElementById('obComplete');
+  if (completeBtn) {
+    completeBtn.addEventListener('click', async () => {
+      if (isSaving) return;
+      isSaving = true;
+      setButtonsDisabled(true);
+      completeBtn.textContent = '완료 처리 중...';
+      try {
+        await saveCurrentStep();
+        await api('/api/protected/onboarding/complete', { method: 'POST', json: {} });
         state.user.onboardingCompleted = true;
         localStorage.setItem('pfm_user', JSON.stringify(state.user));
-        toast('온보딩을 건너뛰었습니다. 설정에서 언제든 수정하세요!', 'info');
+        toast('온보딩 완료! 환영합니다 🎉', 'success');
         PFM.renderApp();
       } catch (e) {
         toast('오류: ' + e.message, 'error');
+        isSaving = false;
+        setButtonsDisabled(false);
+        completeBtn.textContent = '🚀 시작하기!';
       }
-    }
-  });
+    });
+  }
+  
+  // Skip button
+  const skipBtn = document.getElementById('obSkip');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', async () => {
+      if (isSaving) return;
+      if (confirm('온보딩을 건너뛰시겠습니까?\n\n나중에 설정 메뉴에서 모든 항목을 설정할 수 있습니다.')) {
+        isSaving = true;
+        setButtonsDisabled(true);
+        skipBtn.textContent = '처리 중...';
+        try {
+          await api('/api/protected/onboarding/skip', { method: 'POST', json: {} });
+          state.user.onboardingCompleted = true;
+          localStorage.setItem('pfm_user', JSON.stringify(state.user));
+          toast('온보딩을 건너뛰었습니다. 설정에서 언제든 수정하세요!', 'info');
+          PFM.renderApp();
+        } catch (e) {
+          toast('오류: ' + e.message, 'error');
+          isSaving = false;
+          setButtonsDisabled(false);
+          skipBtn.textContent = '건너뛰기';
+        }
+      }
+    });
+  }
+  
+  // Scroll content area to top
+  const obContent = document.getElementById('obContent');
+  if (obContent) obContent.scrollTop = 0;
 }
 
 function renderStepContent(el) {
@@ -268,18 +343,16 @@ function renderSpecialties(el) {
   el.innerHTML = `
     <div class="ob-chip-grid">
       ${SPECIALTIES.map(s => `
-        <div class="ob-chip ${wizardData.specialties.includes(s.id) ? 'selected' : ''}" data-id="${s.id}">
+        <button type="button" class="ob-chip ${wizardData.specialties.includes(s.id) ? 'selected' : ''}" data-id="${s.id}">
           <span class="ob-chip-icon">${s.icon}</span>
           <span>${s.label}</span>
-        </div>
+        </button>
       `).join('')}
     </div>
     <div class="ob-tip">💡 3~5개 선택을 추천합니다. 상담 스크립트, 비용 안내, 마케팅 분석에 활용됩니다.</div>`;
   
-  el.querySelectorAll('.ob-chip').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+  el.querySelectorAll('.ob-chip[data-id]').forEach(chip => {
+    chip.addEventListener('click', () => {
       const id = chip.dataset.id;
       const idx = wizardData.specialties.indexOf(id);
       if (idx >= 0) { wizardData.specialties.splice(idx, 1); chip.classList.remove('selected'); }
@@ -295,9 +368,9 @@ function renderRegion(el) {
       <label class="ob-label">주요 환자 유입 지역 (복수 선택)</label>
       <div class="ob-chip-grid ob-chip-sm">
         ${REGIONS.map(r => `
-          <div class="ob-chip ob-chip-small ${wizardData.subRegions.includes(r) ? 'selected' : ''}" data-region="${r}">
+          <button type="button" class="ob-chip ob-chip-small ${wizardData.subRegions.includes(r) ? 'selected' : ''}" data-region="${r}">
             <span>${r}</span>
-          </div>
+          </button>
         `).join('')}
       </div>
     </div>
@@ -306,19 +379,17 @@ function renderRegion(el) {
       <label class="ob-label">타겟 환자층 (복수 선택)</label>
       <div class="ob-chip-grid">
         ${PATIENT_TARGETS.map(t => `
-          <div class="ob-chip ${wizardData.targetPatients.includes(t.id) ? 'selected' : ''}" data-target="${t.id}">
+          <button type="button" class="ob-chip ${wizardData.targetPatients.includes(t.id) ? 'selected' : ''}" data-target="${t.id}">
             <span class="ob-chip-icon">${t.icon}</span>
             <span>${t.label}</span>
-          </div>
+          </button>
         `).join('')}
       </div>
     </div>
     <div class="ob-tip">💡 마케팅 유입 분석, 히트맵, 환자 퍼널 분석에 활용됩니다.</div>`;
   
   el.querySelectorAll('.ob-chip[data-region]').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    chip.addEventListener('click', () => {
       const r = chip.dataset.region;
       const idx = wizardData.subRegions.indexOf(r);
       if (idx >= 0) { wizardData.subRegions.splice(idx, 1); chip.classList.remove('selected'); }
@@ -327,9 +398,7 @@ function renderRegion(el) {
   });
   
   el.querySelectorAll('.ob-chip[data-target]').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    chip.addEventListener('click', () => {
       const t = chip.dataset.target;
       const idx = wizardData.targetPatients.indexOf(t);
       if (idx >= 0) { wizardData.targetPatients.splice(idx, 1); chip.classList.remove('selected'); }
@@ -399,7 +468,7 @@ function renderHours(el) {
 function renderFloors(el) {
   el.innerHTML = `
     <div id="floorList"></div>
-    <button class="btn btn-secondary ob-add-btn" id="addFloor">+ 층 추가</button>
+    <button type="button" class="btn btn-secondary ob-add-btn" id="addFloor">+ 층 추가</button>
     <div class="ob-tip">💡 진료실에 등록된 체어는 진료보드에 자동 연동됩니다.</div>`;
   
   renderFloorList(el.querySelector('#floorList'));
@@ -419,21 +488,21 @@ function renderFloorList(container) {
           <input type="text" class="form-input ob-floor-name" data-fi="${fi}" value="${esc(floor.name)}" placeholder="층 이름 (예: 2F)" style="width:80px;font-weight:700">
           <input type="text" class="form-input ob-floor-desc" data-fi="${fi}" value="${esc(floor.description || '')}" placeholder="설명 (예: 일반 진료)" style="flex:1">
         </div>
-        ${wizardData.floor_map.length > 1 ? `<button class="btn btn-sm ob-floor-del" data-fi="${fi}" title="삭제">✕</button>` : ''}
+        ${wizardData.floor_map.length > 1 ? `<button type="button" class="btn btn-sm ob-floor-del" data-fi="${fi}" title="삭제">✕</button>` : ''}
       </div>
       <div class="ob-space-list" id="spaceList_${fi}">
         ${(floor.spaces || []).map((space, si) => renderSpaceRow(fi, si, space)).join('')}
       </div>
-      <button class="btn btn-sm btn-secondary ob-add-space" data-fi="${fi}">+ 공간 추가</button>
+      <button type="button" class="btn btn-sm btn-secondary ob-add-space" data-fi="${fi}">+ 공간 추가</button>
     </div>
   `).join('');
   
-  // Event listeners
+  // Event delegation approach for better reliability
   container.querySelectorAll('.ob-floor-name').forEach(inp => {
-    inp.addEventListener('change', () => { wizardData.floor_map[inp.dataset.fi].name = inp.value; });
+    inp.addEventListener('input', () => { wizardData.floor_map[inp.dataset.fi].name = inp.value; });
   });
   container.querySelectorAll('.ob-floor-desc').forEach(inp => {
-    inp.addEventListener('change', () => { wizardData.floor_map[inp.dataset.fi].description = inp.value; });
+    inp.addEventListener('input', () => { wizardData.floor_map[inp.dataset.fi].description = inp.value; });
   });
   container.querySelectorAll('.ob-floor-del').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -462,12 +531,12 @@ function renderFloorList(container) {
     });
   });
   container.querySelectorAll('.ob-space-name').forEach(inp => {
-    inp.addEventListener('change', () => {
+    inp.addEventListener('input', () => {
       wizardData.floor_map[inp.dataset.fi].spaces[inp.dataset.si].name = inp.value;
     });
   });
   container.querySelectorAll('.ob-space-chairs').forEach(inp => {
-    inp.addEventListener('change', () => {
+    inp.addEventListener('input', () => {
       wizardData.floor_map[inp.dataset.fi].spaces[inp.dataset.si].chairs = parseInt(inp.value) || 0;
     });
   });
@@ -491,7 +560,7 @@ function renderSpaceRow(fi, si, space) {
         <span style="font-size:11px;white-space:nowrap">체어</span>
         <input type="number" class="form-input ob-space-chairs" data-fi="${fi}" data-si="${si}" value="${space.chairs || 0}" min="0" max="20" style="width:50px;text-align:center" ${typeInfo?.hasChairs ? '' : 'disabled'}>
       </div>
-      <button class="btn btn-sm ob-space-del" data-fi="${fi}" data-si="${si}" style="color:var(--danger);padding:4px 8px">✕</button>
+      <button type="button" class="btn btn-sm ob-space-del" data-fi="${fi}" data-si="${si}" style="color:var(--danger);padding:4px 8px">✕</button>
     </div>`;
 }
 
@@ -508,9 +577,9 @@ function renderStaff(el) {
             <span>${r.label}</span>
           </div>
           <div class="ob-counter">
-            <button class="ob-counter-btn" data-role="${r.id}" data-dir="-1">−</button>
+            <button type="button" class="ob-counter-btn" data-role="${r.id}" data-dir="-1">−</button>
             <span class="ob-counter-val" id="staffCount_${r.id}">${count}</span>
-            <button class="ob-counter-btn" data-role="${r.id}" data-dir="1">+</button>
+            <button type="button" class="ob-counter-btn" data-role="${r.id}" data-dir="1">+</button>
           </div>
         </div>`;
       }).join('')}
@@ -552,11 +621,7 @@ async function saveCurrentStep() {
     case 5: body = { staffStructure: wizardData.staffStructure, totalStaff: wizardData.totalStaff }; break;
   }
   
-  try {
-    await api('/api/protected/onboarding/step/' + stepNum, { method: 'POST', json: body });
-  } catch (e) {
-    console.warn('Onboarding save error:', e);
-  }
+  await api('/api/protected/onboarding/step/' + stepNum, { method: 'POST', json: body });
 }
 
 // Export
