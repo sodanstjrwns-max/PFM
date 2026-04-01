@@ -111,9 +111,36 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">👥</div>
         <div class="mod-muted-sm-bold">누적 신환</div>
         <div style="font-size:24px;font-weight:900;color:#8b5cf6;margin:4px 0">${s.cum_new_patients||0}명</div>
-        <div class="mod-muted-sm">비급여 ${fmtNum(s.cum_non_insurance||0)}만</div>
+        <div class="mod-muted-sm">일평균 ${s.days_recorded > 0 ? Math.round(s.cum_new_patients / s.days_recorded) : 0}명</div>
       </div>
     </div>
+
+    <!-- 매출 구성 (비급여/급여) -->
+    ${(s.cum_revenue > 0) ? `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">💳 매출 구성</div>
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+            <span>비급여 <strong>${fmtNum(s.cum_non_insurance||0)}만</strong></span>
+            <span>급여 <strong>${fmtNum(s.cum_insurance||0)}만</strong></span>
+          </div>
+          <div style="background:var(--border-light);border-radius:6px;height:16px;overflow:hidden;display:flex">
+            <div style="background:#8b5cf6;height:100%;width:${s.cum_revenue > 0 ? Math.round((s.cum_non_insurance||0)/s.cum_revenue*100) : 0}%;border-radius:6px 0 0 6px" title="비급여"></div>
+            <div style="background:#3b82f6;height:100%;flex:1;border-radius:0 6px 6px 0" title="급여"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px">
+            <span>${s.cum_revenue > 0 ? Math.round((s.cum_non_insurance||0)/s.cum_revenue*100) : 0}%</span>
+            <span>${s.cum_revenue > 0 ? Math.round((s.cum_insurance||0)/s.cum_revenue*100) : 0}%</span>
+          </div>
+        </div>
+        <div style="text-align:center;min-width:100px">
+          <div style="font-size:11px;color:var(--text-muted)">총매출</div>
+          <div style="font-size:20px;font-weight:900;color:var(--text)">${fmtNum(s.cum_revenue||0)}만</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
 
     ${(dowInfo && dowInfo.length > 0 && target) ? `
     <!-- 요일별 목표 (진료시간 비례) -->
