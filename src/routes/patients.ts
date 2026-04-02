@@ -24,7 +24,11 @@ patients.get('/', async (c) => {
   // Build shared WHERE clause (DRY - used for both data and count queries)
   let where = 'hospital_id=?'
   const filterParams: any[] = [user.hospitalId]
-  if (search) { where += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'; filterParams.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`) }
+  if (search) { 
+    // 이름/차트번호는 앞부분 매칭 우선, 나머지는 LIKE
+    where += ' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ? OR memo LIKE ?)'
+    filterParams.push(`${search}%`,`${search}%`,`%${search}%`,`%${search}%`) 
+  }
   if (type) { where += ' AND patient_type=?'; filterParams.push(type) }
   if (source) { where += ' AND visit_source=?'; filterParams.push(source) }
   if (doctor) { where += ' AND primary_doctor=?'; filterParams.push(doctor) }
@@ -48,11 +52,12 @@ patients.get('/search/autocomplete', async (c) => {
   const user = c.get('user')!
   const q = sanitizeString(c.req.query('q') || '', 100)
   if (!q || q.length < 1) return c.json([])
+  // Prefix-first search: name/chart use prefix match (uses index), phone/memo use contains
   const rows = await c.env.DB.prepare(
     `SELECT id, patient_name, chart_number, phone, patient_type, visit_source, treatment_area, primary_doctor, assigned_counselor, desk_staff, addr_sido, addr_sigungu, first_visit_date, last_visit_date, visit_count
     FROM patients WHERE hospital_id=? AND status='active' AND (patient_name LIKE ? OR chart_number LIKE ? OR phone LIKE ?)
     ORDER BY last_visit_date DESC LIMIT 15`
-  ).bind(user.hospitalId, `%${q}%`, `%${q}%`, `%${q}%`).all()
+  ).bind(user.hospitalId, `${q}%`, `${q}%`, `%${q}%`).all()
   return c.json(rows.results)
 })
 

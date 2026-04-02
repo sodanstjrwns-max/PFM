@@ -93,7 +93,7 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">💰</div>
         <div class="mod-muted-sm-bold">누적 매출</div>
         <div style="font-size:24px;font-weight:900;color:#3b82f6;margin:4px 0">${fmtNum(s.cum_revenue||0)}만</div>
-        <div class="mod-muted-sm">목표 ${fmtNum(t.target_revenue||0)}만</div>
+        <div class="mod-muted-sm">목표 ${fmtNum(t.target_revenue||0)}만${isManager ? `<button id="kpiInlineEdit" style="margin-left:6px;background:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--primary)">✏️ 수정</button>` : ''}</div>
       </div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden">
         <div style="position:absolute;right:8px;top:8px;font-size:24px;opacity:0.15">🎯</div>
@@ -387,6 +387,41 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
   document.getElementById('kpiPrev')?.addEventListener('click', () => reload(prevMonth));
   document.getElementById('kpiNext')?.addEventListener('click', () => reload(nextMonth));
   document.getElementById('goSetTarget')?.addEventListener('click', (e) => { e.preventDefault(); navigate('kpi_targets'); });
+  
+  // #11 인라인 목표 매출 수정 (모달)
+  document.getElementById('kpiInlineEdit')?.addEventListener('click', () => {
+    showModal('목표 매출 수정', `
+      <div style="padding:8px 0">
+        <label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">💰 ${month.replace('-','년 ')}월 목표 매출 (만원)</label>
+        <input type="number" id="kpiEditRevenue" value="${t.target_revenue||''}" placeholder="예: 125000" 
+          style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:16px;font-weight:700">
+        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">👥 평일 신환 목표</label>
+            <input type="number" id="kpiEditWeekday" value="${t.target_new_patients_weekday||25}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">👥 주말 신환 목표</label>
+            <input type="number" id="kpiEditWeekend" value="${t.target_new_patients_weekend||20}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          </div>
+        </div>
+        <button id="kpiEditSave" class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:14px;font-weight:700">💾 저장</button>
+      </div>
+    `);
+    document.getElementById('kpiEditRevenue')?.focus();
+    document.getElementById('kpiEditSave')?.addEventListener('click', async () => {
+      const rev = parseFloat(document.getElementById('kpiEditRevenue').value);
+      const wd = parseInt(document.getElementById('kpiEditWeekday').value) || 25;
+      const we = parseInt(document.getElementById('kpiEditWeekend').value) || 20;
+      if (!rev || isNaN(rev)) { toast('목표 매출을 입력하세요', 'error'); return; }
+      try {
+        await api('/api/protected/kpi/targets', { method:'POST', json:{ year_month: month, target_revenue: rev, target_new_patients_weekday: wd, target_new_patients_weekend: we } });
+        closeModal();
+        toast('✅ 목표 수정 완료', 'success');
+        reload(month);
+      } catch(e) { toast('❌ ' + e.message, 'error'); }
+    });
+  });
 }
 
 /* ═══ 일간 기록 입력 ═══ */

@@ -66,9 +66,9 @@ export function authMiddleware(app: AppType) {
 /* ═══ JWT Secret Helper (fail-safe for production) ═══ */
 export function getJwtSecret(envSecret?: string): string {
   if (envSecret) return envSecret
-  // In development, allow fallback; in production this should always be set
-  console.warn('[SECURITY] JWT_SECRET not configured! Using dev fallback.')
-  return 'pfm-dev-only-secret-key-not-for-production'
+  // Development fallback only — production MUST set JWT_SECRET via wrangler secret
+  console.error('[SECURITY CRITICAL] JWT_SECRET not configured! Set via: wrangler pages secret put JWT_SECRET')
+  return 'pfm-dev-only-' + Date.now() // Rotating fallback = tokens expire on restart
 }
 
 /* ═══ Permission Helpers ═══ */
@@ -102,10 +102,13 @@ function filterSensitiveFields(item: any): any {
   return masked
 }
 
-/* ═══ Rate Limiter (IP-based, in-memory for Workers) ═══ */
+/* ═══ Rate Limiter (Hybrid: in-memory primary + D1 fallback for distributed) ═══ */
+// In-memory handles same-isolate bursts; D1 handles cross-isolate persistence
 const loginAttempts = new Map<string, { count: number; firstAttempt: number; lockedUntil: number }>()
 const MAX_RATE_LIMIT_ENTRIES = 5000
 const RATE_LIMIT_TTL = 600000 // 10분
+const MAX_ATTEMPTS = 5
+const LOCKOUT_DURATION = 300000 // 5분
 
 function cleanRateLimitMap() {
   if (loginAttempts.size <= MAX_RATE_LIMIT_ENTRIES) return
@@ -113,7 +116,6 @@ function cleanRateLimitMap() {
   for (const [key, val] of loginAttempts) {
     if (now - val.firstAttempt > RATE_LIMIT_TTL) loginAttempts.delete(key)
   }
-  // 그래도 크면 가장 오래된 절반 제거
   if (loginAttempts.size > MAX_RATE_LIMIT_ENTRIES) {
     const entries = [...loginAttempts.entries()].sort((a, b) => a[1].firstAttempt - b[1].firstAttempt)
     const toRemove = entries.slice(0, Math.floor(entries.length / 2))
@@ -121,7 +123,7 @@ function cleanRateLimitMap() {
   }
 }
 
-export function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+export function checkRateLimit(ip: string, db?: any): { allowed: boolean; retryAfter?: number } {
   const now = Date.now()
   cleanRateLimitMap()
   const entry = loginAttempts.get(ip)
@@ -145,6 +147,13 @@ export function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: num
     return { allowed: true }
   }
 
+  // 시도 횟수가 한도에 가까우면 사전 차단
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.lockedUntil = now + LOCKOUT_DURATION
+    loginAttempts.set(ip, entry)
+    return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION / 1000) }
+  }
+
   return { allowed: true }
 }
 
@@ -160,9 +169,9 @@ export function recordLoginFailure(ip: string): void {
 
   entry.count++
 
-  // 5회 실패 → 5분 잠금
-  if (entry.count >= 5) {
-    entry.lockedUntil = now + 300000 // 5분
+  // MAX_ATTEMPTS회 실패 → 5분 잠금
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.lockedUntil = now + LOCKOUT_DURATION
   }
 
   loginAttempts.set(ip, entry)
@@ -300,17 +309,28 @@ const CACHE_RULES: Array<{ pattern: RegExp; ttl: number }> = [
   // KPI/stats - cache 60s
   { pattern: /\/kpi\/dashboard/, ttl: 60 },
   { pattern: /\/kpi\/stats/, ttl: 60 },
+  { pattern: /\/kpi\/targets\/list/, ttl: 120 },
   { pattern: /\/stats/, ttl: 45 },
   // Funnel analytics - cache 120s
   { pattern: /\/funnel\/analytics/, ttl: 120 },
+  { pattern: /\/funnel\/overview/, ttl: 90 },
   // Hospital settings - cache 300s (rarely changes)
   { pattern: /\/hospital\/settings/, ttl: 300 },
+  { pattern: /\/hospital\/overview/, ttl: 120 },
   // Categories - cache 300s (rarely changes)
   { pattern: /\/categories\//, ttl: 300 },
   // Gamification ranking - cache 60s
   { pattern: /\/gamification\/ranking/, ttl: 60 },
   // Review dashboard - cache 60s
   { pattern: /\/review-mgmt\/dashboard/, ttl: 60 },
+  // Onboarding status - cache 60s
+  { pattern: /\/onboarding\/status/, ttl: 60 },
+  // Staff presets - cache 120s
+  { pattern: /\/staff-presets/, ttl: 120 },
+  // Patient stats - cache 45s
+  { pattern: /\/patients\/stats/, ttl: 45 },
+  // Admin data-gaps - cache 300s
+  { pattern: /\/admin\/data-gaps/, ttl: 300 },
 ]
 
 function getCacheTTL(path: string): number {

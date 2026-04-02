@@ -54,6 +54,23 @@ Object.entries(REGION_DATA).forEach(([sido, list]) => {
   list.forEach(gu => REGIONS_FLAT.push({ label: `${sido} ${gu}`, sido, gu }));
 });
 
+/* ─── 초성 검색 헬퍼 (#15) ─── */
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+function getCho(str) {
+  return [...str].map(c => {
+    const code = c.charCodeAt(0) - 0xAC00;
+    return code >= 0 && code <= 11171 ? CHO[Math.floor(code / 588)] : c;
+  }).join('');
+}
+
+/* ─── 인기 지역 목록 (#15) ─── */
+const POPULAR_REGIONS = [
+  '서울 강남구','서울 서초구','서울 송파구','서울 마포구','서울 강동구',
+  '경기 성남시 분당구','경기 수원시 영통구','경기 용인시 수지구',
+  '경기 고양시 일산동구','경기 화성시','인천 연수구','부산 해운대구',
+  '대구 수성구','충남 천안시 서북구','경기 하남시','대전 유성구'
+];
+
 const PATIENT_TARGETS = [
   { id: 'family',    label: '가족 단위',    icon: '👨‍👩‍👧‍👦' },
   { id: 'office',    label: '직장인',       icon: '💼' },
@@ -389,9 +406,10 @@ function renderRegion(el) {
       <p style="color:var(--text-secondary);font-size:13px;margin:-4px 0 8px">지역명을 입력하면 자동완성됩니다. 목록에 없는 지역은 직접 입력 후 Enter로 추가하세요.</p>
       <div class="ob-tag-input-wrap" id="regionTagWrap">
         <div class="ob-tags" id="regionTags"></div>
-        <input type="text" class="ob-tag-search" id="regionSearch" placeholder="🔍 지역 검색 (예: 천안, 분당, 강남...)" autocomplete="off">
+        <input type="text" class="ob-tag-search" id="regionSearch" placeholder="🔍 지역 검색 (예: 천안, 분당, ㄱㄴ, 강남...)" autocomplete="off">
         <div class="ob-tag-dropdown" id="regionDropdown"></div>
       </div>
+      <div id="popularRegions" style="margin-top:12px"></div>
     </div>
     <div class="ob-divider"></div>
     <div class="ob-section">
@@ -482,10 +500,13 @@ function initRegionTagInput() {
 
   searchEl.addEventListener('input', () => {
     const q = searchEl.value.trim().toLowerCase();
-    if (!q) { hideDropdown(); return; }
-    const filtered = REGIONS_FLAT.filter(r => 
-      r.label.toLowerCase().includes(q) || r.sido.toLowerCase().includes(q) || r.gu.toLowerCase().includes(q)
-    );
+    if (!q) { hideDropdown(); showPopular(); return; }
+    // 초성 검색 지원 (#15)
+    const isCho = /^[ㄱ-ㅎ]+$/.test(q);
+    const filtered = REGIONS_FLAT.filter(r => {
+      if (isCho) return getCho(r.label).includes(q);
+      return r.label.toLowerCase().includes(q) || r.sido.toLowerCase().includes(q) || r.gu.toLowerCase().includes(q);
+    });
     showDropdown(filtered);
   });
 
@@ -511,10 +532,30 @@ function initRegionTagInput() {
   searchEl.addEventListener('focus', () => {
     const q = searchEl.value.trim().toLowerCase();
     if (q) {
-      const filtered = REGIONS_FLAT.filter(r => r.label.toLowerCase().includes(q));
+      const isCho = /^[ㄱ-ㅎ]+$/.test(q);
+      const filtered = REGIONS_FLAT.filter(r => {
+        if (isCho) return getCho(r.label).includes(q);
+        return r.label.toLowerCase().includes(q);
+      });
       showDropdown(filtered);
+    } else {
+      showPopular();
     }
   });
+
+  // 인기 지역 표시 (#15)
+  function showPopular() {
+    const popEl = document.getElementById('popularRegions');
+    if (!popEl) return;
+    const _avail = POPULAR_REGIONS.filter(p => !wizardData.subRegions.includes(p));
+    if (!_avail.length) { popEl.innerHTML = ''; return; }
+    popEl.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px">⭐ 인기 지역</div>' + _avail.map(p => `<div class="ob-tag-option" data-val="${esc(p)}">${esc(p)}</div>`).join('');
+    popEl.querySelectorAll('.ob-tag-option').forEach(opt => {
+      opt.style.cssText = 'display:inline-block;padding:5px 10px;margin:2px;border:1px solid var(--border);border-radius:16px;font-size:12px;cursor:pointer;background:var(--bg-card);transition:all .15s';
+      opt.addEventListener('click', () => { addRegion(opt.dataset.val); showPopular(); });
+    });
+  }
+  showPopular();
 
   // Click outside to close dropdown
   document.addEventListener('click', (e) => {

@@ -186,6 +186,11 @@ async function renderStaffManagement(body, actions) {
       });
 
       container.innerHTML = `
+        ${isAdmin && active.length <= 1 ? `<div style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px solid #bfdbfe;border-radius:16px;padding:24px;margin-bottom:20px;text-align:center">
+          <div style="font-size:36px;margin-bottom:8px">👋</div>
+          <div style="font-size:16px;font-weight:800;color:#1e40af;margin-bottom:8px">직원을 초대해보세요!</div>
+          <div style="font-size:13px;color:#475569;line-height:1.6">위의 <strong>+ 직원 초대</strong> 버튼을 클릭하면 초대 코드가 생성됩니다.<br>직원에게 링크를 공유하면 바로 가입할 수 있습니다.</div>
+        </div>` : ''}
         ${isAdmin ? '<div style="margin-bottom:12px;font-size:12px;color:var(--text-muted)">💡 직원 카드를 클릭하면 인적사항, 근무시간, 근무요일 등을 편집할 수 있습니다.</div>' : ''}
         <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;flex:1;min-width:120px;text-align:center">

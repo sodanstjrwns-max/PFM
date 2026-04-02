@@ -514,7 +514,7 @@ function getNavConfig() {
         { id: 'mistake', label: '실수노트', icon: ICONS.shield },
       ]
     },
-    { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
+    { id: 'messenger', label: '💬 메신저', icon: ICONS.message, hidden: true },
     { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
   ];
   return nav;
@@ -629,6 +629,7 @@ function renderSidebar(nav) {
   const container = document.getElementById('sidebarNav');
   let html = '<div class="nav-section"><div class="nav-section-title">메인</div>';
   for (const item of nav) {
+    if (item.hidden) continue;
     if (item.children) {
       const isOpen = state.openGroups[item.id];
       const isChildActive = item.children.some(c => c.id === state.currentPage);

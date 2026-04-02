@@ -1046,6 +1046,41 @@ body.app-loaded {
   .sidebar-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 }
 
+/* ─── Mobile Touch Optimization (#16) ─── */
+@media (max-width: 768px) {
+  /* All interactive elements: 44px min touch target */
+  button, a, select, input[type="checkbox"], input[type="radio"],
+  .ob-tag-remove, .ob-chip, .ob-tag-option, .choice-btn, .nps-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Larger close/delete buttons on tags */
+  .ob-tag-remove {
+    min-width: 28px; min-height: 28px; font-size: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px;
+  }
+  .ob-tag { padding: 6px 8px 6px 10px; gap: 4px; }
+  /* Larger dropdown options */
+  .ob-tag-option { padding: 12px 14px; min-height: 44px; font-size: 14px; }
+  /* Form inputs taller on mobile */
+  .form-input, select.form-input, textarea.form-input { min-height: 44px; font-size: 16px; /* prevents iOS zoom */ }
+  /* Table action buttons bigger */
+  td .btn-sm, td .btn-icon { min-width: 36px; min-height: 36px; }
+  /* Pagination touch targets */
+  .pagination button, .pagination a { min-width: 40px; min-height: 40px; }
+  /* Swipe-friendly cards */
+  .stat-card, .post-card, .floor-card { touch-action: pan-y; }
+  /* Prevent double-tap zoom on interactive elements */
+  .sidebar .nav-item, .modal-footer button { touch-action: manipulation; }
+  /* Larger checkboxes/radios */
+  input[type="checkbox"], input[type="radio"] {
+    min-width: 20px; min-height: 20px;
+  }
+  /* Tab buttons */
+  .tab-btn, .auth-tab { min-height: 44px; padding: 10px 16px; }
+}
+
 @media (min-width: 1400px) {
   .kb-col { min-width: 280px; max-width: 360px; }
 }

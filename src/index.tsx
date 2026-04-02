@@ -30,15 +30,31 @@ import gamification from './routes/gamification'
 import reviewMgmt from './routes/review-management'
 import chat from './routes/chat'
 import onboarding from './routes/onboarding'
+import admin from './routes/admin'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-/* ═══ Global Error Handler ═══ */
-app.onError((err, c) => {
+/* ═══ Global Error Handler with DB Logging (#19) ═══ */
+app.onError(async (err, c) => {
   const isDbError = err.message?.includes('D1_ERROR') || err.message?.includes('SQLITE')
   const status = isDbError ? 503 : 500
   const label = isDbError ? 'DB_ERROR' : 'SERVER_ERROR'
   console.error(`[${label}] ${c.req.method} ${c.req.path}:`, err.message)
+  
+  // Async error logging to D1 (fire-and-forget)
+  try {
+    const user = (c as any).get?.('user')
+    c.env.DB.prepare(
+      'INSERT INTO error_logs (hospital_id, user_id, level, source, message, stack, path, method, user_agent, ip) VALUES (?,?,?,?,?,?,?,?,?,?)'
+    ).bind(
+      user?.hospitalId || null, user?.id || null, 'error', label,
+      (err.message || '').slice(0, 2000), (err.stack || '').slice(0, 5000),
+      c.req.path.slice(0, 500), c.req.method,
+      (c.req.header('user-agent') || '').slice(0, 500),
+      c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || ''
+    ).run().catch(() => {}) // Silently fail
+  } catch {}
+  
   return c.json({
     error: isDbError ? '데이터베이스 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' : '서버 오류가 발생했습니다',
     ...(c.env.JWT_SECRET ? {} : { detail: err.message })
@@ -57,13 +73,23 @@ app.notFound((c) => {
 securityHeaders(app as any)
 
 /* ═══ CORS Configuration ═══ */
+const ALLOWED_ORIGINS = [
+  'https://patient-funnel-manager.pages.dev',
+  /^https:\/\/[a-z0-9-]+\.patient-funnel-manager\.pages\.dev$/,  // Preview deployments
+]
 app.use('/api/*', cors({
   origin: (origin) => {
-    if (!origin) return origin // Server-to-server requests (no CORS needed)
+    if (!origin) return origin // Server-to-server
+    // Dev environments
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin
-    if (origin.endsWith('.pages.dev') || origin.endsWith('.workers.dev')) return origin
-    if (origin.includes('patient-funnel-manager')) return origin
-    return origin
+    if (origin.includes('sandbox.novita.ai') || origin.includes('.e2b.dev')) return origin
+    // Production whitelist
+    for (const allowed of ALLOWED_ORIGINS) {
+      if (typeof allowed === 'string' && origin === allowed) return origin
+      if (allowed instanceof RegExp && allowed.test(origin)) return origin
+    }
+    console.warn(`[CORS] Blocked origin: ${origin}`)
+    return undefined as any // Block
   },
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -77,13 +103,16 @@ authMiddleware(app as any)
 /* ═══ API Cache Middleware ═══ */
 apiCacheMiddleware(app as any)
 
-/* ═══ Temporary password reset endpoint (remove in production) ═══ */
-app.post('/api/reset-pw', async (c) => {
-  const { email, newPassword, secret } = await c.req.json()
-  if (secret !== 'pfm-reset-2026') return c.json({ error: 'Unauthorized' }, 403)
+/* ═══ Admin-only password reset (JWT protected) ═══ */
+app.post('/api/protected/admin/reset-pw', async (c) => {
+  const user = (c as any).get('user')!
+  if (user.role !== 'admin') return c.json({ error: '관리자만 사용할 수 있습니다' }, 403)
+  const { email, newPassword } = await c.req.json()
+  if (!email || !newPassword || newPassword.length < 6) return c.json({ error: '이메일과 비밀번호(6자 이상)를 입력하세요' }, 400)
   const hash = await hashPassword(newPassword)
-  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE email = ?').bind(hash, email).run()
-  return c.json({ success: true, message: 'Password updated' })
+  const result = await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE email = ? AND hospital_id = ?').bind(hash, email, user.hospitalId).run()
+  if (!result.meta.changes) return c.json({ error: '해당 이메일의 사용자를 찾을 수 없습니다' }, 404)
+  return c.json({ success: true, message: '비밀번호가 변경되었습니다' })
 })
 
 /* ═══ Route Registration ═══ */
@@ -114,6 +143,16 @@ app.route('/api/protected/gamification', gamification) // 게이미피케이션
 app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
 app.route('/api/protected/chat', chat)               // 원내 메신저
 app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
+app.route('/api/protected/admin', admin)             // 관리자 콘솔/에러로그/데이터내보내기
+
+/* ═══ API Version Alias (#20) ═══ */
+// /api/v1/* → /api/* alias for future versioning readiness
+app.all('/api/v1/*', async (c) => {
+  const newPath = c.req.path.replace('/api/v1/', '/api/')
+  const newUrl = new URL(c.req.url)
+  newUrl.pathname = newPath
+  return fetch(new Request(newUrl.toString(), c.req.raw))
+})
 
 /* ═══ Me routes (moved from HR for cleaner API) ═══ */
 app.get('/api/protected/me', async (c) => {
