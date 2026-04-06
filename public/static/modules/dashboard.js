@@ -33,15 +33,16 @@ function changeArrow(pct) {
 
 async function renderDashboard(body) {
   await PFM.withErrorBoundary(body, async () => {
-    const [stats, briefing] = await Promise.all([
+    const [stats, briefing, surveyToday] = await Promise.all([
       api('/api/protected/dashboard'),
       api('/api/protected/briefing').catch(() => null),
+      api('/api/protected/surveys/schedules/today').catch(() => null),
     ]);
-    renderDashboardContent(body, stats, briefing);
+    renderDashboardContent(body, stats, briefing, surveyToday);
   }, 'dashboard');
 }
 
-function renderDashboardContent(body, s, briefing) {
+function renderDashboardContent(body, s, briefing, surveyToday) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '오후도 화이팅' : '오늘도 수고하셨습니다';
@@ -109,6 +110,19 @@ function renderDashboardContent(body, s, briefing) {
         <button class="btn btn-sm" id="monthReportBtn" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);font-size:11px;padding:6px 14px;border-radius:8px">📋 월간 리포트</button>
       </div>` : ''}
     </div>
+
+    ${(surveyToday?.isSendDay && isManager) ? `
+    <div id="surveyTodayBanner" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:14px;padding:16px 20px;margin-bottom:20px;border:2px solid #f59e0b;cursor:pointer;transition:transform .15s" onmouseenter="this.style.transform='translateY(-1px)'" onmouseleave="this.style.transform=''">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:32px;flex-shrink:0">🔔</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:15px;color:#92400e">오늘은 설문 발송일입니다!</div>
+          <div style="font-size:12px;color:#a16207;margin-top:2px">${(surveyToday.schedules||[]).map(s => esc(s.survey_title)).join(', ')}</div>
+          ${(surveyToday.todayBatches||[]).length ? '<div style="font-size:11px;color:#92400e;margin-top:4px">✅ 오늘 ' + surveyToday.todayBatches.length + '건 배치 처리됨</div>' : ''}
+        </div>
+        <span style="font-size:12px;color:#92400e;font-weight:700;white-space:nowrap">발송하기 →</span>
+      </div>
+    </div>` : ''}
 
     <!-- 일일 브리핑 -->
     ${briefing ? renderBriefingSection(briefing, isManager) : ''}
@@ -195,6 +209,9 @@ function renderDashboardContent(body, s, briefing) {
     const monthBtn = document.getElementById('monthReportBtn');
     if (weekBtn) weekBtn.addEventListener('click', (e) => { e.stopPropagation(); openReport('week'); });
     if (monthBtn) monthBtn.addEventListener('click', (e) => { e.stopPropagation(); openReport('month'); });
+    // 설문 발송일 배너 클릭
+    const surveyBanner = document.getElementById('surveyTodayBanner');
+    if (surveyBanner) surveyBanner.addEventListener('click', () => { state._surveyTab = 'batches'; navigate('surveys'); });
   }
 
   // 온보딩 (데이터 없을 때)
