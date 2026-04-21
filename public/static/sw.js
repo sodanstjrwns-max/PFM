@@ -1,13 +1,13 @@
 /**
  * Patient Funnel Manager - Service Worker
- * v3.2 Retention Edition
+ * v4.2.2 Spatial Edition
  * 
  * - 기본 자산 오프라인 캐시
  * - Web Push 알림 수신
  * - 알림 클릭 시 해당 페이지로 이동
  */
 
-const CACHE_VERSION = 'pfm-v3.2.0';
+const CACHE_VERSION = 'pfm-v4.2.2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -57,7 +57,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 정적 자산: 캐시 우선
+  // JS 번들(/static/dist/*): 네트워크 우선 (배포 즉시 반영, 오프라인 시 캐시 폴백)
+  if (url.pathname.startsWith('/static/dist/')) {
+    event.respondWith(
+      fetch(request)
+        .then((resp) => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(RUNTIME_CACHE).then((c) => c.put(request, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // 그 외 정적 자산(CSS/이미지/폰트): 캐시 우선 (성능 최적화)
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
