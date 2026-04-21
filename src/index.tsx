@@ -31,6 +31,8 @@ import reviewMgmt from './routes/review-management'
 import chat from './routes/chat'
 import onboarding from './routes/onboarding'
 import admin from './routes/admin'
+import recall from './routes/recall'
+import push from './routes/push'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -144,6 +146,8 @@ app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
 app.route('/api/protected/chat', chat)               // 원내 메신저
 app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
 app.route('/api/protected/admin', admin)             // 관리자 콘솔/에러로그/데이터내보내기
+app.route('/api/protected/recall', recall)           // v3.2 환자 리콜 자동화
+app.route('/api/protected/push', push)               // v3.2 Web Push 알림
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness
@@ -284,6 +288,10 @@ function getHTML(): string {
 <meta property="og:type" content="website">
 <title>Patient Funnel Manager - 환자를 팬으로 만드는 병원경영 시스템</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f766e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='14' font-weight='bold' font-family='Arial'>PF</text></svg>">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PF Manager">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" href="/static/dist/core.js" as="script">

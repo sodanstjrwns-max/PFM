@@ -628,6 +628,7 @@ function getNavConfig() {
         { id: 'patients', label: '환자 DB', icon: ICONS.users },
         { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
+        { id: 'recall', label: '📞 리콜 자동화', icon: ICONS.phone || ICONS.message },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
         { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
@@ -1117,6 +1118,7 @@ async function renderPage() {
     case 'meetings': M.meetings.renderMeetings(body, actions); break;
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
+    case 'recall': M.recall.renderRecall(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'complaints': M.complaints.renderComplaints(body, actions); break;

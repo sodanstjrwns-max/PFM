@@ -4,7 +4,21 @@
 - **이름**: Patient Funnel Manager
 - **목표**: 병의원 통합 관리 플랫폼 - 진료관리, 환자관리, 마케팅, HR, 운영, 커뮤니티를 한 곳에서
 - **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
-- **버전**: v3.1 "Aha Moment Edition" (샘플 데이터 주입, 스토리텔링 랜딩, 성능 76% 개선)
+- **버전**: v3.2 "Retention Edition" (환자 리콜 자동화 + PWA + 브라우저 알림)
+
+## 🎯 v3.2 "Retention Edition" (2026-04-21)
+- **📞 환자 리콜 자동화**: 룰북 기반 매일 자동 대상자 생성 → 오늘의 리콜 큐 → 한 번에 실행
+  - 기본 룰 3종 (스케일링 6개월 · 임플란트 1년 · 상담 미결정 7일)
+  - 우선순위·채널(전화/SMS/카톡)·스크립트 템플릿 커스텀
+  - 예약 전환율 실시간 추적, 월간 리콜 KPI 대시보드
+  - API: `/api/protected/recall/rules|generate|tasks|summary`
+- **📱 PWA 설치 지원**: manifest.webmanifest + service worker + 설치 프롬프트
+  - 홈 화면 앱 아이콘 (안드로이드/iOS), 오프라인 자산 캐싱, 바로가기 3종 (대시보드·리콜·환자)
+  - 앱처럼 2초 안에 실행, 네트워크 끊겨도 로그인 화면 로드
+- **🔔 브라우저 알림**: 일일 브리핑 리마인더 (매일 9시), 리콜/컴플레인 실시간 알림
+  - Web Push 구독 테이블 + 개인 알림 설정 (`notification_preferences`)
+  - 서비스 워커 기반 푸시 + 로컬 알림 fallback
+- **DB 추가**: migrations/0024 — recall_rules, recall_tasks, push_subscriptions, notification_preferences
 
 ## 🎯 v3.1 "Aha Moment Edition" (2026-04-21)
 - **✨ 원클릭 샘플 데이터 주입**: 가입 직후 3개월치 실제 데이터(환자40/상담28/콜60/KPI60일/리뷰15/퍼널10단계 분포) 즉시 체험 — API `POST /api/protected/onboarding/seed-sample`, 기존 데이터 있으면 자동 차단

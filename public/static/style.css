@@ -2252,3 +2252,192 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   .ob-add-space { min-height:40px; }
 }
 .chat-header-badge { position:absolute; top:-2px; right:-2px; min-width:16px; height:16px; padding:0 4px; background:#ef4444; color:white; border-radius:8px; font-size:9px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid white; }
+
+/* ═══════════════════════════════════════════════════
+   v3.2 Retention Edition - Recall + PWA Styles
+   ═══════════════════════════════════════════════════ */
+
+/* Recall page */
+.recall-page { padding: 4px 0; }
+.recall-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+.recall-summary-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.recall-kpi-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.recall-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+.recall-kpi-label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.recall-kpi-value { font-size: 28px; font-weight: 800; color: #0f172a; margin: 6px 0 2px; }
+.recall-kpi-sub { font-size: 12px; color: #94a3b8; }
+
+.recall-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.recall-tab {
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.recall-tab:hover { color: #0f766e; }
+.recall-tab.active { color: #0f766e; border-bottom-color: #0f766e; }
+
+.recall-task-list { display: flex; flex-direction: column; gap: 10px; }
+.recall-task-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s;
+}
+.recall-task-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.08); }
+.recall-task-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.recall-priority-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.recall-patient-name { font-size: 16px; font-weight: 700; color: #0f172a; }
+.recall-phone { color: #64748b; font-size: 13px; }
+.recall-phone a { color: #0f766e; text-decoration: none; }
+.recall-phone a:hover { text-decoration: underline; }
+.recall-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.status-pending { background: #fef3c7; color: #ca8a04; }
+.status-done { background: #d1fae5; color: #059669; }
+.status-reserved { background: #dbeafe; color: #2563eb; }
+.status-skipped { background: #f3f4f6; color: #6b7280; }
+.status-failed { background: #fee2e2; color: #dc2626; }
+
+.recall-task-body { margin: 8px 0; }
+.recall-reason { font-size: 14px; color: #334155; font-weight: 500; }
+.recall-script {
+  background: #f8fafc;
+  border-left: 3px solid #0f766e;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #475569;
+  border-radius: 6px;
+  margin-top: 6px;
+  font-style: italic;
+}
+.recall-result { font-size: 13px; color: #475569; margin-top: 6px; }
+.recall-reservation { font-size: 13px; color: #2563eb; margin-top: 6px; font-weight: 600; }
+.recall-task-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+.recall-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+/* Recall rules modal */
+.recall-rules-list { display:flex; flex-direction:column; gap:10px; max-height:60vh; overflow-y:auto; }
+.recall-rule-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.recall-rule-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.recall-rule-meta { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+.recall-rule-script {
+  background: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+.recall-rule-actions { display:flex; gap:6px; }
+.switch-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.switch-mini input { cursor: pointer; }
+
+/* PWA install banner */
+.pfm-install-banner {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  max-width: 360px;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(15,118,110,0.22);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9000;
+  animation: slideInBanner 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(15,118,110,0.12);
+}
+@keyframes slideInBanner {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.pfm-install-icon { font-size: 32px; flex-shrink: 0; }
+.pfm-install-text { flex: 1; display: flex; flex-direction: column; }
+.pfm-install-text strong { font-size: 14px; color: #0f172a; }
+.pfm-install-text span { font-size: 12px; color: #64748b; margin-top: 2px; }
+.pfm-install-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .recall-kpi-value { font-size: 24px; }
+  .recall-task-head { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .recall-status-badge { margin-left: 0; }
+  .pfm-install-banner {
+    left: 8px; right: 8px; bottom: 8px; max-width: none;
+  }
+}

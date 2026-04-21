@@ -13,6 +13,7 @@ const DIST = path.join(STATIC, 'dist');
 const CORE_FILES = [
   'app.js',
   'modules/dashboard.js',
+  'modules/pwa.js',   // v3.2 PWA + Service Worker 등록
 ];
 
 const CHUNK_FILES = [
@@ -28,6 +29,7 @@ const CHUNK_FILES = [
   'modules/heatmap.js', 'modules/briefing.js', 'modules/gamification.js', 'modules/reviews.js',
   'modules/chat.js',
   'modules/onboarding.js',
+  'modules/recall.js',   // v3.2 환자 리콜 자동화
 ];
 
 // Module-to-page mapping (which pages need which module)
@@ -63,6 +65,7 @@ const MODULE_PAGE_MAP = {
   'modules/reviews.js': ['review_mgmt'],
   'modules/chat.js': ['messenger'],
   'modules/onboarding.js': ['onboarding'],
+  'modules/recall.js': ['recall'],
 };
 
 // Reverse map: page → chunk file
