@@ -35,6 +35,7 @@ import recall from './routes/recall'
 import push from './routes/push'
 import kakao from './routes/kakao'
 import reports from './routes/reports'
+import insightsRoute from './routes/insights'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -152,6 +153,7 @@ app.route('/api/protected/recall', recall)           // v3.2 환자 리콜 자�
 app.route('/api/protected/push', push)               // v3.2 Web Push 알림
 app.route('/api/protected/kakao', kakao)             // v3.3 카카오 알림톡
 app.route('/api/protected/reports', reports)         // v3.3 월간 보고서 내보내기
+app.route('/api/protected/insights', insightsRoute)   // v3.5 주간 인사이트 브리핑
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness

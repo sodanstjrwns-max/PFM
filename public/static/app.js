@@ -700,6 +700,7 @@ function getNavConfig() {
       id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
       children: [
         { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
+        ...(isManager ? [{ id: 'weekly_insights', label: '📊 주간 인사이트', icon: ICONS.chart }] : []),
         { id: 'kpi_stats', label: 'KPI 통계', icon: ICONS.chart },
         { id: 'kpi_benchmark', label: '🏆 벤치마킹', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
@@ -1107,6 +1108,7 @@ async function renderPage() {
     calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
+    weekly_insights: ['📊 주간 인사이트', ICONS.chart],
     kpi_stats: ['📊 KPI 통계', ICONS.chart],
     kpi_benchmark: ['🏆 병원 벤치마킹', ICONS.chart],
     kpi_daily: ['📝 일간 기록', ICONS.edit],
@@ -1170,6 +1172,11 @@ async function renderPage() {
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
     case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
+    case 'weekly_insights': { // v3.5: 대시보드로 이동 후 모달 오픈
+      M.dashboard.renderDashboard(body);
+      setTimeout(() => window.showWeeklyInsightsModal?.(false), 400);
+      break;
+    }
     case 'kpi_stats': M.kpiStats.renderKpiStats(body, actions); break;
     case 'kpi_benchmark': M.kpiStats.renderBenchmark(body, actions); break;
     case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;

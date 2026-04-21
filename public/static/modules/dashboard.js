@@ -34,14 +34,164 @@ function changeArrow(pct) {
 
 async function renderDashboard(body) {
   await PFM.withErrorBoundary(body, async () => {
-    const [stats, briefing, surveyToday] = await Promise.all([
+    const isManager = ['admin','manager'].includes(state.user.role);
+    const [stats, briefing, surveyToday, weeklyStatus] = await Promise.all([
       api('/api/protected/dashboard'),
       api('/api/protected/briefing').catch(() => null),
       api('/api/protected/surveys/schedules/today').catch(() => null),
+      isManager ? api('/api/protected/insights/weekly/status').catch(() => null) : Promise.resolve(null),
     ]);
-    renderDashboardContent(body, stats, briefing, surveyToday);
+    renderDashboardContent(body, stats, briefing, surveyToday, weeklyStatus);
+
+    // 🆕 v3.5: 이번주 미확인 + manager → 주간 인사이트 모달 자동 표시
+    if (weeklyStatus && weeklyStatus.ok && !weeklyStatus.seen && isManager) {
+      // 대시보드 렌더 후 0.8초 뒤에 표시 (시각적으로 자연스럽게)
+      setTimeout(() => showWeeklyInsightsModal(true), 800);
+    }
   }, 'dashboard');
 }
+
+/* ═══ 주간 인사이트 모달 (v3.5 Weekly Edition) ═══ */
+async function showWeeklyInsightsModal(auto) {
+  // 기존 모달 있으면 제거
+  document.getElementById('weeklyInsightsOverlay')?.remove();
+
+  // 로딩 상태 먼저 표시
+  const overlay = document.createElement('div');
+  overlay.id = 'weeklyInsightsOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.3s ease;overflow-y:auto';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:40px;text-align:center">
+      <div class="loading-spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto 14px"></div>
+      <div style="font-size:14px;color:#475569">📊 지난 7일 데이터 분석 중...</div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  let data;
+  try {
+    data = await api('/api/protected/insights/weekly');
+  } catch (err) {
+    overlay.remove();
+    toast('주간 인사이트를 가져오지 못했어요: ' + err.message, 'error');
+    return;
+  }
+
+  if (!data || !data.ok || !Array.isArray(data.cards) || data.cards.length === 0) {
+    overlay.remove();
+    if (!auto) toast('이번주는 비교할 지난주 데이터가 부족해요', 'info');
+    return;
+  }
+
+  // 톤별 색상
+  const tones = {
+    up:   { bg:'#dcfce7', br:'#86efac', fg:'#166534', sign:'▲', signColor:'#16a34a' },
+    down: { bg:'#fee2e2', br:'#fca5a5', fg:'#991b1b', sign:'▼', signColor:'#dc2626' },
+    warn: { bg:'#fef3c7', br:'#fcd34d', fg:'#92400e', sign:'▲', signColor:'#d97706' },
+  };
+
+  const cardsHtml = data.cards.map(c => {
+    const t = tones[c.tone] || tones.up;
+    const sign = c.change > 0 ? '+' : '';
+    const unit = c.key === 'conv_rate' ? '%p'
+               : (c.key === 'complaints' || c.key === 'reviews') ? '건'
+               : '%';
+    const changeStr = c.change === 0 ? '변화 없음' : `${sign}${c.change}${unit}`;
+    return `
+      <button class="weekly-card" data-goto="${c.goto}" style="background:${t.bg};border:1.5px solid ${t.br};border-radius:14px;padding:14px 16px;text-align:left;cursor:pointer;transition:transform .15s, box-shadow .15s;width:100%;display:flex;gap:12px;align-items:flex-start">
+        <div style="font-size:30px;flex-shrink:0;line-height:1">${c.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:700;color:${t.fg};text-transform:uppercase;letter-spacing:0.3px">${c.title}</span>
+            <span style="font-size:11px;font-weight:700;color:${t.signColor};background:#fff;padding:2px 6px;border-radius:6px;white-space:nowrap">${c.change !== 0 ? t.sign : '●'} ${changeStr}</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;color:${t.fg};line-height:1.1;margin-bottom:4px">${c.value}</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:6px">${c.detail}</div>
+          <div style="font-size:12px;color:#334155;line-height:1.45;font-weight:500">${c.narrative}</div>
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  const weekLabel = data.week ? data.week.replace('-W', ' · ') + '주차' : '이번주';
+  const isManagerView = ['admin','manager'].includes(state.user.role);
+
+  overlay.innerHTML = `
+    <div class="weekly-modal" style="background:#fff;border-radius:20px;max-width:720px;width:100%;padding:28px 24px;box-shadow:0 25px 80px rgba(0,0,0,0.4);animation:ahaBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);position:relative;max-height:92vh;overflow-y:auto">
+      <div style="position:absolute;top:12px;right:12px">
+        <button id="weeklyClose" style="background:transparent;border:none;font-size:20px;color:#94a3b8;cursor:pointer;padding:6px 10px;border-radius:8px" aria-label="닫기">✕</button>
+      </div>
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="display:inline-block;font-size:11px;font-weight:700;color:#0f766e;background:#ccfbf1;padding:4px 12px;border-radius:20px;margin-bottom:8px;letter-spacing:0.5px">
+          📅 ${weekLabel} · 지난 7일 분석
+        </div>
+        <h2 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#0f172a;line-height:1.3">
+          주간 인사이트 브리핑
+        </h2>
+        <p style="font-size:14px;color:#475569;margin:0;line-height:1.55;font-weight:600">
+          ${esc(data.headline || '이번주 주요 변화를 정리했습니다')}
+        </p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:20px" id="weeklyCardsGrid">
+        ${cardsHtml}
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#475569;line-height:1.55">
+        💡 <b>카드 클릭</b> → 해당 화면에서 바로 액션 시작 &nbsp;|&nbsp; 
+        <b>매주 월요일 아침</b> 자동으로 새 브리핑이 생성됩니다
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary" id="weeklyDismiss" style="min-width:180px">✅ 이번주 확인 완료</button>
+        ${isManagerView ? `<button class="btn btn-outline" id="weeklyGoKpi" style="min-width:150px">📈 KPI 대시보드</button>` : ''}
+        <button class="btn btn-outline" id="weeklyGoReports" style="min-width:140px">📄 월간 보고서</button>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn btn-sm" style="background:transparent;color:#94a3b8;font-size:11px" id="weeklyRemind">나중에 다시 보기</button>
+      </div>
+    </div>
+  `;
+
+  const closeModal = () => overlay.remove();
+
+  overlay.querySelector('#weeklyClose')?.addEventListener('click', closeModal);
+  overlay.querySelector('#weeklyRemind')?.addEventListener('click', closeModal);
+  overlay.querySelector('#weeklyDismiss')?.addEventListener('click', async () => {
+    try { await api('/api/protected/insights/weekly/dismiss', { method: 'POST', json: { week: data.week } }); } catch(_) {}
+    toast('✅ 이번주 브리핑 확인 완료', 'success');
+    closeModal();
+  });
+  overlay.querySelector('#weeklyGoKpi')?.addEventListener('click', () => { closeModal(); navigate('kpi_dashboard'); });
+  overlay.querySelector('#weeklyGoReports')?.addEventListener('click', () => { closeModal(); navigate('reports'); });
+
+  // 카드 클릭 → 페이지 이동
+  overlay.querySelectorAll('.weekly-card').forEach(card => {
+    card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)'; });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; card.style.boxShadow = ''; });
+    card.addEventListener('click', () => {
+      const g = card.dataset.goto;
+      closeModal();
+      if (g) navigate(g);
+    });
+  });
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  overlay.tabIndex = -1;
+  setTimeout(() => overlay.querySelector('#weeklyDismiss')?.focus(), 100);
+
+  // 🔔 브라우저 알림 발송 (권한 있으면)
+  if (auto && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('📊 주간 인사이트 브리핑', {
+        body: data.headline || '이번주 주요 변화를 확인하세요',
+        icon: '/static/favicon-192.png',
+        tag: 'pfm-weekly-' + data.week,
+        silent: false,
+      });
+    } catch(_) {}
+  }
+}
+window.showWeeklyInsightsModal = showWeeklyInsightsModal;
 
 /* ═══ 샘플 데이터 주입 - Aha Moment (v3.3 강화) ═══ */
 async function injectSampleData(btn) {
@@ -246,7 +396,7 @@ function launchConfetti() {
 }
 window.showAhaMomentModal = showAhaMomentModal;
 
-function renderDashboardContent(body, s, briefing, surveyToday) {
+function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '오후도 화이팅' : '오늘도 수고하셨습니다';
@@ -338,6 +488,22 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
           직접 입력할게요
         </button>
       </div>
+    </section>
+    ` : ''}
+
+    <!-- 📊 주간 인사이트 배너 (v3.5) - 이번주 확인 안 했으면 표시 -->
+    ${(weeklyStatus && weeklyStatus.ok && !weeklyStatus.seen && isManager) ? `
+    <section class="weekly-banner" id="weeklyBanner" aria-label="주간 인사이트 브리핑" style="background:linear-gradient(135deg,#fef3c7,#fce7f3);border:2px solid #f59e0b;border-radius:16px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:transform .15s, box-shadow .2s;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-20px;right:-20px;font-size:100px;opacity:0.1">📊</div>
+      <div style="font-size:36px;flex-shrink:0">📊</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:700;color:#b45309;letter-spacing:0.5px;margin-bottom:3px">NEW · 주간 브리핑 준비됨</div>
+        <div style="font-size:15px;font-weight:800;color:#78350f;line-height:1.35;margin-bottom:2px">이번주 주요 변화 6가지를 정리했어요</div>
+        <div style="font-size:12px;color:#92400e">지난 7일 vs 그 전 7일 — 매출·신환·전환율·숨은매출·컴플레인·리뷰</div>
+      </div>
+      <button class="btn btn-primary" id="weeklyOpenBtn" style="flex-shrink:0;background:#f59e0b;border:none;min-width:120px;font-weight:700">
+        👀 지금 확인 →
+      </button>
     </section>
     ` : ''}
 
@@ -488,6 +654,17 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
       navigate(el.dataset.goto);
     });
   });
+
+  // 🆕 v3.5: 주간 인사이트 배너 클릭 → 모달 오픈
+  const weeklyBanner = document.getElementById('weeklyBanner');
+  if (weeklyBanner) {
+    weeklyBanner.addEventListener('mouseenter', () => { weeklyBanner.style.transform = 'translateY(-2px)'; weeklyBanner.style.boxShadow = '0 10px 24px rgba(245,158,11,0.3)'; });
+    weeklyBanner.addEventListener('mouseleave', () => { weeklyBanner.style.transform = ''; weeklyBanner.style.boxShadow = ''; });
+    weeklyBanner.addEventListener('click', (e) => {
+      e.preventDefault();
+      showWeeklyInsightsModal(false);
+    });
+  }
 
   // 탐험 가이드 숨기기 버튼
   const exploreDismissBtn = document.getElementById('exploreDismiss');
