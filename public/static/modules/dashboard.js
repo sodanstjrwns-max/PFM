@@ -468,16 +468,36 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
   ];
 
   // 🎯 Insight Hero — Bento Hero 타일 (Apple 스타일)
+  // ⚠️ API 응답은 { ok, insights: [ {tone, value:"18120만원"|"11명"|...}, ... ] } 구조
   let insightHeroHtml = '';
   let heroActive = false;
   let heroHidden = 0;
   let heroDormant = 0;
-  if (insightHero && insightHero.ok && insightHero.summary && hasData && isManager) {
-    const sum = insightHero.summary;
-    heroHidden = sum.hiddenRevenue || 0;
-    heroDormant = sum.dormantPatients || 0;
+  // "18120만원" / "1.8억원" 형식의 문자열을 원(₩) 숫자로 파싱
+  function parseKrMoney(s) {
+    if (!s) return 0;
+    s = String(s).trim();
+    const mEok = s.match(/([\d.]+)\s*억/);
+    if (mEok) return Math.round(parseFloat(mEok[1]) * 100000000);
+    const mMan = s.match(/([\d,]+)\s*만/);
+    if (mMan) return parseInt(mMan[1].replace(/,/g,''), 10) * 10000;
+    const mNum = s.match(/([\d,]+)/);
+    return mNum ? parseInt(mNum[1].replace(/,/g,''), 10) : 0;
+  }
+  function parseCount(s) {
+    if (!s) return 0;
+    const m = String(s).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  if (insightHero && insightHero.ok && Array.isArray(insightHero.insights) && isManager) {
+    const arr = insightHero.insights;
+    const revItem = arr.find(x => x.tone === 'revenue');
+    const recallItem = arr.find(x => x.tone === 'recall');
+    if (revItem) heroHidden = parseKrMoney(revItem.value);
+    if (recallItem) heroDormant = parseCount(recallItem.value);
+    // 기존 요건: hasData && hiddenMan >= 10. 데이터가 거의 없어도 휴면환자만 있으면 노출
     const hiddenMan = Math.round(heroHidden / 10000);
-    if (hiddenMan >= 10) {
+    if (hasData && (hiddenMan >= 10 || heroDormant >= 3)) {
       heroActive = true;
       insightHeroHtml = `
         <article class="bento-tile tone-brand bento-hero" data-goto="recall" aria-label="숨은 매출 발견">
