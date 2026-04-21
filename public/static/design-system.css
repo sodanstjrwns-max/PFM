@@ -1074,5 +1074,124 @@ input::placeholder, textarea::placeholder {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   End of Design System v4.0
+   23. 로그인 화면 프리미엄 업그레이드
+   ═══════════════════════════════════════════════════════════════ */
+.auth-screen {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(20, 184, 166, 0.2) 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.15) 0%, transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(15, 118, 110, 0.3) 0%, transparent 50%),
+    linear-gradient(135deg, #042f2e 0%, #134e4a 50%, #0b1220 100%) !important;
+}
+
+.auth-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: var(--radius-2xl) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.04),
+    0 20px 60px rgba(4, 47, 46, 0.4),
+    0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  padding: var(--space-8) !important;
+}
+
+.auth-story-badge {
+  background: rgba(94, 234, 212, 0.15) !important;
+  border: 1px solid rgba(94, 234, 212, 0.3) !important;
+  color: #5eead4 !important;
+  backdrop-filter: blur(10px);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.auth-story h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #ffffff 0%, #ccfbf1 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 로그인 버튼은 primary 스타일 그대로 상속 + 크기 키움 */
+.auth-form .btn-primary {
+  padding: 14px 20px !important;
+  font-size: var(--text-md) !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius-md) !important;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   24. User Popup Menu 다크모드
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark"] .user-popup-menu {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border-default) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+[data-theme="dark"] .user-popup-item {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .user-popup-item:hover {
+  background: var(--surface-sunken) !important;
+}
+
+[data-theme="dark"] .user-popup-divider {
+  background: var(--border-default) !important;
+}
+
+/* 테마 메뉴 라벨 */
+[data-theme="dark"] #menuThemeLabel {
+  background: var(--surface-sunken) !important;
+  color: var(--text-body) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   25. 주요 배너 + 퀵링크 다크모드
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark"] .sample-banner,
+[data-theme="dark"] .weekly-banner,
+[data-theme="dark"] .explore-card {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .sample-banner h3,
+[data-theme="dark"] .explore-card-title,
+[data-theme="dark"] .explore-task-title {
+  color: var(--text-strong) !important;
+}
+
+[data-theme="dark"] .sample-banner p,
+[data-theme="dark"] .explore-task-desc {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .quick-link-card {
+  background: var(--surface-card) !important;
+  border-color: var(--border-default) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   End of Design System v4.0 · Clinical Calm
    ═══════════════════════════════════════════════════════════════ */

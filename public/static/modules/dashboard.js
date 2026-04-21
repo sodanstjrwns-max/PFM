@@ -35,13 +35,14 @@ function changeArrow(pct) {
 async function renderDashboard(body) {
   await PFM.withErrorBoundary(body, async () => {
     const isManager = ['admin','manager'].includes(state.user.role);
-    const [stats, briefing, surveyToday, weeklyStatus] = await Promise.all([
+    const [stats, briefing, surveyToday, weeklyStatus, insightHero] = await Promise.all([
       api('/api/protected/dashboard'),
       api('/api/protected/briefing').catch(() => null),
       api('/api/protected/surveys/schedules/today').catch(() => null),
       isManager ? api('/api/protected/insights/weekly/status').catch(() => null) : Promise.resolve(null),
+      isManager ? api('/api/protected/onboarding/insights').catch(() => null) : Promise.resolve(null),
     ]);
-    renderDashboardContent(body, stats, briefing, surveyToday, weeklyStatus);
+    renderDashboardContent(body, stats, briefing, surveyToday, weeklyStatus, insightHero);
 
     // 🆕 v3.5: 이번주 미확인 + manager → 주간 인사이트 모달 자동 표시
     if (weeklyStatus && weeklyStatus.ok && !weeklyStatus.seen && isManager) {
@@ -396,7 +397,7 @@ function launchConfetti() {
 }
 window.showAhaMomentModal = showAhaMomentModal;
 
-function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus) {
+function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, insightHero) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '오후도 화이팅' : '오늘도 수고하셨습니다';
@@ -466,7 +467,43 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus) {
     { key: 'reports',    icon: '📄', title: '월간 보고서 내보내기',  desc: 'Excel/PDF로 원장님 보고용 자료',    goto: 'reports' },
   ];
 
+  // 🎯 Insight Hero — 원장이 매일 로그인할 때 "숨은 매출"을 즉시 보게
+  let insightHeroHtml = '';
+  if (insightHero && insightHero.ok && insightHero.summary && hasData && isManager) {
+    const sum = insightHero.summary;
+    const hidden = sum.hiddenRevenue || 0;
+    const dormant = sum.dormantPatients || 0;
+    const hiddenMan = Math.round(hidden / 10000);
+    if (hiddenMan >= 10) {
+      const hiddenLabel = hidden >= 100000000
+        ? (hidden / 100000000).toFixed(1).replace(/\.0$/, '') + '억원'
+        : hiddenMan.toLocaleString() + '만원';
+      insightHeroHtml = `
+        <section class="insight-hero" aria-label="숨은 매출 발견">
+          <div style="position:relative;z-index:1;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+            <div style="flex:1;min-width:260px">
+              <div class="insight-hero-label">💎 오늘의 숨은 기회</div>
+              <div class="insight-hero-value num">${hiddenLabel}</div>
+              <div class="insight-hero-caption">
+                상담 후 결정을 미룬 환자들에게 남아있는 <b style="color:#5eead4">아직 실현되지 않은 매출</b>이에요.<br>
+                ${dormant > 0 ? `휴면 환자 <b>${dormant}명</b>에게 리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.` : '리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.'}
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-lg" data-goto="recall" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);backdrop-filter:blur(10px)">
+                📞 리콜 시작
+              </button>
+              <button class="btn btn-lg" data-goto="consultation" style="background:#ffffff;color:var(--brand-800);border:none;font-weight:700">
+                💬 상담 관리 →
+              </button>
+            </div>
+          </div>
+        </section>`;
+    }
+  }
+
   body.innerHTML = `
+    ${insightHeroHtml}
     <!-- 🎉 Aha Moment: 샘플 데이터 환영 배너 -->
     ${showSampleBanner ? `
     <section class="sample-banner" aria-label="샘플 데이터 주입">
