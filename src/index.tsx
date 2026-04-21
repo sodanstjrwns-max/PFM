@@ -327,10 +327,12 @@ function getHTML(): string {
 <link rel="preload" href="/static/style.css" as="style">
 <link rel="preload" href="/static/design-system.css" as="style">
 <link rel="preload" href="/static/glassmorphism.css" as="style">
+<link rel="preload" href="/static/bento.css" as="style">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="/static/style.css" rel="stylesheet">
 <link href="/static/design-system.css" rel="stylesheet">
 <link href="/static/glassmorphism.css" rel="stylesheet">
+<link href="/static/bento.css" rel="stylesheet">
 <script>
   /* Theme init: light/dark/system - 깜빡임 방지 위해 head에서 즉시 실행 */
   (function(){
@@ -369,6 +371,7 @@ function getHTML(): string {
 </div>
 <div id="app"></div>
 <script src="/static/dist/core.js"><` + `/script>
+<script src="/static/spatial.js"><` + `/script>
 <script>
 (function(){
   // Hide boot loader once app is rendered

@@ -467,43 +467,85 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     { key: 'reports',    icon: '📄', title: '월간 보고서 내보내기',  desc: 'Excel/PDF로 원장님 보고용 자료',    goto: 'reports' },
   ];
 
-  // 🎯 Insight Hero — 원장이 매일 로그인할 때 "숨은 매출"을 즉시 보게
+  // 🎯 Insight Hero — Bento Hero 타일 (Apple 스타일)
   let insightHeroHtml = '';
+  let heroActive = false;
+  let heroHidden = 0;
+  let heroDormant = 0;
   if (insightHero && insightHero.ok && insightHero.summary && hasData && isManager) {
     const sum = insightHero.summary;
-    const hidden = sum.hiddenRevenue || 0;
-    const dormant = sum.dormantPatients || 0;
-    const hiddenMan = Math.round(hidden / 10000);
+    heroHidden = sum.hiddenRevenue || 0;
+    heroDormant = sum.dormantPatients || 0;
+    const hiddenMan = Math.round(heroHidden / 10000);
     if (hiddenMan >= 10) {
-      const hiddenLabel = hidden >= 100000000
-        ? (hidden / 100000000).toFixed(1).replace(/\.0$/, '') + '억원'
-        : hiddenMan.toLocaleString() + '만원';
+      heroActive = true;
       insightHeroHtml = `
-        <section class="insight-hero" aria-label="숨은 매출 발견">
-          <div style="position:relative;z-index:1;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-            <div style="flex:1;min-width:260px">
-              <div class="insight-hero-label">💎 오늘의 숨은 기회</div>
-              <div class="insight-hero-value num">${hiddenLabel}</div>
-              <div class="insight-hero-caption">
-                상담 후 결정을 미룬 환자들에게 남아있는 <b style="color:#5eead4">아직 실현되지 않은 매출</b>이에요.<br>
-                ${dormant > 0 ? `휴면 환자 <b>${dormant}명</b>에게 리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.` : '리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.'}
-              </div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-lg" data-goto="recall" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);backdrop-filter:blur(10px)">
-                📞 리콜 시작
-              </button>
-              <button class="btn btn-lg" data-goto="consultation" style="background:#ffffff;color:var(--brand-800);border:none;font-weight:700">
-                💬 상담 관리 →
-              </button>
+        <article class="bento-tile tone-brand bento-hero" data-goto="recall" aria-label="숨은 매출 발견">
+          <div class="bento-orb" style="width:240px;height:240px;background:radial-gradient(circle,#5eead4,transparent 70%);top:-40px;right:-40px"></div>
+          <div class="bento-orb" style="width:180px;height:180px;background:radial-gradient(circle,#818cf8,transparent 70%);bottom:-30px;left:20%;animation-delay:-3s"></div>
+          <div>
+            <div class="bento-label">💎 오늘의 숨은 기회</div>
+            <div class="bento-value"
+                 data-flow-target="${heroHidden}"
+                 data-flow-format="money_kr"
+                 data-flow-delay="120">0</div>
+            <div class="bento-caption" style="max-width:540px;margin-top:10px">
+              상담 후 결정을 미룬 환자들에게 남아있는 <b style="color:#5eead4">아직 실현되지 않은 매출</b>이에요.<br>
+              ${heroDormant > 0 ? `휴면 환자 <b><span data-flow-target="${heroDormant}" data-flow-suffix="명" data-flow-delay="400">0명</span></b>에게 리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.` : '리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.'}
             </div>
           </div>
-        </section>`;
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px" onclick="event.stopPropagation()">
+            <button class="btn btn-lg" data-goto="recall" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.35);backdrop-filter:blur(10px);font-weight:700">
+              📞 리콜 시작
+            </button>
+            <button class="btn btn-lg" data-goto="consultation" style="background:#ffffff;color:var(--brand-800,#115e59);border:none;font-weight:800">
+              💬 상담 관리 →
+            </button>
+          </div>
+        </article>`;
     }
   }
 
+  // 🧱 Bento Grid: 오늘의 현황 + 빠른 메뉴 (Apple 스타일 비대칭)
+  // staffCards를 Bento 타일로 변환, 첫 2장은 md, 나머지는 sm
+  const toneRotation = ['tone-sky', 'tone-amber', 'tone-emerald', 'tone-rose', 'tone-indigo', 'tone-brand'];
+  const statTiles = staffCards.map((c, idx) => {
+    const tone = toneRotation[idx % toneRotation.length];
+    const size = idx < 2 ? 'bento-md' : 'bento-sm';
+    // 숫자 추출 (전환율은 '48%' 형태이므로 별도 처리)
+    const raw = String(c.value ?? 0);
+    const isPercent = raw.includes('%');
+    const num = parseFloat(raw.replace(/[^\d.-]/g, '')) || 0;
+    const flowAttrs = isPercent
+      ? `data-flow-target="${num}" data-flow-suffix="%" data-flow-delay="${idx * 80}"`
+      : `data-flow-target="${num}" data-flow-delay="${idx * 80}"`;
+    return `
+      <article class="bento-tile ${tone} ${size}" data-goto="${c.goto}">
+        <div class="bento-orb" style="width:120px;height:120px;background:radial-gradient(circle,rgba(255,255,255,0.5),transparent 70%);top:-20px;right:-20px"></div>
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div class="bento-label">${c.label}</div>
+            <div class="bento-icon" style="width:36px;height:36px;font-size:18px">${c.icon}</div>
+          </div>
+          <div class="bento-value" ${flowAttrs}>0${isPercent?'%':''}</div>
+        </div>
+        <div class="bento-caption" style="font-size:11px;opacity:0.85">탭하여 자세히 보기 →</div>
+      </article>`;
+  }).join('');
+
+  // 빠른 메뉴를 Bento sm 타일로 (화이트 글래스)
+  const linkTiles = quickLinks.map(q => `
+    <article class="bento-tile bento-sm" data-goto="${q.id}" style="min-height:120px;justify-content:flex-start;gap:10px">
+      <div class="bento-icon" style="background:${q.bg};font-size:22px">${q.icon}</div>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--text-strong,#0b1220);letter-spacing:-0.01em">${h(q.title)}</div>
+        <div style="font-size:12px;color:var(--text-muted,#64748b);margin-top:3px">${q.desc}</div>
+      </div>
+    </article>
+  `).join('');
+
   body.innerHTML = `
-    ${insightHeroHtml}
+    ${heroActive ? `<div class="bento-grid" style="margin-bottom:20px">${insightHeroHtml}</div>` : ''}
     <!-- 🎉 Aha Moment: 샘플 데이터 환영 배너 -->
     ${showSampleBanner ? `
     <section class="sample-banner" aria-label="샘플 데이터 주입">
@@ -608,16 +650,10 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     <!-- 일일 브리핑 -->
     ${briefing ? renderBriefingSection(briefing, isManager) : ''}
 
-    <!-- 오늘의 현황 카드 -->
-    <div class="section-title">📊 <span>오늘의 현황</span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px">
-      ${staffCards.map(c => `
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden" data-goto="${c.goto}" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-          <div style="position:absolute;right:8px;top:8px;font-size:28px;opacity:0.15">${c.icon}</div>
-          <div class="mod-muted-sm-bold">${c.label}</div>
-          <div style="font-size:28px;font-weight:900;color:${c.color};margin-top:4px">${c.value}</div>
-        </div>
-      `).join('')}
+    <!-- 🧱 오늘의 현황 · Bento Grid (Apple 스타일) -->
+    <div class="section-title">📊 <span>오늘의 현황</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">실시간 · 탭하여 상세보기</span></div>
+    <div class="bento-grid" style="margin-bottom:24px">
+      ${statTiles}
     </div>
 
     ${isManager ? `
@@ -645,15 +681,10 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     </div>
     ` : ''}
 
-    <!-- 빠른 메뉴 -->
+    <!-- 🧱 빠른 메뉴 · Bento Grid -->
     <div class="section-title">${ICONS.folder}<span>빠른 메뉴</span></div>
-    <div class="quick-links">
-      ${quickLinks.map(q => `
-        <div class="quick-link-card" data-goto="${q.id}">
-          <div class="quick-link-icon" style="background:${q.bg}">${q.icon}</div>
-          <div class="quick-link-text"><h3>${h(q.title)}</h3><p>${q.desc}</p></div>
-        </div>
-      `).join('')}
+    <div class="bento-grid">
+      ${linkTiles}
     </div>`;
 
   // 퍼널 차트 렌더 (관리자만)
@@ -729,6 +760,11 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     // 설문 발송일 배너 클릭
     const surveyBanner = document.getElementById('surveyTodayBanner');
     if (surveyBanner) surveyBanner.addEventListener('click', () => { state._surveyTab = 'batches'; navigate('surveys'); });
+  }
+
+  // 🧱 Bento Grid 애니메이션 트리거 (Number Flow + 3D Tilt)
+  if (window.PFM && typeof window.PFM.applyBentoAnimations === 'function') {
+    requestAnimationFrame(() => window.PFM.applyBentoAnimations(body));
   }
 
   // 온보딩 (데이터 없을 때)
@@ -812,11 +848,11 @@ function renderBriefingSection(d, isManager) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
             <div style="text-align:center;padding:8px;background:var(--primary-bg);border-radius:8px">
               <div class="mod-muted-xs">매출</div>
-              <div style="font-size:18px;font-weight:800;color:var(--primary)">${yRevFmt}</div>
+              <div style="font-size:18px;font-weight:800;color:var(--primary)" data-flow-target="${yRev}" data-flow-format="money_kr">${yRevFmt}</div>
             </div>
             <div style="text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
               <div class="mod-muted-xs">환자</div>
-              <div style="font-size:18px;font-weight:800;color:#2563eb">${(d.yesterday?.newPatients||0)+(d.yesterday?.existingPatients||0)}</div>
+              <div style="font-size:18px;font-weight:800;color:#2563eb" data-flow-target="${(d.yesterday?.newPatients||0)+(d.yesterday?.existingPatients||0)}">${(d.yesterday?.newPatients||0)+(d.yesterday?.existingPatients||0)}</div>
               <div style="font-size:9px;color:var(--text-muted)">신${d.yesterday?.newPatients||0}/구${d.yesterday?.existingPatients||0}</div>
             </div>
           </div>
@@ -832,7 +868,7 @@ function renderBriefingSection(d, isManager) {
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px">
           <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:8px">📈 월 누적 <span style="font-size:10px">${d.monthCumulative?.month || ''} (${d.monthCumulative?.days||0}일)</span></div>
           <div style="text-align:center;margin-bottom:8px">
-            <div style="font-size:20px;font-weight:800;color:var(--primary)">${fmtMoney(d.monthCumulative?.totalRevenue || 0)}</div>
+            <div style="font-size:20px;font-weight:800;color:var(--primary)" data-flow-target="${d.monthCumulative?.totalRevenue || 0}" data-flow-format="money_kr" data-flow-delay="200">${fmtMoney(d.monthCumulative?.totalRevenue || 0)}</div>
           </div>
           ${d.monthCumulative?.target > 0 ? `
           <div>

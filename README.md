@@ -4,7 +4,33 @@
 - **이름**: Patient Funnel Manager
 - **목표**: 병의원 통합 관리 플랫폼 - 진료관리, 환자관리, 마케팅, HR, 운영, 커뮤니티를 한 곳에서
 - **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
-- **버전**: v4.1 "Frosted" (글래스모피즘 강력 적용 — Apple Vision Pro + iOS 26 감각)
+- **버전**: v4.2 "Spatial" (Bento Grid + Number Flow + 3D Tilt — Apple 감각 완성)
+
+## 🧱 v4.2 "Spatial" Bento + Motion Layer (2026-04-21)
+> "대시보드가 살아있다" — Apple 웹사이트 감각의 공간감 있는 UI
+- **🧱 Bento Grid 레이아웃** `public/static/bento.css` (518줄)
+  - 12-column 비대칭 그리드 (`.bento-grid`, `.bento-tile`, `.bento-hero`, `.bento-sm/md/lg/xl`)
+  - 컬러 톤 변형 6종: `tone-brand / indigo / rose / amber / sky / emerald`
+  - 각 타일 상단 1px highlight 라인 + 마우스 따라 움직이는 radial spotlight
+  - 반응형: 모바일 2열 / 태블릿 6열 / 데스크톱 12열 자동 전환
+- **🔢 Number Flow 카운트업** `public/static/spatial.js` (221줄)
+  - 숫자 타일이 화면에 들어올 때 `0 → 목표값`으로 부드럽게 카운트업 (`easeOutExpo` 1.4s)
+  - IntersectionObserver 기반 자동 트리거 + 80ms stagger (카드 순차 애니)
+  - `money_kr` 포맷 자동 (1.81억 / 540만 / 12,000 등 한국식 단위)
+  - 어제 매출, 월 누적, Hero 숨은매출, 휴면환자 수, 오늘 환자 등 핵심 수치 전부 적용
+- **🎮 3D Tilt 인터랙션**
+  - 마우스 위치 추적 → 카드가 `±7°` 기울어짐 (perspective 1000px)
+  - `lerp(0.18)` 부드러운 보간 + 마우스 이탈 시 0° 복귀
+  - 하이라이트 spotlight가 마우스 따라 이동 (400px radial gradient)
+  - 터치 디바이스 / `prefers-reduced-motion` 자동 비활성화
+- **💎 대시보드 재구성**
+  - Insight Hero → `bento-hero` (8열 × 2행) · tone-brand · 내부 orb 2개 둥둥
+  - 오늘의 현황 (4~6장) → `bento-md × 2 + bento-sm × n` 비대칭 배치
+  - 빠른 메뉴 → 화이트 글래스 `bento-sm` 타일로 재구성
+- **⚙️ 자동 적용**: MutationObserver가 새로 추가된 `.bento-tile` 자동 감지 → 애니/틸트 즉시 바인딩
+- **✅ E2E 검증**: 콘솔 에러 0, 빌드 367.6KB, Hero 숨은매출 1.81억 카운트업 정상
+
+
 
 ## 🧊 v4.1 "Frosted" Glassmorphism Layer (2026-04-21)
 > "유리를 UI로 만들다" — Apple Vision Pro · iOS 26 감각의 극한 프리미엄
