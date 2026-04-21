@@ -82,12 +82,15 @@ async function renderFeedback(body, actions) {
               <b>망신주는 곳이 아닙니다.</b> 누군가의 실수는 우리 모두의 <b style="background:rgba(255,255,255,0.25);padding:1px 6px;border-radius:4px">자산</b>입니다.<br>
               한 번의 실수가 반복되지 않도록, 모든 직원이 같은 교훈을 공유하는 공간이에요.
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
+            <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:10px">
               <span><b id="fbTotalCnt" style="font-size:17px">-</b> 건의 학습 사례</span>
               <span style="opacity:0.6">·</span>
               <span><b id="fbResolvedCnt" style="font-size:17px">-</b> 건 개선 완료</span>
               <span style="opacity:0.6">·</span>
               <span><b id="fbThisWeekCnt" style="font-size:17px">-</b> 건 이번주 신규</span>
+            </div>
+            <div style="font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);padding:6px 10px;border-radius:8px;display:inline-block">
+              💡 <b>실수노트</b>와 헷갈리지 마세요 — <b>실수노트</b>는 본인이 자진신고 🙋‍♀️, <b>피드백노트</b>는 관리자가 관찰 기록 👁️
             </div>
           </div>
         </div>

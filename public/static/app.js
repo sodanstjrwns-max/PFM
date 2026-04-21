@@ -724,7 +724,6 @@ function getNavConfig() {
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
-        { id: 'feedback_notes', label: '📝 피드백 노트', icon: ICONS.edit || ICONS.message },
         { id: 'gamification', label: '🏆 성과 게이미피케이션', icon: ICONS.star },
         { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
@@ -751,7 +750,8 @@ function getNavConfig() {
       children: [
         { id: 'free', label: '자유게시판', icon: ICONS.edit },
         { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
-        { id: 'mistake', label: '실수노트', icon: ICONS.shield },
+        { id: 'mistake', label: '실수노트 (자진신고)', icon: ICONS.shield },
+        { id: 'feedback_notes', label: '📚 피드백 노트 (학습자산)', icon: ICONS.edit || ICONS.message },
       ]
     },
     { id: 'messenger', label: '💬 메신저', icon: ICONS.message, hidden: true },
