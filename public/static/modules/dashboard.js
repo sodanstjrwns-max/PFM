@@ -2,6 +2,7 @@
 (function(PFM) {
 'use strict';
 const { api, ICONS, ICONS_HIRE, navigate, esc, toast, formatPrice, state, showModal, closeModal } = PFM;
+const showToast = PFM.showToast || toast;
 
 const FUNNEL_STAGES = [
   { key: 'awareness', label: '인지', icon: '👁️', color: '#94a3b8' },
@@ -41,6 +42,24 @@ async function renderDashboard(body) {
     renderDashboardContent(body, stats, briefing, surveyToday);
   }, 'dashboard');
 }
+
+/* ═══ 샘플 데이터 주입 - Aha Moment ═══ */
+async function injectSampleData(btn) {
+  if (!confirm('✨ 3개월치 샘플 데이터를 주입합니다.\n\n• 환자 40명\n• 상담 28건\n• 콜 60건\n• KPI 일간 기록 60일\n• 리뷰 15건\n• 퍼널 10단계 분포\n\n기존 데이터가 거의 없을 때만 실행됩니다.\n진행하시겠습니까?')) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:6px"></span> 주입 중...';
+  try {
+    const result = await api('/api/protected/onboarding/seed-sample', { method: 'POST', json: {} });
+    showToast('✨ ' + (result.message || '샘플 데이터 주입 완료!'), 'success');
+    setTimeout(() => { navigate('dashboard'); }, 800);
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+window.injectSampleData = injectSampleData;
 
 function renderDashboardContent(body, s, briefing, surveyToday) {
   const now = new Date();
@@ -94,7 +113,35 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
     { id: 'settings', icon: '⚙️', title: '설정', desc: '내 정보·병원설정', bg: '#f3f4f6' },
   );
 
+  // 샘플 데이터 주입 가능 여부 (데이터 거의 없고 admin일 때)
+  const hasData = (s.todayPatients > 0) || (s.monthConsultations > 0) || (briefing?.monthCumulative?.totalRevenue > 0) || (Object.keys(s.funnel || {}).length > 0);
+  const showSampleBanner = !hasData && isManager;
+
   body.innerHTML = `
+    <!-- 🎉 Aha Moment: 샘플 데이터 환영 배너 -->
+    ${showSampleBanner ? `
+    <section class="sample-banner" aria-label="샘플 데이터 주입">
+      <div class="sample-banner-icon">✨</div>
+      <div class="sample-banner-content">
+        <h3>환영합니다! 제품을 <u>바로 체험</u>해보시겠어요?</h3>
+        <p>실제 병원처럼 움직이는 <strong>3개월치 샘플 데이터</strong>를 원클릭으로 주입해서<br>
+           모든 기능을 진짜로 돌아가는 환경에서 바로 둘러볼 수 있어요.</p>
+        <div class="sample-banner-meta">
+          <span>👤 환자 40명</span><span>💬 상담 28건</span><span>📞 콜 60건</span>
+          <span>📊 KPI 60일</span><span>⭐ 리뷰 15건</span><span>🔄 퍼널 10단계</span>
+        </div>
+      </div>
+      <div class="sample-banner-actions">
+        <button class="btn-sample-inject" onclick="injectSampleData(this)">
+          ✨ 샘플 데이터로 체험 시작
+        </button>
+        <button class="btn-sample-skip" onclick="this.closest('.sample-banner').style.display='none';localStorage.setItem('pfm_skip_sample','1')">
+          직접 입력할게요
+        </button>
+      </div>
+    </section>
+    ` : ''}
+
     <!-- 인사 헤더 -->
     <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:16px;padding:24px 28px;margin-bottom:24px;color:white;position:relative;overflow:hidden">
       <div style="position:absolute;right:-20px;top:-20px;font-size:120px;opacity:0.1">🏥</div>

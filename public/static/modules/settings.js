@@ -68,15 +68,77 @@ async function renderSettings(body) {
       </div>
       ` : ''}
 
+      <div class="section-title">🔒 <span>보안 & 데이터 보호</span></div>
+      <div style="background:linear-gradient(135deg,#f0fdfa 0%,#ecfdf5 100%);border:1px solid #a7f3d0;border-radius:var(--radius);padding:20px 24px;margin-bottom:24px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">🛡️</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">엔드투엔드 암호화</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">HTTPS + JWT + PBKDF2(10만회 해싱) + Web Crypto API</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">🌏</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">글로벌 엣지 서버</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">Cloudflare 엔터프라이즈 인프라 / 국내 POP 우선 라우팅</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">🔐</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">다중 보안 계층</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">Rate Limiting · XSS · CSRF · IDOR · CSP · HSTS</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">🏥</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">병원별 데이터 격리</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">Multi-tenant 아키텍처로 병원 간 데이터 완전 분리</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">📦</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">언제든 데이터 내보내기</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">해지 시 전체 데이터 CSV 다운로드 / 벤더 종속 제로</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:22px">📝</span>
+            <div>
+              <strong style="font-size:13px;color:#0f766e">자동 감사 로그</strong>
+              <p style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">모든 서버 오류 자동 기록 / 의료법 접근 추적 지원</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="section-title">${ICONS.users}<span>계정</span></div>
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
         ${isAdmin ? `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light);gap:12px;flex-wrap:wrap">
           <div>
             <strong style="font-size:14px">🎓 온보딩 다시 실행</strong>
             <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0">병원 기본 설정을 처음부터 다시 진행합니다</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="rerunOnboarding">온보딩 재실행</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light);gap:12px;flex-wrap:wrap">
+          <div>
+            <strong style="font-size:14px;color:#d97706">✨ 샘플 데이터 주입</strong>
+            <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0">3개월치 데모 데이터를 추가합니다 (환자 40명·상담 28건·콜 60건 등)</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="injectSampleBtn" style="background:#fef3c7;border-color:#fbbf24;color:#92400e">샘플 주입</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light);gap:12px;flex-wrap:wrap">
+          <div>
+            <strong style="font-size:14px;color:#dc2626">🗑️ 샘플 데이터 삭제</strong>
+            <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0">주입된 샘플 데이터만 전부 제거합니다 (원래 상태로 복구)</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="clearSampleBtn" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b">샘플 삭제</button>
         </div>
         ` : ''}
         <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">로그아웃하면 다시 로그인해야 합니다.</p>

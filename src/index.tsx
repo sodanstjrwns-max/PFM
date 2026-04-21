@@ -277,14 +277,60 @@ function getHTML(): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Patient Funnel Manager</title>
+<meta name="theme-color" content="#0f766e">
+<meta name="description" content="서울비디치과 원장이 만든 병원경영 시스템. 환자를 팬으로 만드는 10단계 퍼널. 6,000명 대표원장이 검증.">
+<meta property="og:title" content="Patient Funnel Manager - 병원경영 통합 시스템">
+<meta property="og:description" content="월 6천만에서 연 120억까지, 그 여정을 담은 도구. 환자를 팬으로 만드는 10단계 퍼널.">
+<meta property="og:type" content="website">
+<title>Patient Funnel Manager - 환자를 팬으로 만드는 병원경영 시스템</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f766e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='14' font-weight='bold' font-family='Arial'>PF</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="/static/dist/core.js" as="script">
+<link rel="preload" href="/static/style.css" as="style">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="/static/style.css" rel="stylesheet">
+<style>
+/* Instant loading skeleton (inline for zero extra request) */
+#boot-loader{position:fixed;inset:0;background:linear-gradient(135deg,#0f766e 0%,#0d5f59 50%,#134e4a 100%);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s ease,visibility .3s ease}
+#boot-loader.hide{opacity:0;visibility:hidden;pointer-events:none}
+.boot-inner{text-align:center;color:white}
+.boot-logo{width:64px;height:64px;background:white;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#0f766e;margin:0 auto 18px;box-shadow:0 8px 24px rgba(0,0,0,0.2);animation:pulse 1.6s ease-in-out infinite;letter-spacing:-1px}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:0.85}}
+.boot-title{font-size:15px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px;font-family:'Noto Sans KR',system-ui,sans-serif}
+.boot-subtitle{font-size:12px;opacity:0.7;font-family:'Noto Sans KR',system-ui,sans-serif;letter-spacing:-.2px}
+.boot-dots{margin-top:16px;display:inline-flex;gap:6px}
+.boot-dots span{width:6px;height:6px;border-radius:50%;background:#5eead4;animation:dot 1.4s ease-in-out infinite}
+.boot-dots span:nth-child(2){animation-delay:.2s}.boot-dots span:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{transform:scale(.7);opacity:.4}30%{transform:scale(1.2);opacity:1}}
+</style>
 </head>
 <body>
+<div id="boot-loader">
+  <div class="boot-inner">
+    <div class="boot-logo">PF</div>
+    <div class="boot-title">Patient Funnel Manager</div>
+    <div class="boot-subtitle">환자를 팬으로 만드는 병원경영 시스템</div>
+    <div class="boot-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
 <div id="app"></div>
 <script src="/static/dist/core.js"><` + `/script>
+<script>
+(function(){
+  // Hide boot loader once app is rendered
+  const hide = () => {
+    const el = document.getElementById('boot-loader');
+    if (el) { el.classList.add('hide'); setTimeout(() => el.remove(), 400); }
+  };
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('#app > *')) { hide(); observer.disconnect(); }
+  });
+  observer.observe(document.getElementById('app'), { childList: true });
+  // Safety fallback: hide after 8s regardless
+  setTimeout(hide, 8000);
+})();
+</script>
 </body>
 </html>`
 }

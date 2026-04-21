@@ -148,6 +148,143 @@ function saveAuth(token, user) {
   localStorage.setItem('pfm_user', JSON.stringify(user));
 }
 
+/* ═══ 3분 환영 투어 (First-time User Tour) ═══ */
+const WELCOME_TOUR_STEPS = [
+  {
+    badge: '1 / 5',
+    title: '페이션트 퍼널에 오신 걸 환영합니다! 🎉',
+    desc: '환자를 팬으로 만드는 10단계 여정을, 이제 한 화면에서 추적하고 개선할 수 있어요.',
+    features: [
+      { emoji: '🎯', title: '실전 검증된 시스템', desc: '서울비디치과가 월 6천만 → 연 120억으로 성장시킨 플레이북' },
+      { emoji: '🏥', title: '치과·내과·피부과', desc: '모든 진료과목에 맞춰 유연하게 설정 가능' },
+      { emoji: '⚡', title: '설치 없이 바로 사용', desc: '클라우드 기반, 언제 어디서든 접속' },
+    ],
+  },
+  {
+    badge: '2 / 5',
+    title: '📊 일일 브리핑 — 아침 2분이면 끝',
+    desc: '어제 실적, 이번달 누적, 오늘 출근 현황, 알림까지 한 눈에. 원장회의 자료로도 그대로 쓸 수 있어요.',
+    features: [
+      { emoji: '💰', title: '어제 매출 & 목표 대비', desc: '한 줄로 성과 확인' },
+      { emoji: '💬', title: '상담 전환율 추적', desc: '어느 상담사가, 어떤 시술에서 강한지' },
+      { emoji: '🚨', title: '컴플레인·노쇼 감지', desc: '문제가 커지기 전에 알림' },
+    ],
+  },
+  {
+    badge: '3 / 5',
+    title: '🔄 Patient Funnel — 10단계 여정 추적',
+    desc: '인지 → 관심 → 예약 → 방문 → 대기 → 진단 → 상담 → 진료 → 관리 → 소개까지. 각 단계별 이탈률이 보여요.',
+    features: [
+      { emoji: '📈', title: '전환율 실시간 시각화', desc: '어느 단계에서 환자가 이탈하는지' },
+      { emoji: '💡', title: '개선 액션 추천', desc: '단계별 병목 구간에 맞춘 가이드' },
+      { emoji: '🤝', title: '소개 환자 추적', desc: '팬 마케팅 효과 측정' },
+    ],
+  },
+  {
+    badge: '4 / 5',
+    title: '💬 직원과 함께 쓰는 HR + 커뮤니티',
+    desc: '직원 초대 → 게이미피케이션 → 칭찬하기 → 체크리스트 → 만족도 설문. 팀 전체를 한 시스템으로 묶어요.',
+    features: [
+      { emoji: '🏆', title: '게이미피케이션 랭킹', desc: '미션·포인트·뱃지로 직원 동기부여' },
+      { emoji: '📝', title: '만족도 설문 (SMS 자동 발송)', desc: 'NPS 자동 수집 + 감성 분석' },
+      { emoji: '⭐', title: '리뷰 통합 관리', desc: '네이버·구글·카카오 한 곳에서' },
+    ],
+  },
+  {
+    badge: '5 / 5',
+    title: '🚀 이제 시작해볼까요?',
+    desc: '대시보드 상단의 "✨ 샘플 데이터로 체험 시작" 버튼을 누르면, 3개월치 실제 같은 데이터로 모든 기능을 바로 둘러볼 수 있어요.',
+    features: [
+      { emoji: '✨', title: '샘플 데이터 원클릭 주입', desc: '환자 40명 + 상담 28건 + KPI 60일치' },
+      { emoji: '🧹', title: '언제든 삭제 가능', desc: '설정에서 샘플 데이터 초기화' },
+      { emoji: '🔐', title: '보안 걱정 없음', desc: 'JWT + PBKDF2 + 병원별 데이터 격리' },
+    ],
+  },
+];
+
+function showWelcomeTour(force) {
+  if (!force && localStorage.getItem('pfm_tour_completed') === '1') return;
+  let step = 0;
+  const existing = document.getElementById('welcomeTourOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'welcomeTourOverlay';
+  overlay.className = 'tour-overlay';
+  document.body.appendChild(overlay);
+
+  function render() {
+    const s = WELCOME_TOUR_STEPS[step];
+    const isLast = step === WELCOME_TOUR_STEPS.length - 1;
+    const dotsHtml = WELCOME_TOUR_STEPS.map((_, i) =>
+      `<span class="tour-progress-dot ${i === step ? 'active' : (i < step ? 'done' : '')}"></span>`
+    ).join('');
+    overlay.innerHTML = `
+      <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <div class="tour-header">
+          <span class="tour-step-badge">📖 ${s.badge}</span>
+          <h3 id="tourTitle">${s.title}</h3>
+          <p>${s.desc}</p>
+        </div>
+        <div class="tour-body">
+          <div class="tour-progress" role="progressbar" aria-valuenow="${step + 1}" aria-valuemax="${WELCOME_TOUR_STEPS.length}">${dotsHtml}</div>
+          <div class="tour-feature-list">
+            ${s.features.map(f => `
+              <div class="tour-feature">
+                <div class="tour-feature-emoji">${f.emoji}</div>
+                <div class="tour-feature-text">
+                  <div class="tour-feature-title">${f.title}</div>
+                  <div class="tour-feature-desc">${f.desc}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div class="tour-actions">
+          <button class="tour-skip" id="tourSkipBtn">건너뛰기</button>
+          <div class="tour-spacer"></div>
+          ${step > 0 ? '<button class="tour-prev" id="tourPrevBtn">← 이전</button>' : ''}
+          <button class="tour-next" id="tourNextBtn">
+            ${isLast ? '✨ 시작하기' : '다음'}
+            ${!isLast ? '<span class="arrow">→</span>' : ''}
+          </button>
+        </div>
+      </div>
+    `;
+    const skip = document.getElementById('tourSkipBtn');
+    const next = document.getElementById('tourNextBtn');
+    const prev = document.getElementById('tourPrevBtn');
+    if (skip) skip.onclick = () => {
+      localStorage.setItem('pfm_tour_completed', '1');
+      overlay.remove();
+    };
+    if (next) next.onclick = () => {
+      if (isLast) {
+        localStorage.setItem('pfm_tour_completed', '1');
+        overlay.remove();
+        // 대시보드 상단 샘플 배너로 시선 이동
+        setTimeout(() => {
+          const banner = document.querySelector('.sample-banner');
+          if (banner) {
+            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            banner.style.animation = 'pulseHint 1.4s ease 2';
+          }
+        }, 300);
+      } else {
+        step++;
+        render();
+      }
+    };
+    if (prev) prev.onclick = () => { step--; render(); };
+
+    // ESC 키로 스킵
+    overlay.onkeydown = (e) => { if (e.key === 'Escape') skip?.click(); };
+    setTimeout(() => next?.focus(), 100);
+  }
+  render();
+}
+window.showWelcomeTour = showWelcomeTour;
+
 function logout() {
   state.token = null;
   state.user = null;
@@ -160,8 +297,42 @@ function logout() {
 function renderAuth() {
   document.body.classList.remove('app-loaded');
   const app = document.getElementById('app');
+  const joinMatchCheck = window.location.hash.match(/^#join\/(.+)$/);
+  const isJoinMode = !!joinMatchCheck;
   app.innerHTML = `
   <div class="auth-screen">
+    <div class="auth-layout">
+      ${isJoinMode ? '' : `
+      <section class="auth-story" aria-label="제품 소개">
+        <span class="auth-story-badge">🏥 서울비디치과 원장이 직접 만든</span>
+        <h2>월 6천만에서<br><span class="highlight">연 120억</span>까지,<br>그 여정을 담은 도구</h2>
+        <p class="subtitle">환자를 팬으로 만드는 10단계 퍼널.<br>6,000명 대표원장이 검증한 병원경영 시스템을 이제 한 화면에서.</p>
+        <div class="auth-story-metrics" role="list" aria-label="주요 성과 지표">
+          <div class="auth-metric" role="listitem">
+            <div class="auth-metric-value">2.1배</div>
+            <div class="auth-metric-label">평균 매출 성장</div>
+          </div>
+          <div class="auth-metric" role="listitem">
+            <div class="auth-metric-value">40%↓</div>
+            <div class="auth-metric-label">광고비 절감</div>
+          </div>
+          <div class="auth-metric" role="listitem">
+            <div class="auth-metric-value">62%</div>
+            <div class="auth-metric-label">상담 전환율</div>
+          </div>
+        </div>
+        <div class="auth-story-features">
+          <div class="auth-feature"><span class="auth-feature-check">✓</span>환자 여정 10단계 퍼널 자동 추적</div>
+          <div class="auth-feature"><span class="auth-feature-check">✓</span>상담 전환율 실시간 코칭</div>
+          <div class="auth-feature"><span class="auth-feature-check">✓</span>카카오/네이버 리뷰 감성분석</div>
+          <div class="auth-feature"><span class="auth-feature-check">✓</span>직원 게이미피케이션 + 만족도 설문</div>
+        </div>
+        <blockquote class="auth-quote">
+          "필요한 진료를 받지 못하는 사람이 없도록. 환자를 단순한 고객이 아닌 팬으로."
+          <span class="auth-quote-author">— 문석준 원장 / 서울비디치과 · 페이션트 퍼널 창립자</span>
+        </blockquote>
+      </section>
+      `}
     <div class="auth-card">
       <div class="auth-logo">
         <div class="auth-logo-icon">${ICONS.logo}</div>
@@ -247,6 +418,20 @@ function renderAuth() {
         </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="authSubmitBtn">로그인</button>
       </form>
+      <div class="auth-trust-bar" role="complementary" aria-label="보안 및 신뢰 정보">
+        <span class="trust-item">🔒 엔드투엔드 암호화</span>
+        <span class="trust-item">🇰🇷 국내 엣지 서버</span>
+        <span class="trust-item">🛡️ JWT + PBKDF2</span>
+        <span class="trust-item">📦 언제든 데이터 내보내기</span>
+      </div>
+      <div class="auth-demo-banner" id="authDemoBanner">
+        <strong>✨ 둘러보러 오셨나요?</strong><br>
+        아래 데모 계정으로 <u>3개월치 샘플 데이터</u>를 바로 체험할 수 있습니다
+        <div class="demo-creds">
+          <span style="cursor:pointer" onclick="(function(){document.getElementById('authEmail').value='fin2@test.com';document.getElementById('authPassword').value='pfm2026!';})()">📧 fin2@test.com  /  🔑 pfm2026!  <span style="color:#d97706;font-weight:700">(클릭해서 입력)</span></span>
+        </div>
+      </div>
+    </div>
     </div>
   </div>`;
 
@@ -324,6 +509,9 @@ function renderAuth() {
       toggle('joinScheduleField', mode === 'join');
       document.getElementById('authSubmitBtn').textContent = mode === 'login' ? '로그인' : '🏥 병원 등록하기';
       document.getElementById('authError').classList.remove('show');
+      // 데모 배너는 로그인 탭에서만 노출
+      const demoBanner = document.getElementById('authDemoBanner');
+      if (demoBanner) demoBanner.style.display = mode === 'login' ? '' : 'none';
       if (mode === 'join') buildScheduleGrid();
     });
   });
@@ -407,10 +595,18 @@ function renderAuth() {
           businessNumber: document.getElementById('regBusinessNumber').value.trim(),
         }});
         saveAuth(data.token, data.user);
+        // 신규 가입 → 환영 투어 띄우도록 플래그 초기화
+        localStorage.removeItem('pfm_tour_completed');
+        localStorage.setItem('pfm_show_tour_on_load', '1');
       }
       // 가입 후 해시 초기화
       if (window.location.hash.startsWith('#join/')) window.location.hash = '';
       renderApp();
+      // 가입 직후 환영 투어 (register 또는 플래그가 설정된 경우)
+      if (localStorage.getItem('pfm_show_tour_on_load') === '1') {
+        localStorage.removeItem('pfm_show_tour_on_load');
+        setTimeout(() => showWelcomeTour(true), 600);
+      }
     } catch(err) {
       errEl.textContent = err.message;
       errEl.classList.add('show');
