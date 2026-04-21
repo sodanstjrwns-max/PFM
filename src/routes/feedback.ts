@@ -50,15 +50,12 @@ feedback.get('/', async (c) => {
     where += ' AND author_id = ?'
     binds.push(uid)
   } else if (scope === 'all') {
+    // 💡 "학습 자산" 컨셉: 관리자는 전부, 일반 직원은 public 공개 + 본인이 받은/작성한 것
     if (!isManagerLike(user.role)) {
-      // 관리자 아니면 받은 것만 보여줌 (안전장치)
-      where += ' AND target_user_id = ?'
-      binds.push(uid)
+      where += " AND (visibility = 'public' OR target_user_id = ? OR author_id = ?)"
+      binds.push(uid, uid)
     }
-    // managers visibility 필터
-    if (!isManagerLike(user.role)) {
-      where += " AND visibility IN ('target','public')"
-    }
+    // 관리자는 제한 없이 전부 조회 가능
   }
 
   if (status && ['open','acknowledged','resolved','archived'].includes(status)) {

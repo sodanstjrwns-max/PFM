@@ -32,12 +32,22 @@ const VISIBILITY_META = {
 };
 
 let fbState = {
-  scope: 'received',  // received | sent | all
+  scope: 'all',  // all(학습 라이브러리-기본) | received(내 기록) | sent(내가 작성)
   status: '',
   unread: false,
+  severity: '',   // '' | mild | moderate | severe
+  category: '',   // '' | care | service | admin | hygiene | safety | other
+  search: '',
   notes: [],
   unreadCount: 0,
 };
+
+// 초기 진입 시 scope 결정 — 관리자 아니면 받은 것만 보이도록 fallback
+function initScope() {
+  const u = state.user;
+  const isManager = ['admin','manager'].includes(u.role) || ['doctor','director'].includes(u.position);
+  fbState.scope = isManager ? 'all' : 'all';  // 모든 직원이 공용 라이브러리 우선 (public 공개 기록은 전체가 봄)
+}
 
 function canAuthor() {
   const u = state.user;
@@ -47,41 +57,79 @@ function canAuthor() {
 /* ═══════════════ 메인 렌더 ═══════════════ */
 async function renderFeedback(body, actions) {
   const author = canAuthor();
+  initScope();
 
   // 상단 액션
   if (actions) {
     actions.innerHTML = author
-      ? `<button class="btn btn-primary btn-sm" id="fbNewBtn">+ 피드백 작성</button>`
+      ? `<button class="btn btn-primary btn-sm" id="fbNewBtn">+ 사례 기록</button>`
       : '';
     document.getElementById('fbNewBtn')?.addEventListener('click', openFeedbackForm);
   }
 
   // 레이아웃
   body.innerHTML = `
-    <div class="fb-container" style="max-width:1100px;margin:0 auto">
+    <div class="fb-container" style="max-width:1200px;margin:0 auto">
+
+      <!-- 🎓 학습 자산 컨셉 배너 -->
+      <div class="fb-hero" style="background:linear-gradient(135deg,#0f766e 0%,#0891b2 50%,#6366f1 100%);color:#fff;padding:20px 24px;border-radius:16px;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(15,118,110,0.25)">
+        <div style="position:absolute;top:-20px;right:-20px;font-size:120px;opacity:0.12;user-select:none">🏛️</div>
+        <div style="display:flex;align-items:flex-start;gap:14px;position:relative">
+          <div style="font-size:32px;flex-shrink:0">📚</div>
+          <div style="flex:1">
+            <div style="font-size:18px;font-weight:800;margin-bottom:4px;letter-spacing:-0.02em">우리 병원 학습 라이브러리</div>
+            <div style="font-size:13px;opacity:0.95;line-height:1.5;margin-bottom:10px">
+              <b>망신주는 곳이 아닙니다.</b> 누군가의 실수는 우리 모두의 <b style="background:rgba(255,255,255,0.25);padding:1px 6px;border-radius:4px">자산</b>입니다.<br>
+              한 번의 실수가 반복되지 않도록, 모든 직원이 같은 교훈을 공유하는 공간이에요.
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
+              <span><b id="fbTotalCnt" style="font-size:17px">-</b> 건의 학습 사례</span>
+              <span style="opacity:0.6">·</span>
+              <span><b id="fbResolvedCnt" style="font-size:17px">-</b> 건 개선 완료</span>
+              <span style="opacity:0.6">·</span>
+              <span><b id="fbThisWeekCnt" style="font-size:17px">-</b> 건 이번주 신규</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 탭 -->
       <div class="fb-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid #e5e7eb;flex-wrap:wrap">
-        <button class="fb-tab" data-scope="received" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">
-          📥 받은 피드백 <span id="fbUnreadBadge" class="fb-unread-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px"></span>
+        <button class="fb-tab" data-scope="all" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">
+          📚 전체 학습 사례 <span id="fbAllCntBadge" style="background:#f1f5f9;color:#475569;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:4px;font-weight:700"></span>
         </button>
-        ${author ? `<button class="fb-tab" data-scope="sent" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">📤 보낸 피드백</button>` : ''}
-        ${canManage() ? `<button class="fb-tab" data-scope="all" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">📋 전체 (관리자)</button>` : ''}
+        <button class="fb-tab" data-scope="received" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">
+          🪞 내 기록 <span id="fbUnreadBadge" class="fb-unread-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px"></span>
+        </button>
+        ${author ? `<button class="fb-tab" data-scope="sent" style="padding:10px 16px;border:none;background:transparent;cursor:pointer;font-weight:600;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">✍️ 내가 작성</button>` : ''}
       </div>
 
       <!-- 필터 -->
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-        <select id="fbStatusFilter" style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px">
+        <select id="fbCategoryFilter" style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#fff">
+          <option value="">🗂️ 전체 카테고리</option>
+          <option value="safety">🚨 안전</option>
+          <option value="care">🩺 진료</option>
+          <option value="hygiene">🧼 위생</option>
+          <option value="service">🤝 환자응대</option>
+          <option value="admin">📋 행정</option>
+          <option value="other">📌 기타</option>
+        </select>
+        <select id="fbSeverityFilter" style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#fff">
+          <option value="">⚖️ 전체 심각도</option>
+          <option value="severe">🔴 중대</option>
+          <option value="moderate">🟠 주의</option>
+          <option value="mild">🟡 경미</option>
+        </select>
+        <select id="fbStatusFilter" style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#fff">
           <option value="">전체 상태</option>
           <option value="open">미확인</option>
           <option value="acknowledged">확인 완료</option>
           <option value="resolved">해결</option>
           <option value="archived">보관</option>
         </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="fbUnreadFilter"> 미확인만
-        </label>
-        <span style="flex:1"></span>
-        <span id="fbCountLabel" style="font-size:12px;color:#94a3b8"></span>
+        <input id="fbSearchInput" type="search" placeholder="🔍 제목/내용 검색" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px">
+        <span id="fbCountLabel" style="font-size:12px;color:#94a3b8;white-space:nowrap"></span>
       </div>
 
       <!-- 리스트 -->
@@ -99,17 +147,51 @@ async function renderFeedback(body, actions) {
       loadList();
     });
   });
+  document.getElementById('fbCategoryFilter')?.addEventListener('change', (e) => {
+    fbState.category = e.target.value;
+    loadList();
+  });
+  document.getElementById('fbSeverityFilter')?.addEventListener('change', (e) => {
+    fbState.severity = e.target.value;
+    loadList();
+  });
   document.getElementById('fbStatusFilter')?.addEventListener('change', (e) => {
     fbState.status = e.target.value;
     loadList();
   });
-  document.getElementById('fbUnreadFilter')?.addEventListener('change', (e) => {
-    fbState.unread = e.target.checked;
-    loadList();
+  let searchTimer;
+  document.getElementById('fbSearchInput')?.addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      fbState.search = e.target.value.trim().toLowerCase();
+      loadList();
+    }, 220);
   });
 
   updateTabs(body);
   await loadList();
+  // 히어로 스탯 계산 (all scope에서만 정확)
+  updateHeroStats();
+}
+
+// 히어로 상단 집계 숫자 업데이트
+async function updateHeroStats() {
+  try {
+    const res = await api('/api/protected/feedback?scope=all&limit=200');
+    const notes = res.notes || [];
+    const total = notes.length;
+    const resolved = notes.filter(n => n.status === 'resolved').length;
+    const oneWeekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+    const thisWeek = notes.filter(n => new Date(n.created_at).getTime() >= oneWeekAgo).length;
+    const t = document.getElementById('fbTotalCnt');
+    const r = document.getElementById('fbResolvedCnt');
+    const w = document.getElementById('fbThisWeekCnt');
+    const b = document.getElementById('fbAllCntBadge');
+    if (t) t.textContent = total;
+    if (r) r.textContent = resolved;
+    if (w) w.textContent = thisWeek;
+    if (b) b.textContent = total;
+  } catch (_) {}
 }
 
 function updateTabs(body) {
@@ -126,13 +208,31 @@ async function loadList() {
   list.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">로딩 중...</div>';
 
   try {
-    const params = new URLSearchParams({ scope: fbState.scope, limit: '50' });
+    const params = new URLSearchParams({ scope: fbState.scope, limit: '100' });
     if (fbState.status) params.set('status', fbState.status);
     if (fbState.unread) params.set('unread', '1');
 
     const res = await api('/api/protected/feedback?' + params.toString());
-    fbState.notes = res.notes || [];
+    let notes = res.notes || [];
     fbState.unreadCount = res.unread_count || 0;
+
+    // 클라이언트 필터 (카테고리/심각도/검색)
+    if (fbState.category) {
+      notes = notes.filter(n => n.category === fbState.category);
+    }
+    if (fbState.severity) {
+      notes = notes.filter(n => n.severity === fbState.severity);
+    }
+    if (fbState.search) {
+      const q = fbState.search;
+      notes = notes.filter(n =>
+        (n.title || '').toLowerCase().includes(q) ||
+        (n.description || '').toLowerCase().includes(q) ||
+        (n.feedback || '').toLowerCase().includes(q) ||
+        (n.target_user_name || '').toLowerCase().includes(q)
+      );
+    }
+    fbState.notes = notes;
 
     // 미확인 뱃지
     const badge = document.getElementById('fbUnreadBadge');
@@ -146,9 +246,9 @@ async function loadList() {
     }
 
     const cntLabel = document.getElementById('fbCountLabel');
-    if (cntLabel) cntLabel.textContent = `${fbState.notes.length}건`;
+    if (cntLabel) cntLabel.textContent = `${notes.length}건`;
 
-    renderList(list, fbState.notes);
+    renderList(list, notes);
   } catch (e) {
     list.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">불러오기 실패: ${esc(e.message)}</div>`;
   }
@@ -156,20 +256,28 @@ async function loadList() {
 
 function renderList(container, notes) {
   if (!notes || notes.length === 0) {
-    const emptyMsg = fbState.scope === 'received'
-      ? '받은 피드백이 없어요. 오늘도 좋은 하루!'
-      : fbState.scope === 'sent'
-        ? '아직 작성한 피드백이 없습니다.'
-        : '피드백 기록이 없습니다.';
-    const emptyIcon = fbState.scope === 'received' ? '🎉' : '📝';
-    const cta = fbState.scope !== 'received' && canAuthor()
-      ? `<button class="btn btn-primary btn-md" onclick="document.getElementById('fbNewBtn')?.click()">+ 첫 피드백 작성하기</button>`
+    let emptyMsg, emptyIcon, emptySub;
+    if (fbState.scope === 'received') {
+      emptyMsg = '내 이름으로 기록된 사례가 없어요';
+      emptyIcon = '🪞';
+      emptySub = '다른 동료들의 학습 사례를 보고 싶다면 "전체 학습 사례" 탭을 눌러보세요.';
+    } else if (fbState.scope === 'sent') {
+      emptyMsg = '아직 작성한 기록이 없습니다';
+      emptyIcon = '✍️';
+      emptySub = '직원의 잘못은 개인의 실수가 아니라 팀의 빈틈입니다. 기록해서 시스템으로 만드세요.';
+    } else {
+      emptyMsg = '아직 등록된 학습 사례가 없습니다';
+      emptyIcon = '📚';
+      emptySub = '첫 사례부터 시작해 팀의 학습 라이브러리를 함께 만들어봐요.';
+    }
+    const cta = canAuthor()
+      ? `<button class="btn btn-primary btn-md" onclick="document.getElementById('fbNewBtn')?.click()">+ 사례 기록하기</button>`
       : '';
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">${emptyIcon}</div>
         <div class="empty-state-title">${emptyMsg}</div>
-        <div class="empty-state-text">기록은 성장의 첫걸음이에요. 작은 피드백이 팀을 바꿉니다.</div>
+        <div class="empty-state-text">${emptySub}</div>
         ${cta}
       </div>`;
     return;
@@ -299,33 +407,34 @@ async function openFeedbackForm(prefilled) {
         </div>
 
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">실수/이슈 내용 *</label>
-          <textarea name="description" required maxlength="2000" rows="4" placeholder="어떤 상황에서 어떤 일이 있었는지 구체적으로 적어주세요. 감정보다는 사실 중심으로." style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical"></textarea>
+          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">무슨 일이 있었나요? *</label>
+          <textarea name="description" required maxlength="2000" rows="4" placeholder="언제, 어디서, 어떤 상황에서, 환자/팀에 어떤 영향이 있었는지 구체적으로. 감정보다 사실 중심으로." style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical"></textarea>
         </div>
 
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">피드백 / 조언 <span style="color:#94a3b8;font-weight:400">(권장)</span></label>
-          <textarea name="feedback" maxlength="2000" rows="3" placeholder="개선을 위해 어떻게 하면 좋을지, 어떤 방향으로 가이드하고 싶은지 적어주세요." style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical"></textarea>
+          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">💡 팀이 배울 것 / 개선 방향 <span style="color:#94a3b8;font-weight:400">(이게 핵심!)</span></label>
+          <textarea name="feedback" maxlength="2000" rows="3" placeholder="다음엔 어떻게 해야 할까요? 재발 방지를 위해 팀이 기억해야 할 원칙 — 이 부분이 '자산'이 됩니다." style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;resize:vertical"></textarea>
         </div>
 
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">공개 범위</label>
-          <select name="visibility" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px">${visibilityOptsHtml}</select>
-          <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.5">
-            🔒 <b>본인만</b>: 대상 직원과 작성자만 열람 &nbsp;|&nbsp;
-            👥 <b>관리자 공유</b>: 원장/실장 포함 &nbsp;|&nbsp;
-            🌐 <b>전체 공개</b>: 모든 직원 열람 가능
+          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#475569">공개 범위 <span style="color:#0f766e;font-weight:400">(기본: 전체 공개 권장)</span></label>
+          <select name="visibility" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px">
+            <option value="public" selected>🌐 전체 공개 — 모든 직원이 학습 (권장)</option>
+            <option value="managers">👥 관리자만</option>
+            <option value="target">🔒 당사자만</option>
+          </select>
+          <div style="font-size:11px;color:#0f766e;margin-top:4px;line-height:1.5;background:#f0fdfa;padding:8px 10px;border-radius:6px">
+            📚 <b>자산화 원칙</b>: 개인의 실수를 팀의 자산으로 바꾸려면 공개가 기본. 민감한 인사 이슈만 제한하세요.
           </div>
         </div>
 
         <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5">
-          💡 대상자가 <b>확인</b>하기 전까지 24시간 이내에만 수정/삭제할 수 있어요.
-          작성 시 신중하게 검토해주세요.
+          💡 대상자가 <b>확인</b>하기 전 24시간 이내에만 수정/삭제 가능. 사람을 비난하는 게 아니라 <b>시스템을 고치는 기록</b>이라는 걸 기억해주세요.
         </div>
 
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
           <button type="button" class="btn btn-outline btn-sm" id="fbCancel">취소</button>
-          <button type="submit" class="btn btn-primary btn-sm">📝 피드백 작성</button>
+          <button type="submit" class="btn btn-primary btn-sm">📚 학습 사례로 기록</button>
         </div>
       </form>
     `
@@ -393,7 +502,7 @@ async function openDetailModal(noteId) {
   }).join('')}</div>` : '<div class="empty-state" style="padding:20px"><div style="font-size:24px;opacity:0.4">💬</div><div class="empty-state-text" style="margin-top:6px">아직 대화가 없어요. 한마디 남겨보세요.</div></div>';
 
   showModal({
-    title: `📝 피드백 노트 상세`,
+    title: `📚 학습 사례`,
     size: 'md',
     body: `
       <div style="display:flex;flex-direction:column;gap:14px;max-height:72vh;overflow-y:auto;padding-right:4px">
@@ -410,24 +519,27 @@ async function openDetailModal(noteId) {
 
         <!-- 메타 -->
         <div style="display:flex;gap:12px;font-size:12px;color:#64748b;flex-wrap:wrap;background:#f8fafc;padding:8px 12px;border-radius:8px">
-          <span>✍️ <b>${esc(n.author_name)}</b> (작성)</span>
+          <span>✍️ <b>${esc(n.author_name)}</b> (기록자)</span>
           <span>→</span>
-          <span>👤 <b>${esc(n.target_user_name)}</b> (대상)</span>
+          <span>👤 <b>${esc(n.target_user_name)}</b> (당사자)</span>
           ${n.incident_date ? `<span>📅 ${esc(n.incident_date)}</span>` : ''}
           <span style="margin-left:auto">${timeAgo ? timeAgo(n.created_at) : n.created_at}</span>
         </div>
 
-        <!-- 실수/이슈 내용 -->
+        <!-- 상황 -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">📋 실수 / 이슈 내용</label>
+          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">📋 무슨 일이 있었나요</label>
           <div style="margin-top:4px;padding:12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;line-height:1.6;color:#334155;white-space:pre-wrap">${esc(n.description)}</div>
         </div>
 
-        <!-- 상급자 피드백 -->
+        <!-- 팀이 배울 것 (자산 핵심) -->
         ${n.feedback ? `
         <div>
-          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">💬 상급자 피드백 / 조언</label>
-          <div style="margin-top:4px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:13px;line-height:1.6;color:#1e40af;white-space:pre-wrap">${esc(n.feedback)}</div>
+          <label style="font-size:11px;font-weight:700;color:#0f766e;text-transform:uppercase;letter-spacing:0.5px">💡 팀이 배운 것 / 재발 방지 원칙</label>
+          <div style="margin-top:4px;padding:14px;background:linear-gradient(135deg,#f0fdfa 0%,#eff6ff 100%);border:2px solid #99f6e4;border-radius:10px;font-size:13px;line-height:1.65;color:#0f766e;white-space:pre-wrap;font-weight:500;position:relative">
+            <div style="position:absolute;top:8px;right:10px;font-size:10px;color:#14b8a6;background:#ccfbf1;padding:2px 8px;border-radius:6px;font-weight:700">🏛️ 학습 자산</div>
+            ${esc(n.feedback)}
+          </div>
         </div>` : ''}
 
         <!-- 확인 체크박스 + 본인 피드백 (대상자만) -->
