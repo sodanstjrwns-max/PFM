@@ -283,14 +283,31 @@ function showWelcomeTour(force) {
         localStorage.setItem('pfm_tour_completed', '1');
         localStorage.removeItem('pfm_tour_step');
         overlay.remove();
-        // 대시보드 상단 샘플 배너(없으면 탐험 카드)로 시선 이동
+        // 🎯 투어 종료 CTA 강화: 샘플 버튼 시선 집중 + 말풍선 힌트
         setTimeout(() => {
-          const target = document.querySelector('.sample-banner') || document.querySelector('.explore-card');
-          if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            target.style.animation = 'pulseHint 1.4s ease 2';
+          const banner = document.querySelector('.sample-banner');
+          const target = banner || document.querySelector('.explore-card');
+          if (!target) return;
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.style.animation = 'pulseHint 1.4s ease 3';
+          // 샘플 버튼에 펄스 + 말풍선
+          const btn = target.querySelector('.btn-sample-inject');
+          if (btn) {
+            btn.classList.add('pfm-cta-pulse');
+            const hint = document.createElement('div');
+            hint.className = 'pfm-cta-hint';
+            hint.innerHTML = '👆 여기를 눌러 3분 만에 전체 기능 체험 시작!';
+            hint.style.cssText = 'position:absolute;background:#0f172a;color:#fff;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,0.25);z-index:9999;animation:bounceY 1.2s ease infinite';
+            const rect = btn.getBoundingClientRect();
+            hint.style.left = (rect.left + rect.width / 2 - 130) + 'px';
+            hint.style.top = (rect.top + window.scrollY - 46) + 'px';
+            // 화살표 꼬리
+            hint.innerHTML += '<span style="position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);width:10px;height:10px;background:#0f172a;rotate:45deg"></span>';
+            document.body.appendChild(hint);
+            setTimeout(() => hint.remove(), 6000);
+            btn.focus({ preventScroll: true });
           }
-        }, 300);
+        }, 400);
       } else {
         step++;
         localStorage.setItem('pfm_tour_step', String(step));

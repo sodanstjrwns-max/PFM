@@ -2526,3 +2526,47 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   0% { opacity: 0; transform: translate(-50%, 20px) }
   100% { opacity: 1; transform: translate(-50%, 0) }
 }
+
+/* ═══ Aha Moment CTA 펄스 강조 (v3.4) ═══ */
+@keyframes ctaPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7), 0 6px 20px rgba(245, 158, 11, 0.4); transform: scale(1) }
+  50% { box-shadow: 0 0 0 14px rgba(245, 158, 11, 0), 0 10px 28px rgba(245, 158, 11, 0.5); transform: scale(1.03) }
+}
+.pfm-cta-pulse {
+  animation: ctaPulse 1.5s ease-in-out infinite !important;
+  position: relative;
+  z-index: 10;
+}
+@keyframes bounceY {
+  0%, 100% { transform: translateY(0) }
+  50% { transform: translateY(-6px) }
+}
+
+/* ═══ 인사이트 카드 hover 강조 ═══ */
+.aha-insight-card:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+.aha-insight-card:active {
+  transform: translateY(0) !important;
+}
+
+/* 대시보드 샘플 배너 자체를 더 눈에 띄게 */
+.sample-banner {
+  position: relative;
+}
+.sample-banner::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #f59e0b, #14b8a6, #0ea5e9);
+  z-index: -1;
+  opacity: 0.5;
+  animation: gradBorder 6s ease infinite;
+  background-size: 200% 200%;
+}
+@keyframes gradBorder {
+  0%, 100% { background-position: 0% 50% }
+  50% { background-position: 100% 50% }
+}

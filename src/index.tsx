@@ -270,6 +270,27 @@ app.post('/api/survey/:token/submit', async (c) => {
   return c.json({ success: true, message: '소중한 의견 감사합니다!' })
 })
 
+/* ═══ PWA Service Worker root-scope serve (v3.4 fix) ═══ */
+app.get('/sw.js', async (c) => {
+  try {
+    // 내부 fetch로 /static/sw.js 콘텐츠 가져와서 루트 스코프로 재서빙
+    const url = new URL(c.req.url)
+    url.pathname = '/static/sw.js'
+    const res = await fetch(url.toString())
+    if (!res.ok) return c.text('// sw not found', 404)
+    const body = await res.text()
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Service-Worker-Allowed': '/',
+        'Cache-Control': 'no-cache',
+      },
+    })
+  } catch (e) {
+    return c.text('// sw error', 500)
+  }
+})
+
 /* ═══ SPA Fallback ═══ */
 app.get('*', (c) => {
   // API 경로는 SPA 폴백하지 않음 (notFound 핸들러가 처리)

@@ -13,7 +13,7 @@
   async function registerSW() {
     if (!('serviceWorker' in navigator)) return null;
     try {
-      const reg = await navigator.serviceWorker.register('/static/sw.js', { scope: '/' });
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
       console.log('[PWA] SW registered:', reg.scope);
       return reg;
     } catch (e) {

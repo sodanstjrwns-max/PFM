@@ -253,11 +253,16 @@ onboarding.post('/seed-sample', async (c) => {
     const chartNum = `DEMO-${String(1000 + i).padStart(4, '0')}`
     const visitCount = Math.floor(Math.random() * 8) + 1
     const patientType = visitCount > 1 ? 'existing' : 'new'
+    // 🎯 30% 환자는 "휴면"(6개월 이상 미방문) — 리콜 대상 인사이트용
+    const isDormant = Math.random() < 0.3
+    const lastVisit = isDormant
+      ? iso(daysAgo(200 + Math.floor(Math.random() * 180)))  // 200~380일 전
+      : regDate
     patients.push({ pid, name, birthDate, gender, phone, regDate, source, region, specialty, patientType })
     await c.env.DB.prepare(
       `INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, first_visit_date, last_visit_date, visit_count, treatment_area, address)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(pid, hid, chartNum, name, phone, birthDate, gender, patientType, source, regDate, regDate, visitCount, specialty, `서울특별시 ${region}`).run().catch(() => {})
+    ).bind(pid, hid, chartNum, name, phone, birthDate, gender, patientType, source, regDate, lastVisit, visitCount, specialty, `서울특별시 ${region}`).run().catch(() => {})
   }
 
   /* ─── 4. 퍼널 단계 분포 (10단계) ─── */
@@ -388,6 +393,164 @@ onboarding.post('/seed-sample', async (c) => {
       funnelStages: patients.length,
     }
   })
+})
+
+/* ─── 🎯 아하모멘트 인사이트: 데이터에서 자동으로 숨은 기회 발견 ─── */
+onboarding.get('/insights', async (c) => {
+  const user = c.get('user')
+  const hid = user.hospitalId
+
+  try {
+    // 1) 총 환자수 + 최근 방문이 없는 환자(리콜 기회)
+    const patientStats: any = await c.env.DB.prepare(`
+      SELECT COUNT(*) as total,
+             SUM(CASE WHEN last_visit_date IS NULL OR julianday('now') - julianday(last_visit_date) > 180 THEN 1 ELSE 0 END) as dormant,
+             SUM(CASE WHEN (referrer_name IS NOT NULL AND referrer_name != '') OR visit_source IN ('지인소개','지인','referral') THEN 1 ELSE 0 END) as referred
+      FROM patients WHERE hospital_id=?
+    `).bind(hid).first().catch(() => ({ total: 0, dormant: 0, referred: 0 }))
+
+    // 2) 상담 - 동의율 및 미결정 환자(전환 기회)
+    const consultStats: any = await c.env.DB.prepare(`
+      SELECT COUNT(*) as total,
+             SUM(CASE WHEN treatment_confirmed = 1 THEN 1 ELSE 0 END) as confirmed,
+             SUM(CASE WHEN treatment_confirmed = 0 AND recall_done = 0 THEN 1 ELSE 0 END) as undecided,
+             COALESCE(SUM(planned_amount), 0) as total_planned,
+             COALESCE(SUM(CASE WHEN treatment_confirmed = 1 THEN agreed_amount ELSE 0 END), 0) as total_agreed
+      FROM consult_records WHERE hospital_id=?
+    `).bind(hid).first().catch(() => ({ total: 0, confirmed: 0, undecided: 0, total_planned: 0, total_agreed: 0 }))
+
+    // 3) 이번달 매출 현황
+    const monthRevenue: any = await c.env.DB.prepare(`
+      SELECT COALESCE(SUM(revenue_insurance + revenue_non_insurance), 0) as revenue,
+             COALESCE(SUM(new_patients), 0) as new_patients,
+             COUNT(*) as days_recorded
+      FROM daily_records
+      WHERE hospital_id=? AND substr(record_date,1,7) = strftime('%Y-%m', 'now')
+    `).bind(hid).first().catch(() => ({ revenue: 0, new_patients: 0, days_recorded: 0 }))
+
+    // 4) 미응대 리뷰 (평판 기회)
+    const reviewStats: any = await c.env.DB.prepare(`
+      SELECT COUNT(*) as total,
+             SUM(CASE WHEN response_status = 'pending' THEN 1 ELSE 0 END) as pending,
+             COALESCE(AVG(rating), 0) as avg_rating
+      FROM review_management WHERE hospital_id=?
+    `).bind(hid).first().catch(() => ({ total: 0, pending: 0, avg_rating: 0 }))
+
+    // 5) 콜 전환율 (인바운드 중 예약 전환)
+    const callStats: any = await c.env.DB.prepare(`
+      SELECT COUNT(*) as total,
+             SUM(CASE WHEN reservation_status = 'completed' OR reservation_status = 'scheduled' THEN 1 ELSE 0 END) as booked
+      FROM call_records WHERE hospital_id=? AND call_type='inbound'
+    `).bind(hid).first().catch(() => ({ total: 0, booked: 0 }))
+
+    /* ══ 핵심: 자동 계산되는 "아하!" 인사이트 ══ */
+    const insights = []
+
+    // 💰 숨은 매출: 미결정 상담금액 합계
+    const hiddenRevenue = Number(consultStats.total_planned || 0) - Number(consultStats.total_agreed || 0)
+    if (hiddenRevenue > 0) {
+      insights.push({
+        icon: '💰',
+        tone: 'revenue',
+        title: '숨은 매출 기회',
+        value: `${(hiddenRevenue / 10000).toFixed(0)}만원`,
+        desc: `상담은 받았지만 아직 결정 안 한 환자들의 예상 진료비`,
+        action: '상담 기록으로 이동 →',
+        goto: 'consult_records',
+      })
+    }
+
+    // 📞 리콜 대상: 180일 이상 미방문
+    if (Number(patientStats.dormant || 0) > 0) {
+      insights.push({
+        icon: '📞',
+        tone: 'recall',
+        title: '돌아올 만한 환자',
+        value: `${patientStats.dormant}명`,
+        desc: `6개월 이상 미방문. 문자 한 통으로 복귀 가능성이 높아요`,
+        action: '리콜 자동화 보기 →',
+        goto: 'recall',
+      })
+    }
+
+    // 💬 미결정 상담
+    if (Number(consultStats.undecided || 0) > 0) {
+      insights.push({
+        icon: '💬',
+        tone: 'convert',
+        title: '전환 대기 상담',
+        value: `${consultStats.undecided}건`,
+        desc: `상담 후 아직 결정 안 한 환자. 팔로업 타이밍 놓치면 이탈`,
+        action: '미결정 환자 보기 →',
+        goto: 'consult_records',
+      })
+    }
+
+    // ⭐ 미응대 리뷰
+    if (Number(reviewStats.pending || 0) > 0) {
+      insights.push({
+        icon: '⭐',
+        tone: 'reputation',
+        title: '응답 대기 리뷰',
+        value: `${reviewStats.pending}건`,
+        desc: `미응답 리뷰는 신규환자 방문율을 -23% 낮춥니다`,
+        action: '리뷰 관리로 이동 →',
+        goto: 'review_mgmt',
+      })
+    }
+
+    // 📈 상담 동의율 (벤치마크: 62%)
+    const convRate = Number(consultStats.total) > 0
+      ? Math.round((Number(consultStats.confirmed) / Number(consultStats.total)) * 100)
+      : 0
+    if (Number(consultStats.total) > 0) {
+      const benchmark = 62
+      const gap = benchmark - convRate
+      insights.push({
+        icon: '📊',
+        tone: gap > 5 ? 'warn' : 'ok',
+        title: '내 상담 전환율',
+        value: `${convRate}%`,
+        desc: gap > 5
+          ? `업계 평균 ${benchmark}% 대비 ${gap}%p 낮음. 스크립트 개선 여지가 있어요`
+          : gap > 0
+            ? `업계 평균 ${benchmark}%와 비슷. 안정적인 흐름이에요`
+            : `업계 평균 ${benchmark}%보다 +${Math.abs(gap)}%p 높음. 👏 최고 수준`,
+        action: '상담 대시보드 →',
+        goto: 'consult_dashboard',
+      })
+    }
+
+    // 🤝 소개환자 비중
+    if (Number(patientStats.total) > 0 && Number(patientStats.referred) > 0) {
+      const refRate = Math.round((Number(patientStats.referred) / Number(patientStats.total)) * 100)
+      insights.push({
+        icon: '🤝',
+        tone: 'referral',
+        title: '소개로 온 환자',
+        value: `${refRate}%`,
+        desc: `전체 ${patientStats.total}명 중 ${patientStats.referred}명이 지인 소개. 팬 마케팅이 작동 중`,
+        action: '퍼널 10단계 보기 →',
+        goto: 'funnel',
+      })
+    }
+
+    return c.json({
+      ok: true,
+      insights: insights.slice(0, 6),
+      summary: {
+        totalPatients: Number(patientStats.total) || 0,
+        monthRevenue: Number(monthRevenue.revenue) || 0,
+        monthNewPatients: Number(monthRevenue.new_patients) || 0,
+        hiddenRevenue,
+        dormantPatients: Number(patientStats.dormant) || 0,
+        convRate,
+        avgRating: Number(reviewStats.avg_rating).toFixed(1),
+      }
+    })
+  } catch (e: any) {
+    return c.json({ ok: false, error: e.message || 'insights_failed', insights: [], summary: {} })
+  }
 })
 
 /* ─── 샘플 데이터 삭제 (원래 상태로 복구) ─── */

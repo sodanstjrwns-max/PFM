@@ -52,8 +52,14 @@ async function injectSampleData(btn) {
   try {
     const result = await api('/api/protected/onboarding/seed-sample', { method: 'POST', json: {} });
     const counts = result.counts || {};
-    // 🎉 축하 모달 (Aha Moment Peak)
-    showAhaMomentModal(counts);
+    // 🎯 인사이트 자동 분석 (Aha Moment 진짜 순간)
+    btn.innerHTML = '<span class="loading-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:6px"></span> 데이터 분석 중...';
+    let insights = null;
+    try {
+      insights = await api('/api/protected/onboarding/insights');
+    } catch(_) {}
+    // 🎉 축하 모달 (Aha Moment Peak) — 인사이트 포함
+    showAhaMomentModal(counts, insights);
   } catch (err) {
     showToast('❌ ' + err.message, 'error');
     btn.disabled = false;
@@ -62,23 +68,80 @@ async function injectSampleData(btn) {
 }
 window.injectSampleData = injectSampleData;
 
-function showAhaMomentModal(counts) {
+function showAhaMomentModal(counts, insightsRes) {
+  const insights = (insightsRes && insightsRes.insights) || [];
+  const summary = (insightsRes && insightsRes.summary) || {};
+  const hiddenRevMan = summary.hiddenRevenue ? Math.round(summary.hiddenRevenue / 10000) : 0;
+
+  // 인사이트 카드 HTML (최대 4개)
+  const toneColors = {
+    revenue:    { bg:'#fef3c7', br:'#fcd34d', fg:'#92400e' },
+    recall:     { bg:'#dbeafe', br:'#93c5fd', fg:'#1e40af' },
+    convert:    { bg:'#ede9fe', br:'#c4b5fd', fg:'#5b21b6' },
+    reputation: { bg:'#fce7f3', br:'#f9a8d4', fg:'#9d174d' },
+    warn:       { bg:'#fee2e2', br:'#fca5a5', fg:'#991b1b' },
+    ok:         { bg:'#dcfce7', br:'#86efac', fg:'#166534' },
+    referral:   { bg:'#ccfbf1', br:'#5eead4', fg:'#115e59' },
+  };
+  const insightsHtml = insights.slice(0, 4).map(ins => {
+    const c = toneColors[ins.tone] || toneColors.ok;
+    return `
+      <button class="aha-insight-card" data-goto="${ins.goto}" style="background:${c.bg};border:1.5px solid ${c.br};border-radius:14px;padding:14px;text-align:left;cursor:pointer;transition:transform .15s, box-shadow .15s;display:flex;gap:12px;align-items:flex-start;width:100%">
+        <div style="font-size:28px;flex-shrink:0;line-height:1">${ins.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:${c.fg};text-transform:uppercase;letter-spacing:0.3px">${ins.title}</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;color:${c.fg};line-height:1.1;margin-bottom:4px">${ins.value}</div>
+          <div style="font-size:12px;color:#475569;line-height:1.45;margin-bottom:6px">${ins.desc}</div>
+          <div style="font-size:11px;font-weight:700;color:${c.fg}">${ins.action}</div>
+        </div>
+      </button>
+    `;
+  }).join('');
+
   // 배경 오버레이
   const overlay = document.createElement('div');
   overlay.id = 'ahaMomentOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(6px);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.3s ease';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.3s ease;overflow-y:auto';
+
+  const hasInsights = insights.length > 0;
 
   overlay.innerHTML = `
-    <div class="aha-modal" style="background:#fff;border-radius:20px;max-width:540px;width:100%;padding:40px 32px;text-align:center;box-shadow:0 25px 80px rgba(0,0,0,0.4);animation:ahaBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);position:relative;overflow:hidden">
-      <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(34,197,94,0.08) 0%,rgba(20,184,166,0.08) 50%,rgba(59,130,246,0.08) 100%);pointer-events:none"></div>
+    <div class="aha-modal" style="background:#fff;border-radius:20px;max-width:640px;width:100%;padding:32px 28px;box-shadow:0 25px 80px rgba(0,0,0,0.4);animation:ahaBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);position:relative;overflow:hidden;max-height:92vh;overflow-y:auto">
+      <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(34,197,94,0.06) 0%,rgba(20,184,166,0.06) 50%,rgba(59,130,246,0.06) 100%);pointer-events:none"></div>
       <div style="position:relative">
-        <div style="font-size:72px;margin-bottom:8px;animation:ahaSpin 0.8s ease">🎉</div>
-        <h2 style="margin:0 0 8px;font-size:26px;font-weight:800;background:linear-gradient(135deg,#0f766e,#0ea5e9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">축하합니다!</h2>
-        <p style="font-size:15px;color:#475569;margin:0 0 24px;line-height:1.6">
-          3개월치 샘플 데이터가 성공적으로 주입되었습니다.<br>
-          이제 <b>진짜 병원경영 데이터</b>가 어떻게 보이는지 확인해보세요.
-        </p>
-        <div class="aha-counts" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:56px;margin-bottom:4px;animation:ahaSpin 0.8s ease">🎯</div>
+          <h2 style="margin:0 0 6px;font-size:24px;font-weight:800;background:linear-gradient(135deg,#0f766e,#0ea5e9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+            ${hasInsights ? '이런 걸 발견했어요' : '샘플 데이터 주입 완료!'}
+          </h2>
+          <p style="font-size:14px;color:#475569;margin:0;line-height:1.55">
+            ${hasInsights
+              ? `3개월치 데이터를 <b>자동 분석</b>한 결과, ${insights.length}가지 인사이트를 찾았습니다.`
+              : '환자 데이터가 준비됐습니다. 기능을 탐색해보세요.'}
+          </p>
+        </div>
+
+        ${hiddenRevMan > 0 ? `
+        <div style="background:linear-gradient(135deg,#fef3c7,#fed7aa);border:2px solid #f59e0b;border-radius:16px;padding:16px 20px;margin-bottom:18px;text-align:center">
+          <div style="font-size:11px;font-weight:700;color:#92400e;letter-spacing:0.5px;text-transform:uppercase">🔍 한 눈에 보는 핵심</div>
+          <div style="font-size:28px;font-weight:900;color:#7c2d12;margin:4px 0;line-height:1.1">
+            숨은 매출 <span style="color:#b45309">${hiddenRevMan.toLocaleString()}만원</span>
+          </div>
+          <div style="font-size:12px;color:#78350f;line-height:1.4">
+            상담 후 결정을 미룬 환자들이 가진 <b>아직 실현 안 된</b> 진료비입니다.<br>
+            리콜 한 번이면 이 중 일부가 예약으로 전환될 수 있어요.
+          </div>
+        </div>
+        ` : ''}
+
+        ${hasInsights ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:18px" id="ahaInsightGrid">
+          ${insightsHtml}
+        </div>
+        ` : `
+        <div class="aha-counts" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
           <div class="aha-count-item"><span class="n">${counts.patients || 40}</span><span class="l">👥 환자</span></div>
           <div class="aha-count-item"><span class="n">${counts.consultRecords || 28}</span><span class="l">💬 상담</span></div>
           <div class="aha-count-item"><span class="n">${counts.callRecords || 60}</span><span class="l">📞 콜</span></div>
@@ -86,17 +149,21 @@ function showAhaMomentModal(counts) {
           <div class="aha-count-item"><span class="n">${counts.reviews || 15}</span><span class="l">⭐ 리뷰</span></div>
           <div class="aha-count-item"><span class="n">${counts.funnelStages || 40}</span><span class="l">🔄 퍼널</span></div>
         </div>
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;margin-bottom:20px;text-align:left;font-size:13px;color:#15803d;line-height:1.5">
-          <b>💡 다음 단계 추천:</b><br>
-          1. <b>대시보드</b>에서 월 매출 / 신환 / 전환율 확인<br>
-          2. <b>환자 퍼널</b>에서 10단계 여정 흐름 보기<br>
-          3. <b>KPI 벤치마킹</b>으로 타 병원과 비교하기
+        `}
+
+        <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:#115e59;line-height:1.5">
+          💡 <b>위 카드를 클릭</b>하면 해당 화면으로 바로 이동해서 액션을 시작할 수 있어요.
+          이게 바로 <b>페이션트 퍼널</b>이 데이터를 가치로 바꾸는 방식입니다.
         </div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <button class="btn btn-primary" id="ahaGoDashboard" style="min-width:160px">🏠 대시보드로 이동</button>
-          <button class="btn btn-outline" id="ahaGoFunnel" style="min-width:140px">🔄 퍼널 보기</button>
+
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="ahaGoDashboard" style="min-width:150px">🏠 대시보드로</button>
+          <button class="btn btn-outline" id="ahaGoFunnel" style="min-width:130px">🔄 퍼널 보기</button>
+          <button class="btn btn-outline" id="ahaGoBench" style="min-width:150px">🏆 타 병원 비교</button>
         </div>
-        <button class="btn btn-sm" style="background:transparent;color:#94a3b8;margin-top:12px;font-size:12px" id="ahaClose">나중에 둘러볼게요</button>
+        <div style="text-align:center">
+          <button class="btn btn-sm" style="background:transparent;color:#94a3b8;margin-top:10px;font-size:12px" id="ahaClose">나중에 둘러볼게요</button>
+        </div>
       </div>
     </div>
     <style>
@@ -123,20 +190,38 @@ function showAhaMomentModal(counts) {
 
   const goDash = () => { overlay.remove(); navigate('dashboard'); };
   const goFunnel = () => { overlay.remove(); navigate('funnel'); };
+  const goBench = () => { overlay.remove(); navigate('kpi_benchmark'); };
   const close = () => { overlay.remove(); navigate('dashboard'); };
 
   overlay.querySelector('#ahaGoDashboard')?.addEventListener('click', goDash);
   overlay.querySelector('#ahaGoFunnel')?.addEventListener('click', goFunnel);
+  overlay.querySelector('#ahaGoBench')?.addEventListener('click', goBench);
   overlay.querySelector('#ahaClose')?.addEventListener('click', close);
+  // 인사이트 카드 클릭 → 해당 페이지로 이동
+  overlay.querySelectorAll('.aha-insight-card').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+      card.style.transform = 'translateY(-2px)';
+      card.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+      card.style.boxShadow = '';
+    });
+    card.addEventListener('click', () => {
+      const goto = card.dataset.goto;
+      overlay.remove();
+      if (goto) navigate(goto);
+    });
+  });
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   // 컨페티 효과 (간단한 CSS 입자)
   launchConfetti();
 
-  // 15초 후 자동 이동
+  // 30초 후 자동 이동 (인사이트 읽는 시간 충분히 제공)
   setTimeout(() => {
     if (document.getElementById('ahaMomentOverlay')) goDash();
-  }, 15000);
+  }, 30000);
 }
 
 function launchConfetti() {
