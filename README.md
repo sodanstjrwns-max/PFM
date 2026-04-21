@@ -4,7 +4,45 @@
 - **이름**: Patient Funnel Manager
 - **목표**: 병의원 통합 관리 플랫폼 - 진료관리, 환자관리, 마케팅, HR, 운영, 커뮤니티를 한 곳에서
 - **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
-- **버전**: v3.6 "Team Edition" (피드백 노트 — 상·하급자 양방향 성장 시스템)
+- **버전**: v4.0 "Clinical Calm" (디자인 시스템 전면 개편 — Pretendard + OKLCH + 다크모드)
+
+## 🎨 v4.0 "Clinical Calm" Design System (2026-04-21)
+> 인류 최고 수준의 헬스케어 SaaS 디자인 — Linear · Notion · Apple Health · Epic 벤치마크
+- **🎨 디자인 시스템 파일** `public/static/design-system.css` (약 800줄)
+  - **컬러 토큰**: Brand Teal 11단계 + Neutral 12단계 + Semantic 4종(Success/Warn/Danger/Info) 각 3단계
+  - **타이포그래피**: Pretendard Variable (한글 완벽) + tabular-nums + 10단계 스케일 (11px~48px)
+  - **레이어드 그림자**: 5단계 + 브랜드 전용 2종 (소프트한 의료감)
+  - **모션**: `cubic-bezier` ease-out / spring / 3단계 duration
+- **🌓 다크 모드 3단 토글** (라이트 / 다크 / 시스템 자동)
+  - 깜빡임 방지: `<head>`에서 즉시 실행 스크립트로 클래스 선적용
+  - 시스템 선호도 실시간 반영 (`prefers-color-scheme` 리스너)
+  - 저장: `localStorage.pfm_theme`
+  - 토글 위치: 사이드바 하단 유저 메뉴 → "화면 테마"
+- **🧭 사이드바 유리 질감**
+  - `radial-gradient` 2중 오로라 배경 + 1px subtle border
+  - 활성 메뉴: 좌측 네온 인디케이터(box-shadow glow) + 그라디언트 배경
+  - hover: 2px translateX로 부드러운 이동
+- **💎 카드 시스템 재설계**
+  - 1px subtle border → hover 시 shadow-md + translateY(-1px)
+  - stat-card 아이콘에 subtle inner-shine 효과
+  - 인사이트 히어로: gradient mesh + 텍스트 그라디언트 (숫자가 빛남)
+- **🔘 버튼 3종 재디자인**
+  - Primary: 135° linear-gradient + inset highlight + 2단계 그림자
+  - Secondary/Ghost/Danger 톤 분리
+  - active scale(0.97) 햅틱 느낌
+- **💬 피드백 노트 UI 고도화** (양방향 대화 감각)
+  - `.fb-note-card` — 심각도별 좌측 3px 컬러 바 + 미확인 시 gradient 배경
+  - 미확인 뱃지: 빨간 점 + `pulseDot` 애니메이션 (3초)
+  - 대화 쓰레드: **카톡 스타일 말풍선** (`.fb-reply-bubble`)
+    - 상급자: 좌측 Teal 그라디언트 말풍선 (흰 글자)
+    - 당사자: 우측 흰색 말풍선 (회색 테두리)
+    - `bubbleIn` spring 애니메이션 (0.24s)
+  - 빈 상태: 이모지 + 제목 + 설명 + CTA의 풀 empty-state 컴포넌트
+- **♿ 접근성 3종**
+  - `focus-visible` 2px 브랜드 링 + 2px 오프셋
+  - `prefers-reduced-motion` 전 애니메이션 억제
+  - 색 대비 WCAG AA 이상 (브랜드 색 대비 테스트 완료)
+- **🖨️ 인쇄 CSS** — 사이드바/버튼 숨김 + 그림자 제거
 
 ## 🎯 v3.6 "Team Edition" (2026-04-21)
 > "한 번의 지적으로 끝나지 않는다" — 피드백이 성장으로 이어지는 양방향 기록 시스템

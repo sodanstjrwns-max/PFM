@@ -157,17 +157,19 @@ async function loadList() {
 function renderList(container, notes) {
   if (!notes || notes.length === 0) {
     const emptyMsg = fbState.scope === 'received'
-      ? '받은 피드백이 없습니다. 🎉'
+      ? '받은 피드백이 없어요. 오늘도 좋은 하루!'
       : fbState.scope === 'sent'
         ? '아직 작성한 피드백이 없습니다.'
         : '피드백 기록이 없습니다.';
-    const cta = fbState.scope === 'sent' && canAuthor()
-      ? `<button class="btn btn-primary btn-sm" onclick="document.getElementById('fbNewBtn')?.click()" style="margin-top:12px">+ 첫 피드백 작성하기</button>`
+    const emptyIcon = fbState.scope === 'received' ? '🎉' : '📝';
+    const cta = fbState.scope !== 'received' && canAuthor()
+      ? `<button class="btn btn-primary btn-md" onclick="document.getElementById('fbNewBtn')?.click()">+ 첫 피드백 작성하기</button>`
       : '';
     container.innerHTML = `
-      <div style="text-align:center;padding:60px 20px;background:#f8fafc;border-radius:12px;border:1px dashed #cbd5e1">
-        <div style="font-size:48px;margin-bottom:8px">📭</div>
-        <div style="color:#64748b;font-size:14px">${emptyMsg}</div>
+      <div class="empty-state">
+        <div class="empty-state-icon">${emptyIcon}</div>
+        <div class="empty-state-title">${emptyMsg}</div>
+        <div class="empty-state-text">기록은 성장의 첫걸음이에요. 작은 피드백이 팀을 바꿉니다.</div>
         ${cta}
       </div>`;
     return;
@@ -186,30 +188,42 @@ function renderNoteCard(n) {
   const uid = state.user.userId || state.user.id;
   const isTarget = n.target_user_id === uid;
   const isAuthor = n.author_id === uid;
-  const unreadTag = isTarget && !n.acknowledged
-    ? `<span style="background:#ef4444;color:#fff;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;animation:pulseHint 1.2s ease infinite">NEW</span>`
-    : '';
+  const isUnread = isTarget && !n.acknowledged;
   const roleLabel = isAuthor ? '내가 작성' : (isTarget ? '내게 온 피드백' : '');
 
+  const cardClass = ['fb-note-card', n.severity || 'moderate', isUnread ? 'unread' : ''].filter(Boolean).join(' ');
+
+  const unreadBadge = isUnread
+    ? `<span class="fb-unread-dot" title="미확인"></span><span class="pill pill-danger" style="font-size:10px">NEW</span>`
+    : '';
+
+  // 상태별 필
+  const statusPillClass = n.status === 'resolved' ? 'pill-success'
+    : n.status === 'acknowledged' ? 'pill-info'
+    : n.status === 'archived' ? 'pill-neutral'
+    : 'pill-danger';
+
   return `
-    <div class="fb-card" data-note-id="${esc(n.id)}" style="background:#fff;border:1.5px solid ${isTarget && !n.acknowledged ? '#fca5a5' : '#e5e7eb'};border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:transform .15s, box-shadow .15s" onmouseenter="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.06)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap">
-        <span style="font-size:18px">${cat.icon}</span>
+    <div class="${cardClass}" data-note-id="${esc(n.id)}">
+      <div style="display:flex;gap:var(--space-3);align-items:flex-start;margin-bottom:var(--space-2)">
+        <div style="font-size:22px;flex-shrink:0;margin-top:2px">${cat.icon}</div>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
-            ${unreadTag}
-            <span style="background:${sev.bg};color:${sev.color};padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700">${sev.label}</span>
-            <span style="background:${st.bg};color:${st.color};padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700">${st.label}</span>
-            <span style="color:${cat.color};font-size:11px;font-weight:600">${cat.label}</span>
-            ${roleLabel ? `<span style="font-size:10px;color:#94a3b8;background:#f1f5f9;padding:2px 6px;border-radius:4px">${roleLabel}</span>` : ''}
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+            ${unreadBadge}
+            <span class="fb-severity-badge ${n.severity}">${sev.label}</span>
+            <span class="pill ${statusPillClass}">${st.label}</span>
+            <span class="pill pill-brand" style="background:${cat.color}22;color:${cat.color}">${cat.label}</span>
+            ${roleLabel ? `<span class="pill pill-neutral" style="font-size:10px">${roleLabel}</span>` : ''}
           </div>
-          <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;line-height:1.4">${esc(n.title)}</div>
-          <div style="font-size:12px;color:#64748b;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(n.description || '')}</div>
+          <div style="font-size:var(--text-lg);font-weight:700;color:var(--text-strong);margin-bottom:4px;line-height:1.35;letter-spacing:-0.01em">${esc(n.title)}</div>
+          <div style="font-size:var(--text-base);color:var(--text-muted);line-height:var(--leading-snug);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(n.description || '')}</div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#94a3b8;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:var(--text-xs);color:var(--text-subtle);gap:8px;flex-wrap:wrap;padding-top:var(--space-2);border-top:1px dashed var(--border-subtle)">
         <span>
-          <b>${esc(n.author_name)}</b> → <b>${esc(n.target_user_name)}</b>
+          <b style="color:var(--text-body)">${esc(n.author_name)}</b>
+          <span style="margin:0 4px;opacity:0.5">→</span>
+          <b style="color:var(--text-body)">${esc(n.target_user_name)}</b>
           ${n.incident_date ? ` · 📅 ${esc(n.incident_date)}` : ''}
         </span>
         <span>${timeAgo ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
@@ -363,22 +377,20 @@ async function openDetailModal(noteId) {
   const st = STATUS_META[n.status] || STATUS_META.open;
   const vis = VISIBILITY_META[n.visibility] || VISIBILITY_META.target;
 
-  const repliesHtml = replies.map(r => {
-    const isR_target = r.author_role === 'target';
+  const repliesHtml = replies.length ? `<div class="fb-thread">${replies.map(r => {
+    const bubbleClass = r.author_role === 'target' ? 'target' : 'author';
+    const roleLabel = r.author_role === 'author' ? '상급자'
+                    : r.author_role === 'target' ? '당사자' : '관리자';
+    const internalTag = r.is_internal ? ' · 🔒 내부용' : '';
     return `
-      <div style="background:${isR_target ? '#f0fdf4' : '#f8fafc'};border:1px solid ${isR_target ? '#bbf7d0' : '#e5e7eb'};border-radius:10px;padding:10px 12px;margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
-          <span style="font-size:12px;font-weight:700;color:#0f172a">${esc(r.author_name)}
-            ${r.author_role === 'author' ? '<span style="font-size:10px;color:#3b82f6;background:#dbeafe;padding:1px 6px;border-radius:4px;margin-left:4px">상급자</span>' : ''}
-            ${r.author_role === 'target' ? '<span style="font-size:10px;color:#22c55e;background:#dcfce7;padding:1px 6px;border-radius:4px;margin-left:4px">당사자</span>' : ''}
-            ${r.is_internal ? '<span style="font-size:10px;color:#92400e;background:#fef3c7;padding:1px 6px;border-radius:4px;margin-left:4px">🔒 내부용</span>' : ''}
-          </span>
-          <span style="font-size:10px;color:#94a3b8">${timeAgo ? timeAgo(r.created_at) : r.created_at}</span>
+      <div class="fb-reply-bubble ${bubbleClass}">
+        <div class="fb-reply-meta">
+          <b>${esc(r.author_name)}</b> · ${roleLabel}${internalTag} · ${timeAgo ? timeAgo(r.created_at) : r.created_at}
         </div>
-        <div style="font-size:13px;color:#334155;line-height:1.55;white-space:pre-wrap">${esc(r.body)}</div>
+        <div style="white-space:pre-wrap;word-break:break-word">${esc(r.body)}</div>
       </div>
     `;
-  }).join('') || '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">아직 댓글이 없습니다</div>';
+  }).join('')}</div>` : '<div class="empty-state" style="padding:20px"><div style="font-size:24px;opacity:0.4">💬</div><div class="empty-state-text" style="margin-top:6px">아직 대화가 없어요. 한마디 남겨보세요.</div></div>';
 
   showModal({
     title: `📝 피드백 노트 상세`,

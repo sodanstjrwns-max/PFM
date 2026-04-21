@@ -802,6 +802,14 @@ function renderApp() {
             ${ICONS.shield}<span>비밀번호 변경</span>
           </button>
           <div class="user-popup-divider"></div>
+          <button class="user-popup-item" id="menuTheme" style="justify-content:space-between">
+            <span style="display:inline-flex;align-items:center;gap:10px">
+              <span id="menuThemeIcon" style="font-size:16px">🌓</span>
+              <span>화면 테마</span>
+            </span>
+            <span id="menuThemeLabel" style="font-size:11px;color:var(--text-muted);font-weight:600;padding:2px 8px;background:var(--neutral-100);border-radius:999px"></span>
+          </button>
+          <div class="user-popup-divider"></div>
           <button class="user-popup-item user-popup-danger" id="menuLogout">
             ${ICONS.logout}<span>로그아웃</span>
           </button>
@@ -851,6 +859,45 @@ function renderApp() {
   popupMenu.addEventListener('click', (e) => e.stopPropagation());
   document.getElementById('menuProfile').addEventListener('click', () => { popupMenu.classList.remove('open'); navigate('settings'); });
   document.getElementById('menuPassword').addEventListener('click', () => { popupMenu.classList.remove('open'); navigate('settings'); setTimeout(() => { const pwBtn = document.querySelector('[data-action="change-password"]'); if (pwBtn) pwBtn.click(); }, 300); });
+  // 🎨 테마 토글 (light → dark → system → light ...)
+  (function initThemeToggle(){
+    const themeOrder = ['light', 'dark', 'system'];
+    const themeMeta = {
+      light:  { icon: '☀️', label: '라이트' },
+      dark:   { icon: '🌙', label: '다크' },
+      system: { icon: '💻', label: '시스템' },
+    };
+    function applyTheme(pref) {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const applied = pref === 'system' ? (prefersDark ? 'dark' : 'light') : pref;
+      document.documentElement.setAttribute('data-theme', applied);
+      try { localStorage.setItem('pfm_theme', pref); } catch(e) {}
+      const m = themeMeta[pref];
+      const iconEl = document.getElementById('menuThemeIcon');
+      const labelEl = document.getElementById('menuThemeLabel');
+      if (iconEl) iconEl.textContent = m.icon;
+      if (labelEl) labelEl.textContent = m.label;
+      window.__pfmTheme = { pref, applied };
+    }
+    const currentPref = (window.__pfmTheme && window.__pfmTheme.pref) || localStorage.getItem('pfm_theme') || 'system';
+    applyTheme(currentPref);
+    const btn = document.getElementById('menuTheme');
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cur = (window.__pfmTheme && window.__pfmTheme.pref) || 'system';
+        const idx = themeOrder.indexOf(cur);
+        const next = themeOrder[(idx + 1) % themeOrder.length];
+        applyTheme(next);
+      });
+    }
+    // 시스템 변경 감지
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if ((window.__pfmTheme && window.__pfmTheme.pref) === 'system') applyTheme('system');
+      });
+    }
+  })();
   document.getElementById('menuLogout').addEventListener('click', logout);
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeModal();
