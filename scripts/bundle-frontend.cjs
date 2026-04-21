@@ -32,6 +32,7 @@ const CHUNK_FILES = [
   'modules/recall.js',   // v3.2 환자 리콜 자동화
   'modules/kakao.js',    // v3.3 카카오 알림톡
   'modules/reports.js',  // v3.3 월간 보고서 & 내보내기
+  'modules/feedback.js', // v3.5 피드백 노트 (상급자↔하급자)
 ];
 
 // Module-to-page mapping (which pages need which module)
@@ -70,6 +71,7 @@ const MODULE_PAGE_MAP = {
   'modules/recall.js': ['recall'],
   'modules/kakao.js': ['kakao'],
   'modules/reports.js': ['reports'],
+  'modules/feedback.js': ['feedback_notes'],
 };
 
 // Reverse map: page → chunk file

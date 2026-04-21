@@ -724,6 +724,7 @@ function getNavConfig() {
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
+        { id: 'feedback_notes', label: '📝 피드백 노트', icon: ICONS.edit || ICONS.message },
         { id: 'gamification', label: '🏆 성과 게이미피케이션', icon: ICONS.star },
         { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
@@ -1164,6 +1165,7 @@ async function renderPage() {
     case 'recall': M.recall.renderRecall(body, actions); break;
     case 'kakao': M.kakao.renderKakao(body, actions); break;
     case 'reports': M.reports.renderReports(body, actions); break;
+    case 'feedback_notes': M.feedbackNotes.renderFeedback(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'complaints': M.complaints.renderComplaints(body, actions); break;

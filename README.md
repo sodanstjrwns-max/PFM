@@ -4,7 +4,42 @@
 - **이름**: Patient Funnel Manager
 - **목표**: 병의원 통합 관리 플랫폼 - 진료관리, 환자관리, 마케팅, HR, 운영, 커뮤니티를 한 곳에서
 - **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
-- **버전**: v3.4 "Insight Edition" (진짜 아하모멘트 — 데이터 발견)
+- **버전**: v3.6 "Team Edition" (피드백 노트 — 상·하급자 양방향 성장 시스템)
+
+## 🎯 v3.6 "Team Edition" (2026-04-21)
+> "한 번의 지적으로 끝나지 않는다" — 피드백이 성장으로 이어지는 양방향 기록 시스템
+- **📝 피드백 노트 게시판** (`/api/protected/feedback`)
+  - **상급자**: 하급자의 실수를 기록 + 피드백(개선 방향) 작성
+  - **하급자**: 확인 체크박스 + 본인 피드백(본인 입장/개선 계획) 입력
+  - **양방향 쓰레드**: 상급자·하급자가 댓글로 계속 대화 가능
+  - 기록으로 남기되 "꾸짖음"이 아닌 "성장 포인트"로 자리잡도록 설계
+- **🎛️ 메타데이터**:
+  - **심각도**: 경미(mild) / 보통(moderate) / 중대(severe)
+  - **카테고리**: 진료(care) / 응대(service) / 행정(admin) / 위생(hygiene) / 안전(safety) / 기타
+  - **공개범위**: 본인만(private) / 관리자까지(managers) / 전체(all)
+  - **상태**: 열림 → 확인완료 → 해결 / 보관
+- **👀 받은 피드백 UX** (하급자 관점):
+  - 미확인 피드백 카드 빨간 테두리 + "🔴 미확인" 뱃지 + 헤드라인 노출
+  - ✅ 체크박스 눌러야 "acknowledged" 상태로 전환
+  - 본인 피드백 텍스트 에리어(최대 2000자) — 당시 상황, 개선 계획 자유 서술
+  - 확인 후에도 본인 피드백 업데이트 가능 (관리자는 언제든 수정)
+- **📤 보낸 피드백 UX** (상급자 관점):
+  - 대상자 선택 드롭다운(본인 제외, 활성 직원만)
+  - 대상자 확인 전까지 수정 가능 / 확인 후엔 관리자만 수정
+  - resolve / archive 상태 변경
+- **📊 피드백 통계** (`/api/protected/feedback/stats/summary`) — 관리자 전용:
+  - 전체/열림/확인완료/해결/중대 건수
+  - 최근 30일 신규 피드백 수
+  - 카테고리 TOP 3 (최근 90일)
+  - 피드백 많이 받은 직원 TOP 10 (교육 니즈 파악)
+- **9개 엔드포인트**:
+  - `GET /` (type=sent/received/all), `GET /:id`, `POST /` (작성)
+  - `PATCH /:id` (수정), `POST /:id/acknowledge` (확인+본인응답)
+  - `POST /:id/status` (해결/보관), `POST /:id/replies` (댓글)
+  - `DELETE /:id` (작성자/관리자), `GET /stats/summary`, `GET /users/list`
+- **🗃️ 마이그레이션**: `0025_feedback_notes.sql` — feedback_notes + feedback_replies 2테이블, 6개 인덱스
+- **🔐 접근 제어**: 본인만(private)은 작성자·대상자만 / 관리자까지(managers)는 admin·manager도 열람 / all은 전 직원
+- **검증** (2026-04-21 E2E): 작성 ✅ 수신 확인 ✅ 본인 응답 저장 ✅ 쓰레드 댓글 ✅ 통계 집계 ✅
 
 ## 🎯 v3.5 "Weekly Edition" (2026-04-21)
 > "발견"을 일회성 이벤트가 아닌 매주 반복되는 습관으로 — 리텐션 엔진 가동
@@ -177,6 +212,7 @@
 ### 11. 커뮤니티
 - 자유게시판, 칭찬하기, 실수노트
 - 댓글, 좋아요, 익명
+- **📝 피드백 노트** 🆕 v3.6: 상급자 기록/피드백 → 하급자 확인+본인응답 양방향 시스템
 
 ### 12. 설정
 - 병원 정보 (운영시간, 진료과목 등)
@@ -236,6 +272,12 @@
 | `/api/protected` (community) | community | 게시판, 칸반, 체크리스트, 이벤트 |
 | `/api/protected` (clinical) | clinical | 진료보드, 체어, 원장 |
 | `/api/protected` (operations) | operations | 예약, 대기시간, 주차 |
+| `/api/protected/onboarding` | onboarding | 온보딩 위저드, 샘플 주입, 인사이트 🆕 v3.4 |
+| `/api/protected/recall` | recall | 환자 리콜 자동화 🆕 v3.2 |
+| `/api/protected/kakao` | kakao | 카카오 알림톡 🆕 v3.3 |
+| `/api/protected/reports` | reports | 월간 보고서, 엑셀 내보내기 🆕 v3.3 |
+| `/api/protected/insights` | insights | 주간 인사이트 브리핑 🆕 v3.5 |
+| `/api/protected/feedback` | feedback | 피드백 노트 (양방향) 🆕 v3.6 |
 
 ## 로컬 실행
 ```bash
@@ -249,7 +291,7 @@ pm2 start ecosystem.config.cjs
 
 ## 배포
 - **플랫폼**: Cloudflare Pages
-- **상태**: 🟢 운영 중 (v3.0)
+- **상태**: 🟢 운영 중 (v3.6 Team Edition)
 - **최종 업데이트**: 2026-04-21
 
 ## 최근 운영 이력
