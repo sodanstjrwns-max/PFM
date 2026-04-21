@@ -804,12 +804,42 @@ body.app-loaded {
   overflow: hidden;
   max-height: 0;
   transition: max-height 0.3s ease;
+  position: relative;
+  margin: 2px 0 4px 22px; /* 왼쪽 들여쓰기 + 위아래 간격 */
+  padding-left: 10px;
+  border-left: 1.5px solid rgba(255,255,255,0.12); /* 트리 구분선 */
 }
 .nav-group-children.open { max-height: 500px; }
 .nav-group-children .nav-item {
-  padding-left: 42px;
-  font-size: 12.5px;
+  padding-left: 14px;       /* 구분선에서 살짝 띄움 */
+  font-size: 12px;          /* 하위는 약간 작게 */
+  font-weight: 400;
+  opacity: 0.85;
+  position: relative;
 }
+.nav-group-children .nav-item:hover { opacity: 1; }
+.nav-group-children .nav-item.active {
+  opacity: 1;
+  font-weight: 600;
+}
+/* active 하위 항목 앞에 밝은 점 표시 */
+.nav-group-children .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -11.5px;
+  top: 50%;
+  width: 2.5px;
+  height: 16px;
+  background: var(--primary, #4f46e5);
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+.nav-group-children .nav-item svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0.55;
+}
+.nav-group-children .nav-item.active svg { opacity: 0.95; }
 
 .sidebar-footer {
   padding: 12px 10px;
