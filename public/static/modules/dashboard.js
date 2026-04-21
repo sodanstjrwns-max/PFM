@@ -43,16 +43,17 @@ async function renderDashboard(body) {
   }, 'dashboard');
 }
 
-/* ═══ 샘플 데이터 주입 - Aha Moment ═══ */
+/* ═══ 샘플 데이터 주입 - Aha Moment (v3.3 강화) ═══ */
 async function injectSampleData(btn) {
   if (!confirm('✨ 3개월치 샘플 데이터를 주입합니다.\n\n• 환자 40명\n• 상담 28건\n• 콜 60건\n• KPI 일간 기록 60일\n• 리뷰 15건\n• 퍼널 10단계 분포\n\n기존 데이터가 거의 없을 때만 실행됩니다.\n진행하시겠습니까?')) return;
   const original = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="loading-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:6px"></span> 주입 중...';
+  btn.innerHTML = '<span class="loading-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:6px"></span> 주입 중... (5초 소요)';
   try {
     const result = await api('/api/protected/onboarding/seed-sample', { method: 'POST', json: {} });
-    showToast('✨ ' + (result.message || '샘플 데이터 주입 완료!'), 'success');
-    setTimeout(() => { navigate('dashboard'); }, 800);
+    const counts = result.counts || {};
+    // 🎉 축하 모달 (Aha Moment Peak)
+    showAhaMomentModal(counts);
   } catch (err) {
     showToast('❌ ' + err.message, 'error');
     btn.disabled = false;
@@ -60,6 +61,105 @@ async function injectSampleData(btn) {
   }
 }
 window.injectSampleData = injectSampleData;
+
+function showAhaMomentModal(counts) {
+  // 배경 오버레이
+  const overlay = document.createElement('div');
+  overlay.id = 'ahaMomentOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(6px);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.3s ease';
+
+  overlay.innerHTML = `
+    <div class="aha-modal" style="background:#fff;border-radius:20px;max-width:540px;width:100%;padding:40px 32px;text-align:center;box-shadow:0 25px 80px rgba(0,0,0,0.4);animation:ahaBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(34,197,94,0.08) 0%,rgba(20,184,166,0.08) 50%,rgba(59,130,246,0.08) 100%);pointer-events:none"></div>
+      <div style="position:relative">
+        <div style="font-size:72px;margin-bottom:8px;animation:ahaSpin 0.8s ease">🎉</div>
+        <h2 style="margin:0 0 8px;font-size:26px;font-weight:800;background:linear-gradient(135deg,#0f766e,#0ea5e9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">축하합니다!</h2>
+        <p style="font-size:15px;color:#475569;margin:0 0 24px;line-height:1.6">
+          3개월치 샘플 데이터가 성공적으로 주입되었습니다.<br>
+          이제 <b>진짜 병원경영 데이터</b>가 어떻게 보이는지 확인해보세요.
+        </p>
+        <div class="aha-counts" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px">
+          <div class="aha-count-item"><span class="n">${counts.patients || 40}</span><span class="l">👥 환자</span></div>
+          <div class="aha-count-item"><span class="n">${counts.consultRecords || 28}</span><span class="l">💬 상담</span></div>
+          <div class="aha-count-item"><span class="n">${counts.callRecords || 60}</span><span class="l">📞 콜</span></div>
+          <div class="aha-count-item"><span class="n">${counts.dailyRecords || 60}</span><span class="l">📊 KPI일</span></div>
+          <div class="aha-count-item"><span class="n">${counts.reviews || 15}</span><span class="l">⭐ 리뷰</span></div>
+          <div class="aha-count-item"><span class="n">${counts.funnelStages || 40}</span><span class="l">🔄 퍼널</span></div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;margin-bottom:20px;text-align:left;font-size:13px;color:#15803d;line-height:1.5">
+          <b>💡 다음 단계 추천:</b><br>
+          1. <b>대시보드</b>에서 월 매출 / 신환 / 전환율 확인<br>
+          2. <b>환자 퍼널</b>에서 10단계 여정 흐름 보기<br>
+          3. <b>KPI 벤치마킹</b>으로 타 병원과 비교하기
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="ahaGoDashboard" style="min-width:160px">🏠 대시보드로 이동</button>
+          <button class="btn btn-outline" id="ahaGoFunnel" style="min-width:140px">🔄 퍼널 보기</button>
+        </div>
+        <button class="btn btn-sm" style="background:transparent;color:#94a3b8;margin-top:12px;font-size:12px" id="ahaClose">나중에 둘러볼게요</button>
+      </div>
+    </div>
+    <style>
+      @keyframes ahaBounceIn {
+        0% { transform: scale(0.3); opacity: 0 }
+        60% { transform: scale(1.05); opacity: 1 }
+        100% { transform: scale(1); opacity: 1 }
+      }
+      @keyframes ahaSpin {
+        0% { transform: rotate(-180deg) scale(0) }
+        100% { transform: rotate(0) scale(1) }
+      }
+      .aha-count-item { display:flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 8px;transition:transform 0.2s }
+      .aha-count-item:hover { transform:translateY(-3px);border-color:#14b8a6 }
+      .aha-count-item .n { font-size:22px;font-weight:800;color:#0f172a }
+      .aha-count-item .l { font-size:11px;color:#64748b;font-weight:600 }
+      @media (max-width:500px) {
+        .aha-modal { padding:28px 20px !important }
+        .aha-counts { grid-template-columns:repeat(2,1fr) !important }
+      }
+    </style>
+  `;
+  document.body.appendChild(overlay);
+
+  const goDash = () => { overlay.remove(); navigate('dashboard'); };
+  const goFunnel = () => { overlay.remove(); navigate('funnel'); };
+  const close = () => { overlay.remove(); navigate('dashboard'); };
+
+  overlay.querySelector('#ahaGoDashboard')?.addEventListener('click', goDash);
+  overlay.querySelector('#ahaGoFunnel')?.addEventListener('click', goFunnel);
+  overlay.querySelector('#ahaClose')?.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  // 컨페티 효과 (간단한 CSS 입자)
+  launchConfetti();
+
+  // 15초 후 자동 이동
+  setTimeout(() => {
+    if (document.getElementById('ahaMomentOverlay')) goDash();
+  }, 15000);
+}
+
+function launchConfetti() {
+  const colors = ['#14b8a6','#0ea5e9','#f59e0b','#ec4899','#22c55e','#8b5cf6'];
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:100001;overflow:hidden';
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 100;
+    const delay = Math.random() * 0.5;
+    const dur = 2 + Math.random() * 2;
+    const size = 8 + Math.random() * 6;
+    p.style.cssText = `position:absolute;top:-20px;left:${left}%;width:${size}px;height:${size}px;background:${color};border-radius:${Math.random() > 0.5 ? '50%' : '2px'};animation:confettiFall ${dur}s ${delay}s linear forwards;transform:rotate(${Math.random()*360}deg)`;
+    container.appendChild(p);
+  }
+  const style = document.createElement('style');
+  style.textContent = '@keyframes confettiFall { 0%{transform:translateY(0) rotate(0);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }';
+  container.appendChild(style);
+  document.body.appendChild(container);
+  setTimeout(() => container.remove(), 5000);
+}
+window.showAhaMomentModal = showAhaMomentModal;
 
 function renderDashboardContent(body, s, briefing, surveyToday) {
   const now = new Date();
@@ -117,6 +217,20 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
   const hasData = (s.todayPatients > 0) || (s.monthConsultations > 0) || (briefing?.monthCumulative?.totalRevenue > 0) || (Object.keys(s.funnel || {}).length > 0);
   const showSampleBanner = !hasData && isManager;
 
+  // "오늘의 할 일" 체크리스트 - 샘플 데이터 있고 탐험 안 했을 때 (3일간 표시)
+  const exploreDone = JSON.parse(localStorage.getItem('pfm_explore_done') || '{}');
+  const exploreDismissedAt = parseInt(localStorage.getItem('pfm_explore_dismissed_at') || '0', 10);
+  const daysSinceDismiss = (Date.now() - exploreDismissedAt) / 86400000;
+  const exploreDoneCount = Object.values(exploreDone).filter(Boolean).length;
+  const showExploreCard = hasData && isManager && exploreDoneCount < 5 && (daysSinceDismiss > 3 || !exploreDismissedAt);
+  const exploreTasks = [
+    { key: 'funnel',     icon: '🔄', title: '환자 퍼널 확인',       desc: '10단계 여정에서 이탈 포인트 찾기', goto: 'funnel' },
+    { key: 'kpi_bench',  icon: '🏆', title: 'KPI 벤치마킹',          desc: '타 병원 평균과 내 병원 비교',       goto: 'kpi_benchmark' },
+    { key: 'consult',    icon: '💬', title: '상담 기록 & 전환율',    desc: '상담 후 치료 결정 흐름 보기',        goto: 'consult_dashboard' },
+    { key: 'recall',     icon: '📞', title: '리콜 자동화 생성',      desc: '오늘의 리콜 대상 자동 추출',        goto: 'recall' },
+    { key: 'reports',    icon: '📄', title: '월간 보고서 내보내기',  desc: 'Excel/PDF로 원장님 보고용 자료',    goto: 'reports' },
+  ];
+
   body.innerHTML = `
     <!-- 🎉 Aha Moment: 샘플 데이터 환영 배너 -->
     ${showSampleBanner ? `
@@ -138,6 +252,38 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
         <button class="btn-sample-skip" onclick="this.closest('.sample-banner').style.display='none';localStorage.setItem('pfm_skip_sample','1')">
           직접 입력할게요
         </button>
+      </div>
+    </section>
+    ` : ''}
+
+    <!-- 🎯 오늘의 할 일 - 첫 탐험 가이드 -->
+    ${showExploreCard ? `
+    <section class="explore-card" aria-label="첫 탐험 가이드">
+      <div class="explore-card-header">
+        <div>
+          <h3>🎯 처음이시죠? <span style="color:#0f766e">핵심 기능 5분 투어</span></h3>
+          <p>아래 5가지만 둘러보시면 PF Manager 전체 흐름이 잡힙니다</p>
+        </div>
+        <div class="explore-progress">
+          <div class="explore-progress-bar"><div style="width:${(exploreDoneCount/5)*100}%"></div></div>
+          <div class="explore-progress-text">${exploreDoneCount}/5 완료</div>
+        </div>
+      </div>
+      <div class="explore-tasks">
+        ${exploreTasks.map(t => `
+          <button class="explore-task ${exploreDone[t.key] ? 'done' : ''}" data-explore="${t.key}" data-goto="${t.goto}">
+            <span class="explore-check">${exploreDone[t.key] ? '✅' : '⬜'}</span>
+            <span class="explore-icon">${t.icon}</span>
+            <span class="explore-text">
+              <span class="explore-title">${t.title}</span>
+              <span class="explore-desc">${t.desc}</span>
+            </span>
+            <span class="explore-arrow">→</span>
+          </button>
+        `).join('')}
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn btn-sm" style="background:transparent;color:#94a3b8;font-size:11px" id="exploreDismiss">이 가이드 3일간 숨기기</button>
       </div>
     </section>
     ` : ''}
@@ -247,8 +393,33 @@ function renderDashboardContent(body, s, briefing, surveyToday) {
 
   // 이벤트
   body.querySelectorAll('[data-goto]').forEach(el => {
-    el.addEventListener('click', () => navigate(el.dataset.goto));
+    el.addEventListener('click', () => {
+      // 탐험 태스크면 완료 저장
+      if (el.dataset.explore) {
+        const done = JSON.parse(localStorage.getItem('pfm_explore_done') || '{}');
+        done[el.dataset.explore] = true;
+        localStorage.setItem('pfm_explore_done', JSON.stringify(done));
+      }
+      navigate(el.dataset.goto);
+    });
   });
+
+  // 탐험 가이드 숨기기 버튼
+  const exploreDismissBtn = document.getElementById('exploreDismiss');
+  if (exploreDismissBtn) {
+    exploreDismissBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      localStorage.setItem('pfm_explore_dismissed_at', Date.now().toString());
+      const card = e.target.closest('.explore-card');
+      if (card) {
+        card.style.transition = 'all 0.4s';
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-10px)';
+        setTimeout(() => card.remove(), 400);
+      }
+      if (typeof showToast === 'function') showToast('👍 3일간 숨겨둘게요', 'info');
+    });
+  }
 
   // 리포트 버튼 이벤트 (관리자만)
   if (isManager) {

@@ -204,7 +204,9 @@ const WELCOME_TOUR_STEPS = [
 
 function showWelcomeTour(force) {
   if (!force && localStorage.getItem('pfm_tour_completed') === '1') return;
-  let step = 0;
+  // 진행률 복원 (force=true면 초기화)
+  let step = force ? 0 : parseInt(localStorage.getItem('pfm_tour_step') || '0', 10);
+  if (step >= WELCOME_TOUR_STEPS.length) step = 0;
   const existing = document.getElementById('welcomeTourOverlay');
   if (existing) existing.remove();
 
@@ -255,27 +257,47 @@ function showWelcomeTour(force) {
     const next = document.getElementById('tourNextBtn');
     const prev = document.getElementById('tourPrevBtn');
     if (skip) skip.onclick = () => {
+      // 스킵 확인 (아직 절반 이하만 봤을 때만 경고)
+      if (step < 2) {
+        const warn = document.createElement('div');
+        warn.className = 'tour-skip-warning';
+        warn.innerHTML = '⚠️ 이 투어는 단 2분이면 끝나요. 정말 건너뛸까요? 한 번 더 눌러주세요';
+        document.body.appendChild(warn);
+        setTimeout(() => warn.remove(), 3500);
+        // 두 번째 클릭에서만 실제로 닫힘
+        skip.dataset.confirmed = '1';
+        skip.textContent = '정말 건너뛰기';
+        skip.onclick = () => {
+          localStorage.setItem('pfm_tour_completed', '1');
+          localStorage.removeItem('pfm_tour_step');
+          overlay.remove();
+        };
+        return;
+      }
       localStorage.setItem('pfm_tour_completed', '1');
+      localStorage.removeItem('pfm_tour_step');
       overlay.remove();
     };
     if (next) next.onclick = () => {
       if (isLast) {
         localStorage.setItem('pfm_tour_completed', '1');
+        localStorage.removeItem('pfm_tour_step');
         overlay.remove();
-        // 대시보드 상단 샘플 배너로 시선 이동
+        // 대시보드 상단 샘플 배너(없으면 탐험 카드)로 시선 이동
         setTimeout(() => {
-          const banner = document.querySelector('.sample-banner');
-          if (banner) {
-            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            banner.style.animation = 'pulseHint 1.4s ease 2';
+          const target = document.querySelector('.sample-banner') || document.querySelector('.explore-card');
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.style.animation = 'pulseHint 1.4s ease 2';
           }
         }, 300);
       } else {
         step++;
+        localStorage.setItem('pfm_tour_step', String(step));
         render();
       }
     };
-    if (prev) prev.onclick = () => { step--; render(); };
+    if (prev) prev.onclick = () => { step--; localStorage.setItem('pfm_tour_step', String(step)); render(); };
 
     // ESC 키로 스킵
     overlay.onkeydown = (e) => { if (e.key === 'Escape') skip?.click(); };
@@ -665,6 +687,7 @@ function getNavConfig() {
         { id: 'kpi_benchmark', label: '🏆 벤치마킹', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
+        { id: 'reports', label: '📄 월간 보고서', icon: ICONS.edit || ICONS.folder },
       ]
     },
     {
@@ -675,6 +698,7 @@ function getNavConfig() {
         { id: 'review_mgmt', label: '⭐ 리뷰 관리', icon: ICONS.star },
         { id: 'reviews', label: '후기 관리', icon: ICONS.star },
         ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
+        ...(isManager ? [{ id: 'kakao', label: '💛 카카오 알림톡', icon: ICONS.message }] : []),
       ]
     },
     {
@@ -1119,6 +1143,8 @@ async function renderPage() {
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
     case 'recall': M.recall.renderRecall(body, actions); break;
+    case 'kakao': M.kakao.renderKakao(body, actions); break;
+    case 'reports': M.reports.renderReports(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'complaints': M.complaints.renderComplaints(body, actions); break;
