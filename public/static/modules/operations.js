@@ -233,8 +233,9 @@ async function renderReviews(body, actions) {
   async function loadReviews() {
     const container = document.getElementById('reviewContent');
     try {
-      const reviews = await api('/api/protected/reviews');
-      const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1) : '0.0';
+      const res = await api('/api/protected/reviews');
+      const reviews = Array.isArray(res) ? res : (res.data || []);
+      const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+(r.rating||0),0)/reviews.length).toFixed(1) : '0.0';
       const platformIcons = { naver:'🟢', google:'🔵', kakao:'🟡', manual:'⚪' };
 
       container.innerHTML = `

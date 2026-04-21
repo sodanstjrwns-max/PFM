@@ -13,7 +13,9 @@ async function renderCommunity(body, actions, boardType) {
   async function loadPosts() {
     const container = document.getElementById('postList');
     try {
-      const posts = await api('/api/protected/posts?board=' + boardType);
+      const res = await api('/api/protected/posts?board=' + boardType);
+      // 백엔드 응답: { data: [...], total, page, limit } 또는 배열 직접
+      const posts = Array.isArray(res) ? res : (res.data || res.posts || []);
       if (!posts.length) {
         container.innerHTML = `<div class="empty-state">${emojis[boardType]||'📋'}<h3>${labels[boardType]}이 비어있습니다</h3><p>첫 글을 작성해보세요!</p></div>`;
         return;
@@ -83,10 +85,12 @@ async function openPostDetail(postId, boardType, reload) {
   modal.innerHTML = `<div class="modal-body" class="mod-empty"><span class="loading-spinner"></span></div>`;
   showModal();
   try {
-    const posts = await api('/api/protected/posts?board=' + boardType);
+    const res = await api('/api/protected/posts?board=' + boardType);
+    const posts = Array.isArray(res) ? res : (res.data || res.posts || []);
     const post = posts.find(p => p.id === postId);
     if (!post) throw new Error('Not found');
-    const comments = await api('/api/protected/posts/' + postId + '/comments');
+    const cres = await api('/api/protected/posts/' + postId + '/comments');
+    const comments = Array.isArray(cres) ? cres : (cres.data || cres.comments || []);
     modal.innerHTML = `
       <div class="modal-header"><h3>${esc(post.title)}</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
       <div class="modal-body">
