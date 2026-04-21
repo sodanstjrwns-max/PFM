@@ -1,0 +1,807 @@
+/* ═══════════════════════════════════════════════════════════════
+   PF Manager · Glassmorphism Layer v4.1 "Frosted"
+   ───────────────────────────────────────────────────────────────
+   Apple Vision Pro + iOS 26 감각의 반투명 유리 UI
+   - Mesh gradient 배경
+   - 다층 frosted glass (border highlight + inner shadow)
+   - 부드러운 애니메이션
+   - 이 파일은 design-system.css 뒤에 로드되어 가장 강한 우선순위
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   1. Glass 토큰 정의
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Glass 반투명도 */
+  --glass-alpha-subtle: 0.45;
+  --glass-alpha-base: 0.60;
+  --glass-alpha-strong: 0.78;
+  --glass-alpha-solid: 0.92;
+
+  /* Glass 블러 강도 */
+  --glass-blur-sm: 10px;
+  --glass-blur-md: 18px;
+  --glass-blur-lg: 28px;
+  --glass-blur-xl: 40px;
+
+  /* Glass 채도 부스터 */
+  --glass-saturate: 180%;
+
+  /* Glass border highlight (위쪽이 밝은 유리 광택) */
+  --glass-border-light: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.28) 100%
+  );
+
+  /* Glass inner shadow (안쪽 깊이감) */
+  --glass-inset-light:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+
+  /* Frosted shadow (유리 띄우기) */
+  --glass-shadow-sm:
+    0 4px 12px rgba(15, 23, 42, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  --glass-shadow-md:
+    0 8px 24px rgba(15, 23, 42, 0.08),
+    0 2px 4px rgba(15, 23, 42, 0.06);
+  --glass-shadow-lg:
+    0 16px 48px rgba(15, 23, 42, 0.12),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+  --glass-shadow-xl:
+    0 24px 64px rgba(15, 23, 42, 0.18),
+    0 8px 20px rgba(15, 23, 42, 0.1);
+
+  /* Glass 컬러 (라이트) */
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-bg-raised: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-border-subtle: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="dark"] {
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-bg-strong: rgba(15, 23, 42, 0.78);
+  --glass-bg-raised: rgba(30, 41, 59, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-subtle: rgba(255, 255, 255, 0.04);
+
+  --glass-border-light: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+
+  --glass-inset-light:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+
+  --glass-shadow-sm:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+  --glass-shadow-md:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.25);
+  --glass-shadow-lg:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  --glass-shadow-xl:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   2. Mesh Gradient 배경 (페이지 전체 뒤에 떠다니는 orb)
+   ═══════════════════════════════════════════════════════════════ */
+body {
+  position: relative;
+  background: #f0f4f9 !important;
+  overflow-x: hidden;
+}
+
+/* 메인 아트웍 — 고정 뒤 배경 (스크롤해도 그대로) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 900px 600px at 15% 10%,  rgba(20, 184, 166, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 500px at 85% 20%,  rgba(99, 102, 241, 0.28) 0%, transparent 55%),
+    radial-gradient(ellipse 800px 700px at 50% 95%,  rgba(236, 72, 153, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 600px 500px at 95% 80%,  rgba(14, 165, 233, 0.25) 0%, transparent 55%),
+    radial-gradient(ellipse 500px 400px at 10% 70%,  rgba(250, 204, 21, 0.18) 0%, transparent 55%);
+  filter: blur(80px) saturate(140%);
+  z-index: 0;
+  pointer-events: none;
+  animation: meshFloat 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* 노이즈 텍스처 오버레이 (유리에 미세한 그레인 추가) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+  opacity: 0.6;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+@keyframes meshFloat {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate(2%, -3%) rotate(2deg) scale(1.04); }
+  100% { transform: translate(-2%, 2%) rotate(-2deg) scale(1.02); }
+}
+
+[data-theme="dark"] body {
+  background: #050914 !important;
+}
+
+[data-theme="dark"] body::before {
+  background:
+    radial-gradient(ellipse 900px 600px at 15% 10%,  rgba(20, 184, 166, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 500px at 85% 20%,  rgba(99, 102, 241, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 800px 700px at 50% 95%,  rgba(236, 72, 153, 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 600px 500px at 95% 80%,  rgba(14, 165, 233, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse 500px 400px at 10% 70%,  rgba(245, 158, 11, 0.12) 0%, transparent 55%);
+  filter: blur(90px) saturate(160%);
+}
+
+[data-theme="dark"] body::after {
+  opacity: 0.3;
+}
+
+/* 메인 컨테이너는 오브 위에 */
+.app-shell, .sidebar, .main-content, .auth-screen,
+#app, #mainContent, .main-container {
+  position: relative;
+  z-index: 2;
+}
+
+/* 저성능 기기용: 애니메이션 차단 */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3. 사이드바 · 짙은 반투명 유리
+   ═══════════════════════════════════════════════════════════════ */
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(11, 18, 32, 0.72) 0%, rgba(11, 18, 32, 0.85) 100%) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.04),
+    4px 0 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 다크모드에서도 사이드바는 그대로 어두운 유리 */
+
+/* 사이드바 로고 - 글래스 버튼 */
+.sidebar-logo {
+  background: linear-gradient(135deg,
+    rgba(94, 234, 212, 0.9) 0%,
+    rgba(20, 184, 166, 0.9) 50%,
+    rgba(13, 148, 136, 0.9) 100%) !important;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 4px 16px rgba(20, 184, 166, 0.4),
+    0 0 24px rgba(20, 184, 166, 0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   4. 카드 · 유리판
+   ═══════════════════════════════════════════════════════════════ */
+.card,
+.stat-card,
+.kpi-card,
+.dashboard-card,
+.quick-link-card,
+.insight-card-item,
+.fb-note-card,
+.settings-card,
+.consult-card,
+.patient-card,
+.module-card,
+.case-card,
+.material-card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-sm) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 카드 위쪽 광택 (유리판 하이라이트) */
+.card::before,
+.stat-card::before,
+.kpi-card::before,
+.dashboard-card::before,
+.quick-link-card::before,
+.fb-note-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--glass-border-light);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card:hover,
+.stat-card:hover,
+.kpi-card:hover,
+.dashboard-card:hover,
+.quick-link-card:hover,
+.fb-note-card:hover {
+  background: var(--glass-bg-raised) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-md) !important;
+  transform: translateY(-2px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. 상단 바 (Topbar) · 프로스티드
+   ═══════════════════════════════════════════════════════════════ */
+.main-header,
+.topbar,
+.page-header {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  border-bottom: 1px solid var(--glass-border-subtle) !important;
+  box-shadow: var(--glass-inset-light) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. 모달 · 진짜 유리 다이얼로그
+   ═══════════════════════════════════════════════════════════════ */
+.modal-overlay,
+#modalOverlay {
+  background: rgba(10, 15, 30, 0.4) !important;
+  backdrop-filter: blur(12px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
+}
+
+.modal,
+.modal-content {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-xl) !important;
+  position: relative;
+  overflow: hidden !important;
+}
+
+.modal::before,
+.modal-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--glass-border-light);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Modal footer는 약간 다른 톤 */
+.modal-footer {
+  background: rgba(241, 245, 249, 0.5) !important;
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--glass-border-subtle) !important;
+}
+
+[data-theme="dark"] .modal-footer {
+  background: rgba(6, 10, 20, 0.4) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. 유저 팝업 메뉴 · 떠다니는 유리판
+   ═══════════════════════════════════════════════════════════════ */
+.user-popup-menu {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-lg) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8. 토스트 · 떠다니는 유리 알림
+   ═══════════════════════════════════════════════════════════════ */
+.toast {
+  background: rgba(15, 23, 42, 0.78) !important;
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 12px 36px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   9. 버튼 · 글래스 primary / secondary
+   ═══════════════════════════════════════════════════════════════ */
+.btn-secondary,
+.btn-outline,
+.btn-ghost {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(10px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-sm) !important;
+}
+
+.btn-secondary:hover,
+.btn-outline:hover {
+  background: var(--glass-bg-raised) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-md) !important;
+}
+
+/* Primary 버튼은 gradient 유지하되 glass shine 추가 */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   10. 입력 필드 · 살짝 투명
+   ═══════════════════════════════════════════════════════════════ */
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="tel"], input[type="date"],
+input[type="search"], input[type="url"], textarea, select {
+  background: rgba(255, 255, 255, 0.55) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: var(--brand-500) !important;
+  box-shadow:
+    0 0 0 3px rgba(20, 184, 166, 0.14),
+    var(--glass-inset-light) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   11. Insight Hero · 강화된 glass gradient
+   ═══════════════════════════════════════════════════════════════ */
+.insight-hero {
+  background:
+    linear-gradient(135deg,
+      rgba(15, 118, 110, 0.85) 0%,
+      rgba(13, 148, 136, 0.78) 50%,
+      rgba(11, 18, 32, 0.82) 100%) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 16px 48px rgba(15, 118, 110, 0.35),
+    0 4px 12px rgba(15, 23, 42, 0.2) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hero 내부의 떠다니는 작은 오브 */
+.insight-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 60%;
+  height: 200%;
+  background: radial-gradient(ellipse, rgba(94, 234, 212, 0.45) 0%, transparent 55%);
+  filter: blur(40px);
+  pointer-events: none;
+  animation: heroOrbFloat 8s ease-in-out infinite alternate;
+}
+
+.insight-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40%;
+  left: -10%;
+  width: 50%;
+  height: 150%;
+  background: radial-gradient(ellipse, rgba(99, 102, 241, 0.35) 0%, transparent 55%);
+  filter: blur(48px);
+  pointer-events: none;
+  animation: heroOrbFloat2 10s ease-in-out infinite alternate;
+}
+
+@keyframes heroOrbFloat {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-8%, 4%) scale(1.12); opacity: 0.85; }
+}
+@keyframes heroOrbFloat2 {
+  0%   { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  100% { transform: translate(6%, -4%) scale(1.15); opacity: 1; }
+}
+
+/* Hero 안쪽 내용은 오브 위 */
+.insight-hero > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   12. 배너 (sample, weekly, explore) · 글래스 처리
+   ═══════════════════════════════════════════════════════════════ */
+.sample-banner,
+.weekly-banner,
+.explore-card {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-md) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.sample-banner::before,
+.weekly-banner::before,
+.explore-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--glass-border-light);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   13. 피드백 쓰레드 · 글래스 채팅
+   ═══════════════════════════════════════════════════════════════ */
+.fb-thread {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(14px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-inset-light) !important;
+}
+
+[data-theme="dark"] .fb-thread {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+.fb-reply-bubble {
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+}
+
+.fb-reply-bubble.author {
+  background: linear-gradient(135deg,
+    rgba(15, 118, 110, 0.88),
+    rgba(13, 148, 136, 0.78)) !important;
+  border: 1px solid rgba(94, 234, 212, 0.3) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 4px 12px rgba(15, 118, 110, 0.25) !important;
+}
+
+.fb-reply-bubble.target {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.8),
+    0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="dark"] .fb-reply-bubble.target {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   14. 배지·필 · 글래스 미니
+   ═══════════════════════════════════════════════════════════════ */
+.badge, .pill, .tag,
+.fb-severity-badge {
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   15. 로그인 화면 · 극도의 프리미엄
+   ═══════════════════════════════════════════════════════════════ */
+.auth-screen {
+  background:
+    linear-gradient(135deg, #042f2e 0%, #0b1220 60%, #1e1b4b 100%) !important;
+}
+
+/* 로그인 뒤 떠다니는 거대한 오브 */
+.auth-screen::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 800px 600px at 20% 30%, rgba(20, 184, 166, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 600px at 80% 70%, rgba(99, 102, 241, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 600px 500px at 60% 15%, rgba(236, 72, 153, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 500px 400px at 10% 90%, rgba(14, 165, 233, 0.45) 0%, transparent 55%);
+  filter: blur(80px) saturate(140%);
+  animation: authOrbs 20s ease-in-out infinite alternate;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes authOrbs {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  50%  { transform: translate(3%, -2%) rotate(3deg); }
+  100% { transform: translate(-3%, 3%) rotate(-3deg); }
+}
+
+.auth-card {
+  background: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 32px 80px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  position: relative;
+  overflow: hidden;
+  color: #ffffff !important;
+}
+
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 100%);
+  pointer-events: none;
+}
+
+/* 로그인 카드 내부 텍스트 색 조정 (어두운 배경이니까) */
+.auth-card label,
+.auth-card .form-label,
+.auth-card h2,
+.auth-card h3 {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.auth-card small,
+.auth-card .hint,
+.auth-card .muted {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* 로그인 input 다크 글래스 */
+.auth-card input,
+.auth-card textarea,
+.auth-card select {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.auth-card input::placeholder,
+.auth-card textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.auth-card input:focus,
+.auth-card textarea:focus,
+.auth-card select:focus {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(94, 234, 212, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.2) !important;
+}
+
+/* auth-demo-banner (데모 계정 안내) */
+.auth-demo-banner {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   16. Dropdown / Select 메뉴 · 글래스
+   ═══════════════════════════════════════════════════════════════ */
+.dropdown-menu,
+.select-dropdown,
+.autocomplete-menu,
+.context-menu {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-lg) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   17. 탭 · 글래스 스트립
+   ═══════════════════════════════════════════════════════════════ */
+.fb-tabs,
+.tabs,
+.tab-list {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border-radius: var(--radius-lg);
+  padding: 4px !important;
+  border: 1px solid var(--glass-border) !important;
+}
+
+[data-theme="dark"] .fb-tabs,
+[data-theme="dark"] .tabs {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   18. Boot loader · 글래스 스플래시
+   ═══════════════════════════════════════════════════════════════ */
+#boot-loader {
+  background:
+    radial-gradient(ellipse 600px 500px at 30% 30%, rgba(20, 184, 166, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 500px 400px at 70% 70%, rgba(99, 102, 241, 0.4) 0%, transparent 55%),
+    linear-gradient(135deg, #042f2e 0%, #0b1220 100%) !important;
+}
+
+.boot-logo {
+  backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 0 48px rgba(20, 184, 166, 0.5) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   19. 스크롤바 · 글래스 스타일
+   ═══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 999px !important;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7) !important;
+  background-clip: padding-box !important;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   20. 성능 최적화 · 저사양 기기 폴백
+   ═══════════════════════════════════════════════════════════════ */
+@supports not (backdrop-filter: blur(10px)) {
+  /* backdrop-filter 미지원 브라우저는 투명도만 사용 */
+  .card, .stat-card, .kpi-card, .modal, .user-popup-menu,
+  .sample-banner, .weekly-banner, .main-header {
+    background: rgba(255, 255, 255, 0.92) !important;
+  }
+  .sidebar {
+    background: #0b1220 !important;
+  }
+  body::before { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   21. 사이드바 유저 영역 · 반투명 처리
+   ═══════════════════════════════════════════════════════════════ */
+.sidebar-user {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 8px 10px !important;
+  transition: all 0.18s ease;
+}
+
+.sidebar-user:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   22. Aha Moment 모달 · 극대 프리미엄
+   ═══════════════════════════════════════════════════════════════ */
+.aha-modal {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate)) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    var(--glass-inset-light),
+    var(--glass-shadow-xl) !important;
+}
+
+.aha-insight-card {
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  box-shadow: var(--glass-inset-light), var(--glass-shadow-sm);
+}
+
+.aha-insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-inset-light), var(--glass-shadow-md);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   End · Glassmorphism Layer v4.1
+   ═══════════════════════════════════════════════════════════════ */

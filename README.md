@@ -4,7 +4,38 @@
 - **이름**: Patient Funnel Manager
 - **목표**: 병의원 통합 관리 플랫폼 - 진료관리, 환자관리, 마케팅, HR, 운영, 커뮤니티를 한 곳에서
 - **대상**: 치과, 내과, 피부과 등 병의원 원장 및 스태프
-- **버전**: v4.0 "Clinical Calm" (디자인 시스템 전면 개편 — Pretendard + OKLCH + 다크모드)
+- **버전**: v4.1 "Frosted" (글래스모피즘 강력 적용 — Apple Vision Pro + iOS 26 감각)
+
+## 🧊 v4.1 "Frosted" Glassmorphism Layer (2026-04-21)
+> "유리를 UI로 만들다" — Apple Vision Pro · iOS 26 감각의 극한 프리미엄
+- **🎨 글래스 CSS 파일** `public/static/glassmorphism.css` (약 700줄, 22개 섹션)
+- **🌌 Mesh Gradient 배경** (`body::before`)
+  - 5개의 거대한 컬러 orb (Teal / Indigo / Pink / Sky / Yellow)
+  - `blur(80px) saturate(140%)` 로 뭉개진 공기감
+  - 24초 주기로 부드럽게 떠다니는 `meshFloat` 애니메이션
+  - `position: fixed`로 스크롤해도 그대로
+- **🌫️ 노이즈 텍스처** (`body::after`) — SVG fractal noise + `mix-blend-mode: overlay`로 유리에 미세 그레인
+- **💎 카드 = 반투명 유리판**
+  - `rgba(255,255,255,0.62) + backdrop-filter: blur(18px) saturate(180%)`
+  - 위쪽에 1px light gradient border highlight (유리판 상단 광택)
+  - `inset 0 1px 0 rgba(255,255,255,0.8)` inner shine
+  - hover 시 `translateY(-2px)` + shadow-md
+- **🪟 사이드바 = 짙은 반투명 유리**
+  - `rgba(11,18,32,0.72) + blur(40px) saturate(180%)`
+  - 좌측에 inset 하이라이트 1px
+- **🔘 Insight Hero = 떠다니는 글래스 + 내부 오브**
+  - Teal/Indigo gradient + backdrop blur + 내부에서 움직이는 2개 orb (8~10초)
+- **💬 피드백 대화 말풍선 = 글래스 버블**
+  - 쓰레드 컨테이너: `rgba(255,255,255,0.35) + blur(14px)`
+  - author 말풍선: Teal gradient glass
+  - target 말풍선: 흰 유리판
+- **🌅 로그인 화면 = 극도의 프리미엄**
+  - 4개 거대 오브가 떠다님 (20초 애니메이션)
+  - 카드: `rgba(255,255,255,0.12) + blur(40px)` (진짜 유리)
+  - 상단에 얇은 광택 라인
+- **🍎 토스트 · 모달 · 드롭다운 · 탭** 모두 frosted glass 처리
+- **🛟 폴백**: `@supports not (backdrop-filter)` 저사양 기기에선 투명도만 사용
+- **♿ `prefers-reduced-motion`**: 메시 애니메이션 자동 차단
 
 ## 🎨 v4.0 "Clinical Calm" Design System (2026-04-21)
 > 인류 최고 수준의 헬스케어 SaaS 디자인 — Linear · Notion · Apple Health · Epic 벤치마크
