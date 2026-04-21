@@ -710,9 +710,16 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     }
   }
 
+  // 🎬 Bento 애니메이션 활성화: 3D tilt + Number Flow 카운트업
+  if (window.PFM && typeof window.PFM.applyBentoAnimations === 'function') {
+    requestAnimationFrame(() => window.PFM.applyBentoAnimations(body));
+  }
+
   // 이벤트
   body.querySelectorAll('[data-goto]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      // 내부 버튼 클릭 시 부모 타일 이동 방지
+      if (e.target !== el && e.target.closest('[data-goto]') !== el) return;
       // 탐험 태스크면 완료 저장
       if (el.dataset.explore) {
         const done = JSON.parse(localStorage.getItem('pfm_explore_done') || '{}');
