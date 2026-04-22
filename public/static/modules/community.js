@@ -20,22 +20,41 @@ async function renderCommunity(body, actions, boardType) {
         container.innerHTML = `<div class="empty-state">${emojis[boardType]||'📋'}<h3>${labels[boardType]}이 비어있습니다</h3><p>첫 글을 작성해보세요!</p></div>`;
         return;
       }
-      container.innerHTML = posts.map(p => `
-        <div class="post-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;cursor:pointer" data-id="${p.id}">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      container.innerHTML = posts.map(p => {
+        const likes = p.like_count || 0;
+        const views = p.view_count || 0;
+        const comments = p.comment_count || 0;
+        // 반응 있는 항목은 컬러로 강조 (Apple 톤)
+        const likeStyle = likes > 0 ? 'color:#ef4444;font-weight:600' : 'color:var(--text-muted)';
+        const commentStyle = comments > 0 ? 'color:#0f766e;font-weight:600' : 'color:var(--text-muted)';
+        // 댓글 3개+ 는 HOT 뱃지
+        const hotBadge = comments >= 3 ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:4px">🔥 HOT</span>' : '';
+
+        return `
+        <div class="post-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;cursor:pointer;transition:all 0.15s" data-id="${p.id}" onmouseover="this.style.borderColor='#0f766e';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             ${p.is_pinned ? '<span style="color:var(--danger);font-size:11px;font-weight:700">📌 고정</span>' : ''}
             ${boardType==='praise' && p.target_name ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">To. ${esc(p.target_name)}</span>` : ''}
             <span class="mod-muted-sm">${p.is_anonymous ? '익명' : esc(p.author_name)}</span>
             <span class="mod-muted-sm">${timeAgo(p.created_at)}</span>
+            ${hotBadge}
           </div>
           <div style="font-weight:600;font-size:15px;color:var(--text)">${esc(p.title)}</div>
           ${p.content ? `<div style="font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:pre-line;max-height:60px;overflow:hidden">${esc(p.content)}</div>` : ''}
-          <div style="display:flex;gap:12px;margin-top:8px;font-size:12px;color:var(--text-muted)">
-            <span>❤️ ${p.like_count||0}</span>
-            <span>👁️ ${p.view_count||0}</span>
+          <div style="display:flex;gap:14px;margin-top:10px;font-size:12px;align-items:center">
+            <span style="${commentStyle};display:inline-flex;align-items:center;gap:3px" title="댓글 ${comments}개">
+              💬 ${comments}
+            </span>
+            <span style="${likeStyle};display:inline-flex;align-items:center;gap:3px" title="좋아요 ${likes}개">
+              ❤️ ${likes}
+            </span>
+            <span style="color:var(--text-muted);display:inline-flex;align-items:center;gap:3px" title="조회수">
+              👁️ ${views}
+            </span>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       container.querySelectorAll('.post-card').forEach(card => {
         card.addEventListener('click', () => openPostDetail(card.dataset.id, boardType, loadPosts));

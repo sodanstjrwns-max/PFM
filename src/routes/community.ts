@@ -11,7 +11,10 @@ community.get('/posts', async (c) => {
   const page = sanitizeNumber(c.req.query('page'), 1, 1, 1000)
   const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
   const offset = (page - 1) * limit
-  let sql = 'SELECT p.*, u.name as author_name FROM posts p JOIN users u ON p.author_id=u.id WHERE p.hospital_id=?'
+  // 댓글 수는 서브쿼리로 집계 (posts 테이블에 댓글 수 컬럼 없을 수 있음)
+  let sql = `SELECT p.*, u.name as author_name,
+    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+    FROM posts p JOIN users u ON p.author_id=u.id WHERE p.hospital_id=?`
   const params: any[] = [user.hospitalId]
   if (board) { sql += ' AND p.board_type=?'; params.push(board) }
   sql += ' ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?'
