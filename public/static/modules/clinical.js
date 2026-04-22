@@ -72,6 +72,8 @@ async function renderTreatmentBoard(body, actions) {
     const doctorBar = document.getElementById('tbDoctorBar');
     const staffBar = document.getElementById('tbStaffBar');
     if (!container) { stopPolling(); return; } // Page changed, stop polling
+    // 드래그 중이거나 최근에 끝났으면 폴링 스킵 (UI 덮어쓰기 방지)
+    if (isPolling && window._isDraggingBoard) return;
     try {
       const [items, chairList, doctorList, dutyList, settings, staffList] = await Promise.all([
         api('/api/protected/treatment-board?date=' + boardDate),
@@ -413,6 +415,8 @@ async function renderTreatmentBoard(body, actions) {
         card.style.cursor = 'grabbing';
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', card.dataset.id);
+        // 드래그 중에는 폴링이 보드를 다시 그리지 않도록 플래그 설정
+        window._isDraggingBoard = true;
       });
       container.addEventListener('dragend', (e) => {
         const card = e.target.closest('[draggable="true"]');
@@ -420,6 +424,8 @@ async function renderTreatmentBoard(body, actions) {
         container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
         container.querySelectorAll('.kb-drop-indicator').forEach(el => el.remove());
         _tbDrag = null;
+        // 드래그 후 3초간 폴링이 보드를 덮어쓰지 않도록 딜레이
+        setTimeout(() => { window._isDraggingBoard = false; }, 3000);
       });
       container.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -451,7 +457,7 @@ async function renderTreatmentBoard(body, actions) {
           col.querySelectorAll('.kb-drop-indicator').forEach(el => el.remove());
         }
       });
-      container.addEventListener('drop', async (e) => {
+      container.addEventListener('drop', (e) => {
         e.preventDefault();
         const col = e.target.closest('.kb-col');
         container.querySelectorAll('.kb-col').forEach(c => c.classList.remove('kb-drag-over'));
@@ -460,62 +466,89 @@ async function renderTreatmentBoard(body, actions) {
 
         const draggedId = _tbDrag.id;
         const fromStatus = _tbDrag.fromStatus;
+        const fromCol = _tbDrag.fromCol;
         const newDocId = col.dataset.doctorId; // '' = 대기, 'u-xxx' = 원장, '__completed__' = 완료
         _tbDrag = null;
 
-        // ── 완료 컬럼으로 드롭 → 상태를 completed로 변경 ──
-        if (newDocId === '__completed__') {
-          if (['completed','cancelled','no_show'].includes(fromStatus)) { loadBoard(); return; }
-          try {
-            await api(`/api/protected/treatment-board/${draggedId}`, { method:'PUT', json:{ status:'completed' }});
-            toast('✅ 완료 처리되었습니다', 'success');
-            loadBoard();
-          } catch(err) { toast(err.message, 'error'); loadBoard(); }
-          return;
-        }
+        // ⚡ 즉시 DOM 이동 (Optimistic UI) — API 응답 기다리지 않음
+        const cardEl = container.querySelector(`[data-id="${draggedId}"]`);
+        const targetBody = col.querySelector('.kb-col-body');
+        if (!cardEl || !targetBody) return;
 
-        // ── 완료된 카드를 다른 컬럼으로 드롭 → 상태 복원 + 재배정 ──
-        const wasCompleted = ['completed','cancelled','no_show'].includes(fromStatus);
-
-        // 드롭 위치 계산 (마우스 Y 기준)
-        const body = col.querySelector('.kb-col-body');
-        const cards = body ? [...body.querySelectorAll('.kb-card')].filter(c => c.dataset.id !== draggedId) : [];
-        const dropIdx = cards.findIndex(c => {
+        // 드롭 위치의 카드 찾기 (마우스 Y 기준)
+        const siblings = [...targetBody.querySelectorAll('.kb-card')].filter(c => c.dataset.id !== draggedId);
+        const overCard = siblings.find(c => {
           const r = c.getBoundingClientRect();
           return e.clientY < r.top + r.height / 2;
         });
-        const insertAt = dropIdx === -1 ? cards.length : dropIdx;
 
-        // 새 컬럼의 활성 카드들 (완료된거 제외)
-        const existingInCol = allItems.filter(i =>
-          (newDocId === '' ? !i.assigned_doctor : i.assigned_doctor === newDocId) &&
-          !['completed','cancelled','no_show'].includes(i.status) &&
-          i.id !== draggedId
-        );
+        // 즉시 이동 (애니메이션과 함께)
+        cardEl.style.transition = 'transform 0.15s ease';
+        if (overCard) targetBody.insertBefore(cardEl, overCard);
+        else targetBody.appendChild(cardEl);
+        // "빈 컬럼" 안내 메시지 제거
+        targetBody.querySelectorAll('.kb-col-empty').forEach(el => el.remove());
 
-        // insertAt 위치에 dragged를 삽입한 새로운 순서 생성
-        const reorderItems = [];
-        let idx = 1;
-        for (let i = 0; i < existingInCol.length + 1; i++) {
-          if (i === insertAt) {
-            reorderItems.push({ id: draggedId, assigned_doctor: newDocId || null, sort_order: idx++ });
-          }
-          if (i < existingInCol.length) {
-            reorderItems.push({ id: existingInCol[i].id, assigned_doctor: newDocId || null, sort_order: idx++ });
+        // 완료 컬럼 헤더 카운트 즉시 업데이트
+        container.querySelectorAll('.kb-col').forEach(c => {
+          const count = c.querySelectorAll('.kb-card').length;
+          const badge = c.querySelector('.kb-col-count');
+          if (badge) badge.textContent = count;
+        });
+
+        // 이전 컬럼이 비었으면 안내 메시지 추가
+        if (fromCol !== col.dataset.doctorId) {
+          const oldCol = container.querySelector(`.kb-col[data-doctor-id="${fromCol}"]`);
+          const oldBody = oldCol?.querySelector('.kb-col-body');
+          if (oldBody && oldBody.querySelectorAll('.kb-card').length === 0 && !oldBody.querySelector('.kb-col-empty')) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'kb-col-empty';
+            emptyMsg.textContent = fromCol === '' ? '대기 환자 없음 👍' : '배정된 환자 없음';
+            oldBody.appendChild(emptyMsg);
           }
         }
 
-        try {
-          // 완료된 카드를 다시 가져오는 경우: 상태를 waiting으로 복원
-          if (wasCompleted) {
-            await api(`/api/protected/treatment-board/${draggedId}`, { method:'PUT', json:{ status:'waiting' }});
+        // 카드 상태도 로컬에서 즉시 업데이트 (allItems)
+        const wasCompleted = ['completed','cancelled','no_show'].includes(fromStatus);
+        const droppedToCompleted = newDocId === '__completed__';
+        const draggedItem = allItems.find(i => i.id === draggedId);
+        if (draggedItem) {
+          if (droppedToCompleted) draggedItem.status = 'completed';
+          else if (wasCompleted) draggedItem.status = 'waiting';
+          draggedItem.assigned_doctor = (newDocId && newDocId !== '__completed__') ? newDocId : null;
+        }
+
+        // ── 🚀 백그라운드 API 호출 (UI 멈추지 않음) ──
+        (async () => {
+          try {
+            // 완료 컬럼으로 드롭
+            if (droppedToCompleted) {
+              if (!['completed','cancelled','no_show'].includes(fromStatus)) {
+                await api(`/api/protected/treatment-board/${draggedId}`, { method:'PUT', json:{ status:'completed' }});
+              }
+              return;
+            }
+
+            // 상태 복원 (완료→활성)
+            if (wasCompleted) {
+              await api(`/api/protected/treatment-board/${draggedId}`, { method:'PUT', json:{ status:'waiting' }});
+            }
+
+            // 순서 재계산 (DOM 순서 기반)
+            const finalCards = [...targetBody.querySelectorAll('.kb-card')];
+            const reorderItems = finalCards.map((el, idx) => ({
+              id: el.dataset.id,
+              assigned_doctor: newDocId || null,
+              sort_order: idx + 1
+            }));
+            if (reorderItems.length) {
+              await api('/api/protected/treatment-board-reorder', { method:'PUT', json:{ items: reorderItems }});
+            }
+          } catch(err) {
+            toast('저장 실패: ' + err.message, 'error');
+            loadBoard();  // 실패시에만 서버 기준으로 되돌림
           }
-          await api('/api/protected/treatment-board-reorder', { method:'PUT', json:{ items: reorderItems }});
-          const docName = newDocId ? doctors.find(d=>d.id===newDocId)?.name||'' : '대기';
-          const msg = wasCompleted ? `${docName||'대기'}로 복귀` : (newDocId === _tbDrag?.fromCol ? '순서 변경됨' : `${docName}${newDocId?'에게':''} 배정됨`);
-          toast(msg, 'success');
-          loadBoard();
-        } catch(err) { toast(err.message, 'error'); loadBoard(); }
+        })();
       });
 
       // 카드 클릭 → 상세
