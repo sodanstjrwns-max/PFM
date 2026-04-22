@@ -407,11 +407,13 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
   const honorific = posTitle[state.user.position] || '님';
 
   // 직원 전용 카드
+  // 오늘 환자 = 대기 + 원장콜 + 진료중 + 완료 (진료보드 총합과 동일)
   const staffCards = [
     { label: '오늘 환자', value: s.todayPatients, icon: '🦷', color: '#3b82f6', goto: 'clinical_board' },
+    { label: '대기', value: s.waiting || 0, icon: '⏳', color: '#64748b', goto: 'clinical_board' },
+    { label: '원장 필요', value: s.doctorNeeded, icon: '🚨', color: '#ef4444', goto: 'clinical_board' },
     { label: '진료중', value: s.inTreatment, icon: '⚡', color: '#f59e0b', goto: 'clinical_board' },
     { label: '완료', value: s.completedToday, icon: '✅', color: '#22c55e', goto: 'clinical_board' },
-    { label: '원장 필요', value: s.doctorNeeded, icon: '🚨', color: '#ef4444', goto: 'clinical_board' },
   ];
   if (isManager) {
     staffCards.push(

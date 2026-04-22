@@ -40,9 +40,12 @@ dashboard.get('/dashboard', async (c) => {
     `).bind(hid, hid, hid).all(),
 
     // Q3: Treatment board — single query with conditional aggregation (4→1)
+    // total = 전체 환자 수 (모든 상태 포함)
+    // waiting = 대기(waiting) + 도착(arrived) + 체어착석(seating) 통합
     c.env.DB.prepare(`
       SELECT
         COUNT(*) as total,
+        SUM(CASE WHEN status IN ('waiting','arrived','seating') THEN 1 ELSE 0 END) as waiting,
         SUM(CASE WHEN status='doctor_needed' THEN 1 ELSE 0 END) as doctor_needed,
         SUM(CASE WHEN status='in_treatment' THEN 1 ELSE 0 END) as in_treatment,
         SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed
@@ -114,8 +117,11 @@ dashboard.get('/dashboard', async (c) => {
     materials: cm.materials||0, pricing: cm.pricing||0, cases: cm.cases||0, caseImages: imgCountResult?.c||0,
     posts: cm.posts||0, pendingTasks: cm.pendingTasks||0,
     openJobs: cm.openJobs||0, activeApplicants: cm.activeApplicants||0,
-    todayPatients: tb.total||0, doctorNeeded: tb.doctor_needed||0,
-    inTreatment: tb.in_treatment||0, completedToday: tb.completed||0,
+    todayPatients: tb.total||0,
+    waiting: tb.waiting||0,  // waiting + arrived + seating 통합
+    doctorNeeded: tb.doctor_needed||0,
+    inTreatment: tb.in_treatment||0,
+    completedToday: tb.completed||0,
     monthConsultations: cs.total||0, monthAgreed: cs.agreed||0,
     monthPaid: cs.paid||0, monthLost: cs.lost||0,
     conversionRate: (cs.total||0) > 0 ? Math.round((cs.agreed||0)/(cs.total||0)*100) : 0,
