@@ -3,64 +3,201 @@
 'use strict';
 const { api, ICONS, state, toast, esc, showModal, closeModal, timeAgo, initKanbanDnD } = PFM;
 
+// 게시판용 날짜 포맷 (오늘: HH:MM, 어제: "어제", 올해: MM-DD, 작년 이전: YY-MM-DD)
+function formatBoardDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.floor((today - target) / (86400 * 1000));
+  const pad = (n) => String(n).padStart(2, '0');
+  if (diffDays === 0) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (diffDays === 1) return '어제';
+  if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  return `${String(d.getFullYear()).slice(2)}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 async function renderCommunity(body, actions, boardType) {
   const labels = { notice:'공지사항', free:'자유게시판', praise:'칭찬하기', mistake:'실수노트 (이실직고)' };
   const emojis = { notice:'📢', free:'💬', praise:'💛', mistake:'📝' };
-  actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addPostBtn">${ICONS.plus} 글쓰기</button>`;
 
-  body.innerHTML = `<div id="postList" style="max-width:800px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
+  // 🎨 렌더 스타일: 칭찬하기만 카드형(감정 전달), 나머지는 테이블형(게시판 느낌)
+  const useTableView = boardType !== 'praise';
 
-  async function loadPosts() {
+  actions.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" id="postSearchInput" placeholder="🔍 제목/내용 검색" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:180px">
+      <button class="btn btn-primary btn-sm" id="addPostBtn">${ICONS.plus} 글쓰기</button>
+    </div>
+  `;
+
+  // 테이블 헤더 + 내용 영역 레이아웃
+  if (useTableView) {
+    body.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto">
+        <!-- 게시판 헤더 바 -->
+        <div style="background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:10px 16px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">${emojis[boardType]||'📋'}</span>
+          <span style="font-weight:700;color:var(--text)">${labels[boardType]}</span>
+          <span id="postTotalCount" style="font-size:12px;color:var(--text-muted);margin-left:auto"></span>
+        </div>
+
+        <!-- 테이블 -->
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;overflow:hidden;background:var(--bg-card)">
+          <!-- 컬럼 헤더 -->
+          <div class="post-table-header" style="display:grid;grid-template-columns:50px minmax(0,1fr) 110px 70px 60px 80px;gap:12px;align-items:center;padding:10px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.5px;text-transform:uppercase">
+            <div style="text-align:center">번호</div>
+            <div>제목</div>
+            <div>작성자</div>
+            <div style="text-align:center">댓글/❤️</div>
+            <div style="text-align:center">조회</div>
+            <div style="text-align:right">작성일</div>
+          </div>
+          <div id="postList"><div class="mod-empty" style="padding:40px;text-align:center"><span class="loading-spinner"></span></div></div>
+        </div>
+      </div>`;
+  } else {
+    // 칭찬하기: 기존 카드형
+    body.innerHTML = `<div style="max-width:900px;margin:0 auto"><div id="postList"><div class="mod-empty" style="padding:40px;text-align:center"><span class="loading-spinner"></span></div></div></div>`;
+  }
+
+  let _allPosts = [];
+  let _filteredPosts = [];
+
+  function applySearch() {
+    const q = (document.getElementById('postSearchInput')?.value || '').trim().toLowerCase();
+    if (!q) {
+      _filteredPosts = _allPosts;
+    } else {
+      _filteredPosts = _allPosts.filter(p =>
+        (p.title || '').toLowerCase().includes(q) ||
+        (p.content || '').toLowerCase().includes(q) ||
+        (p.author_name || '').toLowerCase().includes(q) ||
+        (p.target_name || '').toLowerCase().includes(q)
+      );
+    }
+    renderPosts();
+  }
+
+  function renderPosts() {
     const container = document.getElementById('postList');
-    try {
-      const res = await api('/api/protected/posts?board=' + boardType);
-      // 백엔드 응답: { data: [...], total, page, limit } 또는 배열 직접
-      const posts = Array.isArray(res) ? res : (res.data || res.posts || []);
-      if (!posts.length) {
-        container.innerHTML = `<div class="empty-state">${emojis[boardType]||'📋'}<h3>${labels[boardType]}이 비어있습니다</h3><p>첫 글을 작성해보세요!</p></div>`;
-        return;
-      }
-      container.innerHTML = posts.map(p => {
+    const totalLabel = document.getElementById('postTotalCount');
+    if (!container) return;
+
+    if (totalLabel) {
+      totalLabel.textContent = `총 ${_filteredPosts.length}건`;
+    }
+
+    if (!_filteredPosts.length) {
+      const isSearch = !!(document.getElementById('postSearchInput')?.value);
+      container.innerHTML = `<div class="empty-state" style="padding:60px 20px">${isSearch ? '🔍' : emojis[boardType]||'📋'}<h3>${isSearch ? '검색 결과가 없습니다' : labels[boardType]+'이 비어있습니다'}</h3><p>${isSearch ? '다른 검색어로 시도해보세요' : '첫 글을 작성해보세요!'}</p></div>`;
+      return;
+    }
+
+    if (useTableView) {
+      // ═══ 테이블형 (자유/공지/실수) ═══
+      container.innerHTML = _filteredPosts.map((p, idx) => {
         const likes = p.like_count || 0;
         const views = p.view_count || 0;
         const comments = p.comment_count || 0;
-        // 반응 있는 항목은 컬러로 강조 (Apple 톤)
-        const likeStyle = likes > 0 ? 'color:#ef4444;font-weight:600' : 'color:var(--text-muted)';
-        const commentStyle = comments > 0 ? 'color:#0f766e;font-weight:600' : 'color:var(--text-muted)';
-        // 댓글 3개+ 는 HOT 뱃지
-        const hotBadge = comments >= 3 ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:4px">🔥 HOT</span>' : '';
+        const isHot = comments >= 3;
+        const isNew = (Date.now() - new Date(p.created_at).getTime()) < 24 * 3600 * 1000;
+
+        // 번호 (고정글은 📌, 나머지는 역순 번호)
+        const num = p.is_pinned
+          ? '<span style="color:#ef4444;font-size:14px" title="고정글">📌</span>'
+          : `<span style="color:#94a3b8;font-size:12px">${_filteredPosts.length - idx}</span>`;
+
+        // 제목 영역 (댓글수 괄호 + NEW + HOT + 작성자 익명여부)
+        const titleColor = p.is_pinned ? '#0f172a' : '#334155';
+        const titleWeight = p.is_pinned ? '700' : '500';
+        const commentBracket = comments > 0
+          ? `<span style="color:#0f766e;font-weight:700;margin-left:6px;font-size:13px">[${comments}]</span>`
+          : '';
+        const hotBadge = isHot ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;margin-left:6px;vertical-align:middle">HOT</span>' : '';
+        const newBadge = isNew && !isHot ? '<span style="background:#14b8a6;color:#fff;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;margin-left:6px;vertical-align:middle">NEW</span>' : '';
+
+        const targetTag = boardType==='praise' && p.target_name
+          ? `<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-right:6px">→${esc(p.target_name)}</span>` : '';
+
+        // 좋아요 있을 때만 하트 병기
+        const likeMini = likes > 0 ? ` <span style="color:#ef4444">❤️${likes}</span>` : '';
+
+        // 날짜 포맷 (오늘이면 시간, 어제면 "어제", 그외 MM-DD)
+        const dateFormatted = formatBoardDate(p.created_at);
 
         return `
-        <div class="post-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;cursor:pointer;transition:all 0.15s" data-id="${p.id}" onmouseover="this.style.borderColor='#0f766e';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='';this.style.transform=''">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-            ${p.is_pinned ? '<span style="color:var(--danger);font-size:11px;font-weight:700">📌 고정</span>' : ''}
-            ${boardType==='praise' && p.target_name ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">To. ${esc(p.target_name)}</span>` : ''}
-            <span class="mod-muted-sm">${p.is_anonymous ? '익명' : esc(p.author_name)}</span>
-            <span class="mod-muted-sm">${timeAgo(p.created_at)}</span>
+          <div class="post-row" data-id="${esc(p.id)}" style="display:grid;grid-template-columns:50px minmax(0,1fr) 110px 70px 60px 80px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.1s;${p.is_pinned ? 'background:#fffbeb' : ''}" onmouseover="this.style.background='${p.is_pinned ? '#fef3c7' : '#f8fafc'}'" onmouseout="this.style.background='${p.is_pinned ? '#fffbeb' : ''}'">
+            <div style="text-align:center">${num}</div>
+            <div style="min-width:0;overflow:hidden">
+              ${targetTag}<span style="color:${titleColor};font-weight:${titleWeight};font-size:14px">${esc(p.title)}</span>${commentBracket}${hotBadge}${newBadge}
+            </div>
+            <div style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${p.is_anonymous ? '<span style="color:#94a3b8">익명</span>' : esc(p.author_name||'')}
+            </div>
+            <div style="text-align:center;font-size:12px;color:#64748b;white-space:nowrap">
+              ${comments > 0 ? `<b style="color:#0f766e">${comments}</b>` : '<span style="color:#cbd5e1">0</span>'}${likeMini}
+            </div>
+            <div style="text-align:center;font-size:12px;color:#94a3b8">${views}</div>
+            <div style="text-align:right;font-size:12px;color:#64748b;white-space:nowrap">${dateFormatted}</div>
+          </div>`;
+      }).join('');
+    } else {
+      // ═══ 카드형 (칭찬하기 전용) ═══
+      container.innerHTML = _filteredPosts.map(p => {
+        const likes = p.like_count || 0;
+        const views = p.view_count || 0;
+        const comments = p.comment_count || 0;
+        const hotBadge = comments >= 3 ? '<span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:4px">🔥 HOT</span>' : '';
+        const commentStyle = comments > 0 ? 'color:#0f766e;font-weight:600' : 'color:var(--text-muted)';
+        const likeStyle = likes > 0 ? 'color:#ef4444;font-weight:600' : 'color:var(--text-muted)';
+
+        return `
+        <div class="post-row" data-id="${esc(p.id)}" style="background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%);border:1px solid #fcd34d;border-radius:14px;padding:18px 22px;margin-bottom:12px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(245,158,11,0.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="font-size:20px">💛</span>
+            ${p.target_name ? `<span style="background:#fff;color:#92400e;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;border:1px solid #fcd34d">To. ${esc(p.target_name)}</span>` : ''}
+            <span style="font-size:11px;color:#92400e">${p.is_anonymous ? '익명' : esc(p.author_name)} 님이 칭찬</span>
+            <span style="font-size:11px;color:#a16207;margin-left:auto">${timeAgo(p.created_at)}</span>
             ${hotBadge}
           </div>
-          <div style="font-weight:600;font-size:15px;color:var(--text)">${esc(p.title)}</div>
-          ${p.content ? `<div style="font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:pre-line;max-height:60px;overflow:hidden">${esc(p.content)}</div>` : ''}
-          <div style="display:flex;gap:14px;margin-top:10px;font-size:12px;align-items:center">
-            <span style="${commentStyle};display:inline-flex;align-items:center;gap:3px" title="댓글 ${comments}개">
-              💬 ${comments}
-            </span>
-            <span style="${likeStyle};display:inline-flex;align-items:center;gap:3px" title="좋아요 ${likes}개">
-              ❤️ ${likes}
-            </span>
-            <span style="color:var(--text-muted);display:inline-flex;align-items:center;gap:3px" title="조회수">
-              👁️ ${views}
-            </span>
+          <div style="font-weight:700;font-size:16px;color:#78350f;margin-bottom:4px">${esc(p.title)}</div>
+          ${p.content ? `<div style="font-size:13px;color:#92400e;line-height:1.6;white-space:pre-line;max-height:60px;overflow:hidden">${esc(p.content)}</div>` : ''}
+          <div style="display:flex;gap:14px;margin-top:10px;font-size:12px;align-items:center;padding-top:8px;border-top:1px dashed #fcd34d">
+            <span style="${commentStyle}">💬 ${comments}</span>
+            <span style="${likeStyle}">❤️ ${likes}</span>
+            <span style="color:#a16207">👁️ ${views}</span>
           </div>
-        </div>
-      `;
+        </div>`;
       }).join('');
+    }
 
-      container.querySelectorAll('.post-card').forEach(card => {
-        card.addEventListener('click', () => openPostDetail(card.dataset.id, boardType, loadPosts));
-      });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3></div>`; }
+    // 클릭 핸들러
+    container.querySelectorAll('.post-row').forEach(row => {
+      row.addEventListener('click', () => openPostDetail(row.dataset.id, boardType, loadPosts));
+    });
   }
+
+  async function loadPosts() {
+    try {
+      const res = await api('/api/protected/posts?board=' + boardType);
+      _allPosts = Array.isArray(res) ? res : (res.data || res.posts || []);
+      applySearch();  // 초기 렌더 (검색어 없으면 전체)
+    } catch(e) {
+      const container = document.getElementById('postList');
+      if (container) container.innerHTML = `<div class="empty-state" style="padding:40px"><h3>로딩 실패</h3><p>${esc(e.message || '')}</p></div>`;
+    }
+  }
+
+  // 검색 디바운스
+  let searchTimer;
+  document.getElementById('postSearchInput')?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applySearch, 220);
+  });
+
   loadPosts();
 
   document.getElementById('addPostBtn').addEventListener('click', () => {
