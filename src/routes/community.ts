@@ -38,8 +38,17 @@ community.post('/posts', async (c) => {
     is_pinned: { type: 'boolean' },
   })
   if (!b.board_type || !b.title) return c.json({ error: '게시판과 제목은 필수입니다' }, 400)
+
+  // 🔒 권한 가드: 공지사항(notice)은 관리자/원장만 작성 가능
+  const isManager = user.role === 'admin' || user.role === 'manager'
+  if (b.board_type === 'notice' && !isManager) {
+    return c.json({ error: '공지사항은 관리자/원장만 작성할 수 있습니다' }, 403)
+  }
+  // 🔒 권한 가드: is_pinned(고정글) 설정은 관리자/원장만 가능
+  const pinned = b.is_pinned && isManager ? 1 : 0
+
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name, is_anonymous, is_pinned) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.board_type, user.id, b.title, b.content||'', b.target_name||'', b.is_anonymous?1:0, b.is_pinned?1:0).run()
+  await c.env.DB.prepare('INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name, is_anonymous, is_pinned) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.board_type, user.id, b.title, b.content||'', b.target_name||'', b.is_anonymous?1:0, pinned).run()
   return c.json({ id })
 })
 
