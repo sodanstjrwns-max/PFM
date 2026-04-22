@@ -23,8 +23,8 @@ async function renderCommunity(body, actions, boardType) {
   const labels = { notice:'공지사항', free:'자유게시판', praise:'칭찬하기', mistake:'실수노트 (이실직고)' };
   const emojis = { notice:'📢', free:'💬', praise:'💛', mistake:'📝' };
 
-  // 🎨 렌더 스타일: 칭찬하기만 카드형(감정 전달), 나머지는 테이블형(게시판 느낌)
-  const useTableView = boardType !== 'praise';
+  // 🎨 렌더 스타일: 모든 게시판 테이블형 통일 (일관성 + 정보 밀도)
+  const useTableView = true;
 
   actions.innerHTML = `
     <div style="display:flex;gap:8px;align-items:center">

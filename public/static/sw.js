@@ -7,7 +7,7 @@
  * - 알림 클릭 시 해당 페이지로 이동
  */
 
-const CACHE_VERSION = 'pfm-v4.3.0';
+const CACHE_VERSION = 'pfm-v4.3.1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
