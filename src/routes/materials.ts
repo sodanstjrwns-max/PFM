@@ -179,12 +179,34 @@ materials.delete('/case-images/:id', async (c) => {
 
 /* ─── File Serving (R2) ─── */
 materials.get('/files/*', async (c) => {
-  const key = c.req.path.replace('/api/protected/files/', '')
-  if (key.includes('..')) return c.json({ error: 'Invalid path' }, 400)
+  const user = c.get('user')!
+  const rawKey = c.req.path.replace('/api/protected/files/', '')
+  // Decode and check for path traversal (defense-in-depth)
+  let key: string
+  try { key = decodeURIComponent(rawKey) } catch { return c.json({ error: 'Invalid path' }, 400) }
+  if (key.includes('..') || key.includes('\0') || rawKey.includes('%2e%2e') || rawKey.toLowerCase().includes('%2e%2e')) {
+    return c.json({ error: 'Invalid path' }, 400)
+  }
+
+  // 🔒 Multi-tenant isolation: key must belong to user's hospital
+  // Allowed key patterns:
+  //   resumes/{hid}/...      (hire.ts)
+  //   materials/{hid}/...    (materials.ts)
+  //   cases/{hid}/...        (materials.ts)
+  //   minutes/{hid}/...      (meetings.ts)
+  const allowedPrefixes = ['resumes/', 'materials/', 'cases/', 'minutes/']
+  const prefix = allowedPrefixes.find(p => key.startsWith(p))
+  if (!prefix) return c.json({ error: 'Invalid path' }, 400)
+  const rest = key.slice(prefix.length)
+  const hidInKey = rest.split('/')[0]
+  if (hidInKey !== user.hospitalId) {
+    return c.json({ error: 'File not found' }, 404)  // 404로 존재 여부도 숨김
+  }
+
   const obj = await c.env.R2.get(key)
   if (!obj) return c.json({ error: 'File not found' }, 404)
   return new Response(obj.body as ReadableStream, {
-    headers: { 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000' }
+    headers: { 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'private, max-age=31536000' }
   })
 })
 
