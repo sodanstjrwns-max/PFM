@@ -376,6 +376,45 @@ onboarding.post('/seed-sample', async (c) => {
     ).bind(crypto.randomUUID(), hid, reviewPlatforms[i % 3], `데모환자${i+1}`, rv.s === 'positive' ? 5 : rv.s === 'neutral' ? 3 : 2, rv.t, rv.s, d, i > 8 ? 'pending' : 'responded').run().catch(() => {})
   }
 
+  /* ─── 11. 커뮤니티 샘플 글 (공지/자유/칭찬) + 회의록 ─── */
+  // 관리자 본인 계정을 작성자로
+  const adminUser: any = await c.env.DB.prepare(
+    "SELECT id, name FROM users WHERE hospital_id=? AND role='admin' ORDER BY created_at LIMIT 1"
+  ).bind(hid).first()
+  const authorId = adminUser?.id || user.id
+  const authorName = adminUser?.name || user.name || '원장'
+
+  const samplePosts = [
+    { board: 'notice', title: '[환영합니다] Patient Funnel Manager를 시작하세요', content: '안녕하세요, 원장님. PFM에 오신 걸 환영합니다.\n\n이 공지를 포함한 모든 샘플 글은 [설정 → 샘플 초기화]에서 한 번에 삭제할 수 있습니다. 직원 초대 후 실제 사용을 시작해보세요.\n\n- 대시보드에서 오늘의 KPI 확인\n- 퍼널에서 상담 전환율 추적\n- 회의록/게시판으로 팀 소통', pin: 1 },
+    { board: 'notice', title: '[가이드] 첫 1주일 체크리스트', content: '1일차: 대표원장 프로필 완성\n2일차: 직원 초대코드 발급 (HR → 직원 초대)\n3일차: 월간 KPI 목표 입력\n4일차: 가격표/상담 스크립트 정리\n5일차: 퍼널 단계 커스터마이징\n6일차: 회의록 첫 작성\n7일차: 만족도 설문 발송 테스트', pin: 0 },
+    { board: 'free', title: '이 게시판은 이렇게 사용하세요', content: '자유게시판은 원내 누구나 자유롭게 의견을 나누는 공간입니다. 제안, 궁금증, 일상 잡담도 환영!', pin: 0 },
+    { board: 'praise', title: '오늘의 칭찬 예시 — 우리 함께 시작해요', content: '오늘 오전 긴급 환자 대응을 빠르게 해주신 팀원께 감사드립니다. 이런 순간순간이 서로의 동기부여가 됩니다.', pin: 0, target: '동료 여러분' },
+  ]
+  for (const p of samplePosts) {
+    await c.env.DB.prepare(
+      `INSERT INTO posts (id, hospital_id, board_type, title, content, author_id, is_pinned, target_name, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`
+    ).bind(crypto.randomUUID(), hid, p.board, p.title, p.content, authorId, p.pin, (p as any).target || '', iso(daysAgo(Math.floor(Math.random()*5)))).run().catch(() => {})
+  }
+
+  /* ─── 12. 샘플 회의록 2건 ─── */
+  try {
+    const meetingDate1 = iso(daysAgo(7))
+    const meetingDate2 = iso(daysAgo(-3)) // 3일 뒤
+    await c.env.DB.prepare(
+      `INSERT INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, status, visibility, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).bind(crypto.randomUUID(), hid, '주간 원장 브리핑',
+      '지난주 KPI 리뷰 및 이번주 목표 설정. 신환 수 +12%, 상담 전환율 58% 기록.',
+      meetingDate1, '09:00', '09:30', '원장실', 'completed', 'all', authorId).run().catch(() => {})
+    await c.env.DB.prepare(
+      `INSERT INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, status, visibility, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).bind(crypto.randomUUID(), hid, '전체 스태프 회의',
+      '4월 만족도 설문 결과 공유, 신규 가격표 반영, 컴플레인 케이스 학습.',
+      meetingDate2, '18:30', '19:30', '교육실', 'scheduled', 'all', authorId).run().catch(() => {})
+  } catch {}
+
   /* ─── settings에 샘플 생성 플래그 기록 ─── */
   await c.env.DB.prepare('UPDATE hospitals SET settings=? WHERE id=?')
     .bind(JSON.stringify(settings), hid).run()
@@ -391,6 +430,8 @@ onboarding.post('/seed-sample', async (c) => {
       dailyRecords: 60,
       reviews: 15,
       funnelStages: patients.length,
+      posts: samplePosts.length,
+      meetings: 2,
     }
   })
 })
