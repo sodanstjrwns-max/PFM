@@ -57,29 +57,86 @@ async function renderMeetings(body, actions) {
       return;
     }
 
-    list.innerHTML = meetings.map(m => {
+    // 세로형 카드 그리드 (반응형 3컬럼, 모바일 1컬럼)
+    const cardsHtml = meetings.map(m => {
       const st = statusMap[m.status] || statusMap.scheduled;
       const vis = visibilityMap[m.visibility] || visibilityMap.all;
-      return `<div class="meeting-card" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;border-left:4px solid ${st.color}" onmouseenter="this.style.boxShadow='var(--shadow-md)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='none';this.style.transform='none'">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-          <div>
-            <h3 style="margin:0;font-size:15px;font-weight:700">${st.emoji} ${esc(m.title)}</h3>
-            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
-              📅 ${m.meeting_date} · ⏰ ${m.start_time}${m.end_time ? ' ~ ' + m.end_time : ''} ${m.location ? '· 📍 ' + esc(m.location) : ''}
+
+      // 날짜 분해 (달력 톤)
+      const d = new Date(m.meeting_date + 'T00:00:00');
+      const weekdays = ['일','월','화','수','목','금','토'];
+      const monthLabel = `${d.getMonth()+1}월`;
+      const dayLabel = d.getDate();
+      const weekdayLabel = weekdays[d.getDay()];
+      const isSun = d.getDay() === 0;
+      const isSat = d.getDay() === 6;
+      const dayColor = isSun ? '#ef4444' : (isSat ? '#3b82f6' : '#0f172a');
+
+      // 오늘/내일/지난 구분
+      const todayStr = new Date().toISOString().slice(0,10);
+      const isToday = m.meeting_date === todayStr;
+      const isPast = m.meeting_date < todayStr;
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+      const isTomorrow = m.meeting_date === tomorrow.toISOString().slice(0,10);
+      const dateTag = isToday ? '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px">오늘</span>'
+        : isTomorrow ? '<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px">내일</span>'
+        : '';
+
+      const minutesBadge = m.has_minutes > 0
+        ? '<span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#dcfce7;color:#15803d;font-weight:700">📄 회의록 ✓</span>'
+        : (m.status === 'completed'
+          ? '<span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:700">⚠️ 회의록 미작성</span>'
+          : `<span style="font-size:10px;padding:3px 8px;border-radius:6px;background:${st.bg};color:${st.color};font-weight:700">${st.emoji} ${st.label}</span>`);
+
+      // 카드 상단 컬러 띠 (상태별)
+      return `<div class="meeting-card" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:all 0.18s;display:flex;flex-direction:column;position:relative;${isPast && m.status !== 'completed' ? 'opacity:0.75;' : ''}" onmouseenter="this.style.boxShadow='0 10px 24px rgba(0,0,0,0.08)';this.style.transform='translateY(-3px)';this.style.borderColor='${st.color}'" onmouseleave="this.style.boxShadow='none';this.style.transform='none';this.style.borderColor='var(--border)'">
+
+        <!-- 상단 컬러 띠 -->
+        <div style="height:5px;background:linear-gradient(90deg,${st.color},${st.color}dd)"></div>
+
+        <!-- 본문 -->
+        <div style="padding:16px 16px 14px">
+          <!-- 날짜 블록 + 상태 -->
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:6px 10px;text-align:center;min-width:56px;flex-shrink:0">
+              <div style="font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:0.5px">${monthLabel}</div>
+              <div style="font-size:22px;font-weight:800;color:${dayColor};line-height:1.1">${dayLabel}</div>
+              <div style="font-size:10px;color:${dayColor};font-weight:700">${weekdayLabel}</div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
+                <span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${st.bg};color:${st.color};font-weight:700">${st.emoji} ${st.label}</span>
+                <span style="font-size:10px;padding:2px 5px;border-radius:10px;background:#f1f5f9;color:#64748b" title="${vis.label}">${vis.emoji}</span>
+                ${dateTag}
+              </div>
+              <h3 style="margin:0;font-size:15px;font-weight:700;color:#0f172a;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px">${esc(m.title)}</h3>
             </div>
           </div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <span style="font-size:10px;padding:3px 8px;border-radius:10px;background:${st.bg};color:${st.color};font-weight:600">${st.label}</span>
-            <span style="font-size:10px;padding:3px 8px;border-radius:10px;background:#f1f5f9;color:#64748b" title="${vis.label}">${vis.emoji}</span>
+
+          <!-- 시간/장소 -->
+          <div style="font-size:12px;color:#64748b;margin-bottom:10px;line-height:1.6">
+            <div>⏰ ${m.start_time}${m.end_time ? ' ~ ' + m.end_time : ''}</div>
+            ${m.location ? `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${esc(m.location)}</div>` : ''}
           </div>
+
+          <!-- 설명 -->
+          ${m.description ? `<div style="font-size:12.5px;color:#64748b;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;background:#f8fafc;padding:8px 10px;border-radius:8px;border-left:3px solid ${st.color}">${esc(m.description)}</div>` : ''}
         </div>
-        ${m.description ? `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(m.description)}</div>` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:12px;color:var(--text-secondary)">👤 ${m.participant_count}명 · 작성: ${esc(m.creator_name)}</div>
-          ${m.has_minutes > 0 ? '<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#dcfce7;color:#15803d;font-weight:600">📄 회의록 있음</span>' : m.status === 'completed' ? '<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:600">⚠️ 회의록 미작성</span>' : ''}
+
+        <!-- 하단 메타 바 -->
+        <div style="margin-top:auto;padding:10px 16px;background:#fafbfc;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#64748b">
+            <span style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">👤</span>
+            <b style="color:#334155">${m.participant_count}명</b>
+            <span style="opacity:0.5">·</span>
+            <span>${esc(m.creator_name)}</span>
+          </div>
+          ${minutesBadge}
         </div>
       </div>`;
     }).join('');
+
+    list.innerHTML = `<div class="meeting-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${cardsHtml}</div>`;
 
     list.querySelectorAll('.meeting-card').forEach(card => {
       card.addEventListener('click', () => openMeetingDetail(card.dataset.id));
