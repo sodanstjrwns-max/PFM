@@ -646,6 +646,8 @@ function renderAuth() {
         localStorage.removeItem('pfm_show_tour_on_load');
         setTimeout(() => showWelcomeTour(true), 600);
       }
+      // 월요일 PF Index 자동 팝업
+      setTimeout(() => { try { window.PFMPfIndex?.checkWeeklyPopup(); } catch{} }, 2500);
     } catch(err) {
       errEl.textContent = err.message;
       errEl.classList.add('show');
@@ -755,6 +757,9 @@ function getNavConfig() {
       ]
     },
     { id: 'messenger', label: '💬 메신저', icon: ICONS.message, hidden: true },
+    { id: 'pf_index', label: '📊 페이션트 인덱스', icon: ICONS.chart || ICONS.dashboard },
+    { id: 'knowledge', label: '📚 PF 지식베이스', icon: ICONS.materials || ICONS.folder },
+    { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users || ICONS.chart },
     { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
   ];
   return nav;
@@ -1175,6 +1180,10 @@ async function renderPage() {
     gamification: ['🏆 성과 게이미피케이션', ICONS.star],
     review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
     messenger: ['💬 원내 메신저', ICONS.message],
+    pf_index: ['📊 페이션트 인덱스', ICONS.chart || ICONS.dashboard],
+    knowledge: ['📚 PF 지식베이스', ICONS.materials || ICONS.folder],
+    referrals: ['🌌 소개 갤럭시', ICONS.users || ICONS.chart],
+    feedback_notes: ['📚 피드백 노트', ICONS.edit || ICONS.message],
     settings: ['설정', ICONS.settings],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
@@ -1213,6 +1222,9 @@ async function renderPage() {
     case 'kakao': M.kakao.renderKakao(body, actions); break;
     case 'reports': M.reports.renderReports(body, actions); break;
     case 'feedback_notes': M.feedbackNotes.renderFeedback(body, actions); break;
+    case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
+    case 'knowledge': M.knowledge && M.knowledge.renderKnowledge && M.knowledge.renderKnowledge(body, actions); break;
+    case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'complaints': M.complaints.renderComplaints(body, actions); break;
@@ -1370,6 +1382,10 @@ function boot() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
   });
+  // 월요일 PF Index 자동 팝업 (페이지 새로고침/재접속 시)
+  if (state.user) {
+    setTimeout(() => { try { window.PFMPfIndex?.checkWeeklyPopup(); } catch{} }, 3000);
+  }
 }
 
 // 모듈 로드 완료 대기

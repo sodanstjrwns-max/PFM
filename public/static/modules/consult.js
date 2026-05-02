@@ -858,7 +858,10 @@ function renderDashboardContent(body, data, month, isManager, reload) {
         <div class="mod-muted-xs">할인율 ${s.discountRate}%</div>
       </div>` : ''}
     </div>
-    
+
+    <!-- 📚 노하우 카드 추천 (확정률 낮을 때 자동 노출) -->
+    <div id="consultKbRecommend" style="margin-bottom:20px"></div>
+
     <!-- 상담사별 분석 -->
     <div class="section-title">👩‍⚕️ <span>상담사별 분석</span></div>
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto;margin-bottom:20px">
@@ -1039,6 +1042,97 @@ function renderDailyChart(byDate, month) {
   svg += '</svg>';
   chartEl.innerHTML = svg;
 }
+
+/* ════════════════════════════════════════════════
+   📚 노하우 카드 추천 (상담분석 페이지 컨텍스트 기반)
+   ════════════════════════════════════════════════ */
+async function loadConsultKnowledgeRecommend(summary) {
+  const slot = document.getElementById('consultKbRecommend');
+  if (!slot) return;
+
+  // 컨텍스트 결정: 확정률 < 70% → low_conversion 추천
+  const rate = Number(summary?.confirmRate ?? 100);
+  const total = Number(summary?.total ?? 0);
+
+  // 표본 너무 작으면(<5건) 추천 안 함
+  if (total < 5) { slot.innerHTML = ''; return; }
+
+  // 확정률 70% 이상이면 노출하지 않음 (잘하고 있으니까)
+  if (rate >= 70) {
+    slot.innerHTML = `
+      <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #6ee7b7;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🎉</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px;color:#065f46">확정률 ${rate}% — 잘하고 있어요!</div>
+          <div style="font-size:12px;color:#047857;margin-top:2px">상담 시스템이 안정적으로 돌아가는 중. 이번 달도 페이스 유지하세요.</div>
+        </div>
+        <button onclick="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;color:#065f46;border:1px solid #6ee7b7">📚 노하우 더보기</button>
+      </div>
+    `;
+    return;
+  }
+
+  // 확정률 낮음 → 카드 추천
+  try {
+    const data = await api('/api/protected/knowledge/_recommend/by-context?context=low_conversion&limit=3');
+    const cards = data?.cards || [];
+    if (!cards.length) { slot.innerHTML = ''; return; }
+
+    const severityColor = rate < 50 ? '#ef4444' : rate < 60 ? '#f59e0b' : '#0e7490';
+    const severityBg = rate < 50 ? '#fef2f2' : rate < 60 ? '#fffbeb' : '#ecfeff';
+    const severityBorder = rate < 50 ? '#fecaca' : rate < 60 ? '#fde68a' : '#a5f3fc';
+    const severityIcon = rate < 50 ? '🚨' : rate < 60 ? '⚠️' : '💡';
+    const severityMsg = rate < 50
+      ? '확정률이 50% 미만입니다. 상담 프로세스 점검이 시급합니다.'
+      : rate < 60
+        ? '확정률이 60% 미만입니다. 상담 흐름을 다시 살펴보세요.'
+        : '확정률을 더 끌어올릴 수 있는 노하우 카드를 추천드려요.';
+
+    slot.innerHTML = `
+      <div style="background:${severityBg};border:1px solid ${severityBorder};border-radius:12px;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:22px">${severityIcon}</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px;color:${severityColor}">전환율 개선 노하우 (확정률 ${rate}%)</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${severityMsg}</div>
+          </div>
+          <button onclick="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;border:1px solid ${severityBorder}">📚 전체 보기</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
+          ${cards.map(c => `
+            <div onclick="window.PFMKnowledge?.openCard('${c.id}')"
+              style="background:#fff;border:1px solid ${severityBorder};border-radius:10px;padding:12px 14px;cursor:pointer;transition:all 0.15s"
+              onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+              onmouseout="this.style.transform='';this.style.boxShadow=''">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                <span style="background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600">
+                  ${c.categoryMeta?.icon || '📁'} ${esc(c.categoryMeta?.label || c.category)}
+                </span>
+                ${c.book_source ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:10px">📖 ${esc(c.book_source)}</span>` : ''}
+              </div>
+              <div style="font-weight:700;font-size:13px;color:#1e293b;line-height:1.4;margin-bottom:6px">
+                ${esc(c.title)}
+              </div>
+              <div style="font-size:11px;color:#64748b;line-height:1.5;
+                          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                ${esc(String(c.preview || '').replace(/^['"]/, ''))}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    slot.innerHTML = ''; // 추천 실패는 조용히 무시
+  }
+}
+
+// renderDashboardContent 호출 후 위젯 자동 로드
+const _origRenderDashboardContent = renderDashboardContent;
+renderDashboardContent = function(body, data, month, isManager, reload) {
+  _origRenderDashboardContent(body, data, month, isManager, reload);
+  if (data?.summary) loadConsultKnowledgeRecommend(data.summary);
+};
 
 PFM.modules.consult = { renderConsultRecords, renderConsultDashboard };
 PFM.consultData = { CATEGORIES, CAT_COLORS, VISIT_SOURCES, SOURCE_COLORS };

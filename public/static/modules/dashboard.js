@@ -35,21 +35,79 @@ function changeArrow(pct) {
 async function renderDashboard(body) {
   await PFM.withErrorBoundary(body, async () => {
     const isManager = ['admin','manager'].includes(state.user.role);
-    const [stats, briefing, surveyToday, weeklyStatus, insightHero] = await Promise.all([
+    const [stats, briefing, surveyToday, weeklyStatus, insightHero, pfIndexStatus] = await Promise.all([
       api('/api/protected/dashboard'),
       api('/api/protected/briefing').catch(() => null),
       api('/api/protected/surveys/schedules/today').catch(() => null),
       isManager ? api('/api/protected/insights/weekly/status').catch(() => null) : Promise.resolve(null),
       isManager ? api('/api/protected/onboarding/insights').catch(() => null) : Promise.resolve(null),
+      isManager ? api('/api/protected/pf-index/status').catch(() => null) : Promise.resolve(null),
     ]);
-    renderDashboardContent(body, stats, briefing, surveyToday, weeklyStatus, insightHero);
+    renderDashboardContent(body, stats, briefing, surveyToday, weeklyStatus, insightHero, pfIndexStatus);
 
     // 🆕 v3.5: 이번주 미확인 + manager → 주간 인사이트 모달 자동 표시
     if (weeklyStatus && weeklyStatus.ok && !weeklyStatus.seen && isManager) {
       // 대시보드 렌더 후 0.8초 뒤에 표시 (시각적으로 자연스럽게)
       setTimeout(() => showWeeklyInsightsModal(true), 800);
     }
+
+    // 📚 오늘의 노하우 카드 위젯 (지식베이스)
+    loadDailyKnowledgeWidget();
   }, 'dashboard');
+}
+
+/* ═══ 📚 오늘의 노하우 카드 (지식베이스 위젯) ═══ */
+async function loadDailyKnowledgeWidget() {
+  const slot = document.getElementById('kbDailyWidget');
+  if (!slot) return;
+  try {
+    const data = await api('/api/protected/knowledge/_recommend/daily');
+    if (!data?.card) { slot.innerHTML = ''; return; }
+    const c = data.card;
+    const tags = (c.tags || []).slice(0, 3).map(t =>
+      `<span style="background:rgba(255,255,255,0.25);color:#fff;padding:2px 9px;border-radius:10px;font-size:11px">#${h(t)}</span>`
+    ).join(' ');
+    slot.innerHTML = `
+      <div class="section-title">📚 <span>오늘의 노하우 카드</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">매일 한 장 · 원장님 6권 노하우</span></div>
+      <div onclick="window.PFMKnowledge?.openCard('${c.id}')"
+        style="background:linear-gradient(135deg,#0f766e 0%,#0e7490 50%,#1e40af 100%);color:#fff;border-radius:14px;padding:20px 22px;cursor:pointer;
+               box-shadow:0 4px 14px rgba(15,118,110,0.25);transition:all 0.2s;position:relative;overflow:hidden"
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(15,118,110,0.35)'"
+        onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(15,118,110,0.25)'">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+              <span style="background:rgba(255,255,255,0.22);padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600">
+                ${c.categoryMeta?.icon || '📁'} ${h(c.categoryMeta?.label || c.category)}
+              </span>
+              ${c.book_source ? `<span style="background:rgba(255,255,255,0.22);padding:3px 10px;border-radius:10px;font-size:11px">📖 ${h(c.book_source)}</span>` : ''}
+              ${tags}
+            </div>
+            <h3 style="margin:0 0 8px 0;font-size:17px;font-weight:700;line-height:1.4">${h(c.title)}</h3>
+            <div style="font-size:13px;line-height:1.6;opacity:0.92;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+              ${h(String(c.preview || c.content || '').replace(/^['"]/, ''))}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            <button onclick="event.stopPropagation();window.PFMKnowledge?.openCard('${c.id}')"
+              style="background:rgba(255,255,255,0.95);color:#0f766e;border:none;padding:8px 14px;border-radius:8px;
+                     font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+              자세히 보기 <i class="fas fa-arrow-right" style="font-size:10px"></i>
+            </button>
+            <button onclick="event.stopPropagation();PFM.navigate('knowledge')"
+              style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:6px 12px;border-radius:8px;
+                     font-size:11px;cursor:pointer;white-space:nowrap">
+              전체 보기
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    // 위젯 실패는 조용히 무시 (대시보드 본 기능에 영향 없음)
+    slot.innerHTML = '';
+  }
 }
 
 /* ═══ 주간 인사이트 모달 (v3.5 Weekly Edition) ═══ */
@@ -397,7 +455,7 @@ function launchConfetti() {
 }
 window.showAhaMomentModal = showAhaMomentModal;
 
-function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, insightHero) {
+function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, insightHero, pfIndexStatus) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '오후도 화이팅' : '오늘도 수고하셨습니다';
@@ -672,6 +730,12 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     <!-- 일일 브리핑 -->
     ${briefing ? renderBriefingSection(briefing, isManager) : ''}
 
+    <!-- 📊 페이션트 인덱스 위젯 -->
+    ${isManager && pfIndexStatus ? renderPfIndexWidget(pfIndexStatus) : ''}
+
+    <!-- 📚 오늘의 노하우 카드 (지식베이스 추천) -->
+    <div id="kbDailyWidget" style="margin-bottom:24px"></div>
+
     <!-- 🧱 오늘의 현황 · Bento Grid (Apple 스타일) -->
     <div class="section-title">📊 <span>오늘의 현황</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">실시간 · 탭하여 상세보기</span></div>
     <div class="bento-grid" style="margin-bottom:24px">
@@ -829,6 +893,45 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
       el.addEventListener('click', () => navigate(el.dataset.goto));
     });
   }
+}
+
+/* ════════════════════════════════════════════════
+   페이션트 인덱스 위젯 (대시보드 내장)
+   ════════════════════════════════════════════════ */
+function renderPfIndexWidget(status) {
+  const responded = !!status.responded;
+  const wkStart = status.weekStart;
+  const myScore = status.myScore;
+  const streak = status.status?.current_streak || 0;
+  const natResp = status.national?.thisWeekResponses || 0;
+  const natHosp = status.national?.thisWeekHospitals || 0;
+
+  if (responded) {
+    return `
+      <div class="section-title">📊 <span>페이션트 인덱스</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">${wkStart} 시작 주</span></div>
+      <div style="background:linear-gradient(135deg,#eff6ff 0%,#f5f3ff 100%);border:1px solid #c7d2fe;border-radius:12px;padding:18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:12px;color:#6366f1;font-weight:700">✅ 이번 주 응답 완료</div>
+          <div style="font-size:13px;color:#475569;margin-top:4px">내 인덱스 <strong style="color:#6366f1;font-size:18px">${(myScore||0).toFixed(2)}</strong> / 5.00 · 연속 ${streak}주 · 전국 ${natHosp}개 병원 ${natResp}명 참여</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="window.PFMPfIndex?.openNational()">🌐 전국 인사이트</button>
+          <button class="btn btn-secondary btn-sm" onclick="PFM.navigate('pf_index')">상세</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="section-title">📊 <span>페이션트 인덱스</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">${wkStart} 시작 주</span></div>
+    <div style="background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);border:1px solid #fcd34d;border-radius:12px;padding:18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13px;color:#92400e;font-weight:700">📝 이번 주 설문이 도착했습니다</div>
+        <div style="font-size:13px;color:#78350f;margin-top:4px">5분이면 끝 · 응답하면 전국 ${natHosp}개 병원 ${natResp}명의 인사이트 보고서 잠금 해제</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="window.PFMPfIndex?.openSurvey()"><i class="fas fa-pen-to-square"></i> 5분 설문 시작</button>
+    </div>
+  `;
 }
 
 /* ════════════════════════════════════════════════

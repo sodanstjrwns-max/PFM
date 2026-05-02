@@ -37,6 +37,9 @@ import kakao from './routes/kakao'
 import reports from './routes/reports'
 import feedbackRoute from './routes/feedback'
 import insightsRoute from './routes/insights'
+import pfIndexRoute from './routes/pf-index'
+import knowledgeRoute from './routes/knowledge'
+import referralsRoute from './routes/referrals'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -156,6 +159,9 @@ app.route('/api/protected/kakao', kakao)             // v3.3 카카오 알림톡
 app.route('/api/protected/reports', reports)         // v3.3 월간 보고서 내보내기
 app.route('/api/protected/feedback', feedbackRoute)   // v3.5 피드백 노트 (상급자↔하급자)
 app.route('/api/protected/insights', insightsRoute)   // v3.5 주간 인사이트 브리핑
+app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스 (매주 월요일 설문)
+app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (원장님 6권 노하우 카드)
+app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness
