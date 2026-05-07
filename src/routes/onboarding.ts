@@ -6,7 +6,7 @@ const onboarding = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── Get onboarding status ─── */
 onboarding.get('/status', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const row: any = await c.env.DB.prepare(
     'SELECT onboarding_completed, onboarding_step, onboarding_data, settings FROM hospitals WHERE id=?'
   ).bind(user.hospitalId).first()
@@ -41,7 +41,7 @@ onboarding.get('/status', async (c) => {
 
 /* ─── Save step data ─── */
 onboarding.post('/step/:step', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 온보딩을 진행할 수 있습니다' }, 403)
   
   const step = parseInt(c.req.param('step'))
@@ -130,7 +130,7 @@ onboarding.post('/step/:step', async (c) => {
 
 /* ─── Complete onboarding ─── */
 onboarding.post('/complete', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 온보딩을 완료할 수 있습니다' }, 403)
   
   await c.env.DB.prepare(
@@ -142,7 +142,7 @@ onboarding.post('/complete', async (c) => {
 
 /* ─── Skip onboarding ─── */
 onboarding.post('/skip', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 온보딩을 스킵할 수 있습니다' }, 403)
   
   await c.env.DB.prepare(
@@ -154,7 +154,7 @@ onboarding.post('/skip', async (c) => {
 
 /* ─── Reset onboarding (re-run) ─── */
 onboarding.post('/reset', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 온보딩을 초기화할 수 있습니다' }, 403)
   
   await c.env.DB.prepare(
@@ -170,7 +170,7 @@ onboarding.post('/reset', async (c) => {
    - 본인 병원 데이터와 섞이지 않도록 sample_generated 플래그 기록
    ═════════════════════════════════════════════════════════════ */
 onboarding.post('/seed-sample', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 실행할 수 있습니다' }, 403)
   const hid = user.hospitalId
 
@@ -438,7 +438,7 @@ onboarding.post('/seed-sample', async (c) => {
 
 /* ─── 🎯 아하모멘트 인사이트: 데이터에서 자동으로 숨은 기회 발견 ─── */
 onboarding.get('/insights', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const hid = user.hospitalId
 
   try {
@@ -596,7 +596,7 @@ onboarding.get('/insights', async (c) => {
 
 /* ─── 샘플 데이터 삭제 (원래 상태로 복구) ─── */
 onboarding.post('/clear-sample', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (user.role !== 'admin') return c.json({ error: '관리자만 실행할 수 있습니다' }, 403)
   const hid = user.hospitalId
 

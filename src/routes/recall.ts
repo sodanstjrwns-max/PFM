@@ -85,7 +85,7 @@ async function ensureDefaultRules(db: D1Database, hospitalId: string, userId: st
 
 /** GET /rules - 룰 목록 */
 recall.get('/rules', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   await ensureDefaultRules(c.env.DB, user.hospitalId, user.id)
   const rows = await c.env.DB
     .prepare('SELECT * FROM recall_rules WHERE hospital_id = ? ORDER BY priority ASC, created_at DESC')
@@ -96,7 +96,7 @@ recall.get('/rules', async (c) => {
 
 /** POST /rules - 룰 생성 (admin/manager) */
 recall.post('/rules', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
   }
@@ -129,7 +129,7 @@ recall.post('/rules', async (c) => {
 
 /** PATCH /rules/:id - 룰 수정 */
 recall.patch('/rules/:id', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
   }
@@ -161,7 +161,7 @@ recall.patch('/rules/:id', async (c) => {
 
 /** DELETE /rules/:id */
 recall.delete('/rules/:id', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
   }
@@ -182,7 +182,7 @@ recall.delete('/rules/:id', async (c) => {
  * 활성화된 룰을 돌며 조건 맞는 환자 찾아서 task 생성 (중복 방지)
  */
 recall.post('/generate', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const hospitalId = user.hospitalId
   await ensureDefaultRules(c.env.DB, hospitalId, user.id)
 
@@ -295,7 +295,7 @@ recall.post('/generate', async (c) => {
 
 /** GET /tasks - 오늘의 리콜 대상자 목록 */
 recall.get('/tasks', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const status = c.req.query('status') || 'pending'
   const dateFrom = c.req.query('date_from') || ''
   const dateTo = c.req.query('date_to') || today()
@@ -338,7 +338,7 @@ recall.get('/tasks', async (c) => {
 
 /** PATCH /tasks/:id - 태스크 상태 업데이트 */
 recall.patch('/tasks/:id', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
   const allowed = ['status', 'result_note', 'assigned_to', 'reservation_made', 'reservation_date']
@@ -369,7 +369,7 @@ recall.patch('/tasks/:id', async (c) => {
 
 /** GET /summary - 리콜 KPI 요약 (이번 달 성과) */
 recall.get('/summary', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const monthStart = new Date()
   monthStart.setDate(1)
   const monthStr = monthStart.toISOString().slice(0, 10)

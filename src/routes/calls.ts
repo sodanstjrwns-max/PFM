@@ -15,7 +15,7 @@ calls.get('/', async (c) => {
   const reservationStatus = sanitizeString(c.req.query('reservation') || '', 30)
   const search = sanitizeString(c.req.query('search') || '', 200)
 
-  let sql = 'SELECT id, call_date, call_type, patient_name, phone, patient_type, staff_name, treatment_interest, recognition_path, call_purpose, reservation_status, reservation_date, follow_up, comment, created_at FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?'
+  let sql = 'SELECT id, call_date, call_type, patient_name, phone, patient_type, staff_name, treatment_interest, recognition_path, call_purpose, reservation_status, reservation_date, follow_up, comment, created_at FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ?'
   const params: any[] = [user.hospitalId, callType, month+'%']
   if (staff) { sql += ' AND staff_name=?'; params.push(staff) }
   if (purpose) { sql += ' AND call_purpose=?'; params.push(purpose) }
@@ -31,12 +31,12 @@ calls.get('/stats', async (c) => {
   const callType = sanitizeString(c.req.query('type') || 'inbound', 20)
   const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
   const [total, byStaff, byReservation, byTreatment, byPatientType, byPurpose] = await Promise.all([
-    c.env.DB.prepare('SELECT COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ?').bind(user.hospitalId, callType, month+'%').first(),
-    c.env.DB.prepare('SELECT staff_name, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND staff_name != "" GROUP BY staff_name ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
-    c.env.DB.prepare('SELECT reservation_status, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? GROUP BY reservation_status ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
-    c.env.DB.prepare('SELECT treatment_interest, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND treatment_interest != "" GROUP BY treatment_interest ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
-    c.env.DB.prepare('SELECT patient_type, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND patient_type != "" GROUP BY patient_type ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
-    c.env.DB.prepare('SELECT call_purpose, COUNT(*) as c FROM call_records WHERE hospital_id=? AND call_type=? AND call_date LIKE ? AND call_purpose != "" GROUP BY call_purpose ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ?').bind(user.hospitalId, callType, month+'%').first(),
+    c.env.DB.prepare('SELECT staff_name, COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ? AND staff_name != "" GROUP BY staff_name ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT reservation_status, COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ? GROUP BY reservation_status ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT treatment_interest, COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ? AND treatment_interest != "" GROUP BY treatment_interest ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT patient_type, COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ? AND patient_type != "" GROUP BY patient_type ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
+    c.env.DB.prepare('SELECT call_purpose, COUNT(*) as c FROM call_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND call_type=? AND call_date LIKE ? AND call_purpose != "" GROUP BY call_purpose ORDER BY c DESC').bind(user.hospitalId, callType, month+'%').all(),
   ])
   return c.json({
     total: (total as any)?.c || 0,
@@ -100,9 +100,20 @@ calls.put('/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/**
+ * 🏥 콜 기록 삭제 - 소프트 딜리트 + admin/manager 권한
+ * 의료법: 환자 통화 기록도 진료 관련 정보로 보존 의무
+ */
 calls.delete('/:id', async (c) => {
   const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM call_records WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '콜 기록 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const id = c.req.param('id')
+  const exist: any = await c.env.DB.prepare('SELECT id FROM call_records WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  if (!exist) return c.json({ error: '콜 기록을 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare('UPDATE call_records SET is_deleted=1, deleted_at=?, deleted_by=? WHERE id=? AND hospital_id=?')
+    .bind(new Date().toISOString(), user.id, id, user.hospitalId).run()
   return c.json({ success: true })
 })
 

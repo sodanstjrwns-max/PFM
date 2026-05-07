@@ -256,12 +256,12 @@ kpi.get('/stats', async (c) => {
     FROM daily_records WHERE ${baseWhere} GROUP BY period_key ORDER BY period_key`).bind(...params).all(),
     c.env.DB.prepare('SELECT id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days FROM kpi_targets WHERE hospital_id=? ORDER BY year_month DESC LIMIT 24').bind(user.hospitalId).all(),
   ]
-  const results = await Promise.all(queries)
+  const results = await Promise.all(queries) as any[]
   return c.json({
     summary: results[0] || {},
-    byDayOfWeek: results[1].results,
-    trend: results[2].results,
-    targets: results[3].results,
+    byDayOfWeek: results[1]?.results || [],
+    trend: results[2]?.results || [],
+    targets: results[3]?.results || [],
     period, from, to,
   })
 })

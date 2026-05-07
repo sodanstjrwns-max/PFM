@@ -124,7 +124,7 @@ hire.post('/applicants/:id/resume', async (c) => {
   const user = c.get('user')!
   const appId = c.req.param('id')
   const form = await c.req.formData()
-  const file = form.get('file') as File
+  const file = form.get('file') as unknown as File
   if (!file) return c.json({ error: '파일을 선택해주세요' }, 400)
   const fv = validateFile(file, 10)
   if (!fv.valid) return c.json({ error: fv.error }, 400)

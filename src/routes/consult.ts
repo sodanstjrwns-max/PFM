@@ -12,7 +12,7 @@ consult.get('/', async (c) => {
   const category = sanitizeString(c.req.query('category') || '', 50)
   const confirmed = sanitizeString(c.req.query('confirmed') || '', 5)
   const patientType = sanitizeString(c.req.query('patient_type') || '', 20)
-  let sql = 'SELECT id, record_date, chart_number, patient_name, patient_type, visit_source, doctor_name, counselor_name, desk_name, treatment_category, treatment_confirmed, planned_amount, agreed_amount, discount_note, appointment_made, recall_done, kakao_registered, pdf_provided, notes, created_at FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?'
+  let sql = 'SELECT id, record_date, chart_number, patient_name, patient_type, visit_source, doctor_name, counselor_name, desk_name, treatment_category, treatment_confirmed, planned_amount, agreed_amount, discount_note, appointment_made, recall_done, kakao_registered, pdf_provided, notes, created_at FROM consult_records WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND record_date LIKE ?'
   const params: any[] = [user.hospitalId, month + '%']
   if (counselor) { sql += ' AND counselor_name = ?'; params.push(counselor) }
   if (doctor) { sql += ' AND doctor_name = ?'; params.push(doctor) }
@@ -21,7 +21,12 @@ consult.get('/', async (c) => {
   if (patientType) { sql += ' AND patient_type = ?'; params.push(patientType) }
   sql += ' ORDER BY record_date DESC, created_at DESC LIMIT 500'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
+  // 🔒 일반 staff에게는 재정정보(견적/동의금액/할인내역) 마스킹
+  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
+  const results = canSeeFinancials
+    ? rows.results
+    : (rows.results as any[]).map(r => ({ ...r, planned_amount: null, agreed_amount: null, discount_note: null }))
+  return c.json(results)
 })
 
 consult.post('/', async (c) => {
@@ -72,9 +77,22 @@ consult.put('/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/**
+ * 🏥 의료법 제22조 준수: 진료기록부 5년 보존 의무
+ * 하드 딜리트 금지 → 소프트 딜리트(is_deleted=1) + admin/manager 권한 필요
+ */
 consult.delete('/:id', async (c) => {
   const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM consult_records WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '상담기록 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const id = c.req.param('id')
+  // 사전 검증: 본 병원 데이터인지 확인
+  const exist: any = await c.env.DB.prepare('SELECT id FROM consult_records WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  if (!exist) return c.json({ error: '상담기록을 찾을 수 없습니다' }, 404)
+  // 소프트 딜리트 (의료법 5년 보존)
+  await c.env.DB.prepare('UPDATE consult_records SET is_deleted=1, deleted_at=?, deleted_by=?, updated_at=? WHERE id=? AND hospital_id=?')
+    .bind(new Date().toISOString(), user.id, new Date().toISOString(), id, user.hospitalId).run()
   return c.json({ success: true })
 })
 
@@ -97,7 +115,7 @@ consult.get('/staff', async (c) => {
 consult.get('/dashboard', async (c) => {
   const user = c.get('user')!
   const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
-  const all = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date').bind(user.hospitalId, month + '%').all()
+  const all = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND record_date LIKE ? ORDER BY record_date').bind(user.hospitalId, month + '%').all()
   const rows = all.results as any[]
   const total = rows.length
   let confirmed = 0, rejected = 0, newPatients = 0, existingPatients = 0, totalPlanned = 0, totalAgreed = 0
@@ -142,7 +160,7 @@ consult.get('/patient-search', async (c) => {
   const user = c.get('user')!
   const q = sanitizeString(c.req.query('q') || '', 100)
   if (!q || q.length < 1) return c.json([])
-  const rows = await c.env.DB.prepare(`SELECT patient_name, chart_number, MAX(record_date) as last_visit, COUNT(*) as visit_count, GROUP_CONCAT(DISTINCT treatment_category) as categories, GROUP_CONCAT(DISTINCT visit_source) as sources FROM consult_records WHERE hospital_id=? AND patient_name LIKE ? GROUP BY patient_name, chart_number ORDER BY last_visit DESC LIMIT 20`).bind(user.hospitalId, `%${q}%`).all()
+  const rows = await c.env.DB.prepare(`SELECT patient_name, chart_number, MAX(record_date) as last_visit, COUNT(*) as visit_count, GROUP_CONCAT(DISTINCT treatment_category) as categories, GROUP_CONCAT(DISTINCT visit_source) as sources FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND patient_name LIKE ? GROUP BY patient_name, chart_number ORDER BY last_visit DESC LIMIT 20`).bind(user.hospitalId, `%${q}%`).all()
   return c.json(rows.results)
 })
 
@@ -151,18 +169,27 @@ consult.get('/patient-history', async (c) => {
   const name = sanitizeString(c.req.query('name') || '', 100)
   const chart = sanitizeString(c.req.query('chart') || '', 50)
   if (!name) return c.json({ error: '환자명을 입력하세요' }, 400)
-  let sql = 'SELECT * FROM consult_records WHERE hospital_id=? AND patient_name=?'
+  let sql = 'SELECT * FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND patient_name=?'
   const params: any[] = [user.hospitalId, name]
   if (chart) { sql += ' AND chart_number=?'; params.push(chart) }
   sql += ' ORDER BY record_date DESC LIMIT 200'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
+  // 🔒 staff에게는 재정정보 마스킹
+  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
+  const results = canSeeFinancials
+    ? rows.results
+    : (rows.results as any[]).map(r => ({ ...r, planned_amount: null, agreed_amount: null, discount_note: null }))
+  return c.json(results)
 })
 
 consult.get('/summary', async (c) => {
   const user = c.get('user')!
   const month = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
-  const row = await c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN treatment_confirmed='X' THEN 1 ELSE 0 END) as rejected, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(planned_amount) as total_planned, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=? AND record_date LIKE ?`).bind(user.hospitalId, month + '%').first()
+  const row: any = await c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN treatment_confirmed='X' THEN 1 ELSE 0 END) as rejected, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(planned_amount) as total_planned, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND record_date LIKE ?`).bind(user.hospitalId, month + '%').first()
+  // 🔒 staff에게는 재정정보 마스킹
+  if (row && user.role !== 'admin' && user.role !== 'manager') {
+    row.total_planned = null; row.total_agreed = null
+  }
   return c.json(row)
 })
 
@@ -171,13 +198,18 @@ consult.get('/visit-sources', async (c) => {
   const month = sanitizeString(c.req.query('month') || '', 10)
   const from = sanitizeString(c.req.query('from') || '', 10)
   const to = sanitizeString(c.req.query('to') || '', 10)
-  let sql = `SELECT visit_source, COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=?`
+  let sql = `SELECT visit_source, COUNT(*) as total, SUM(CASE WHEN treatment_confirmed='O' THEN 1 ELSE 0 END) as confirmed, SUM(CASE WHEN patient_type='new' THEN 1 ELSE 0 END) as new_patients, SUM(agreed_amount) as total_agreed FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0`
   const params: any[] = [user.hospitalId]
   if (month) { sql += ' AND record_date LIKE ?'; params.push(month + '%') }
   else if (from && to) { sql += ' AND record_date>=? AND record_date<=?'; params.push(from, to) }
   sql += ' GROUP BY visit_source ORDER BY total DESC'
   const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
+  // 🔒 staff에게는 재정정보 마스킹
+  const canSeeFinancials = user.role === 'admin' || user.role === 'manager'
+  const results = canSeeFinancials
+    ? rows.results
+    : (rows.results as any[]).map(r => ({ ...r, total_agreed: null }))
+  return c.json(results)
 })
 
 consult.post('/bulk', async (c) => {

@@ -6,7 +6,7 @@
  *  - 상담분석 연동 (전환율 낮을 때 자동 추천)
  * ═══════════════════════════════════════════════════════════════ */
 (function () {
-  const { api, esc, openModal, closeModal, toast } = window.PFM;
+  const { api, esc, showModal, closeModal, toast } = window.PFM;
 
   /* 상태 */
   let _state = {
@@ -256,9 +256,9 @@
       // 줄바꿈 보존
       const contentHTML = esc(card.content || '').replace(/\n/g, '<br>');
 
-      openModal({
-        title: `${card.categoryMeta?.icon || '📁'} ${card.title}`,
-        body: `
+      showModal(
+        `${card.categoryMeta?.icon || '📁'} ${esc(card.title)}`,
+        `
           <div style="max-width:680px">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
               <span style="background:#ecfdf5;color:#065f46;padding:4px 12px;border-radius:10px;font-size:12px;font-weight:600">
@@ -277,18 +277,18 @@
               ${contentHTML}
             </div>
             ${tagHTML ? `<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">${tagHTML}</div>` : ''}
+            <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #e5e7eb;padding-top:14px">
+              <button class="btn btn-secondary" onclick="PFMKnowledge.toggleFavorite('${card.id}', true)">
+                ${card.is_favorite ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'}
+              </button>
+              <button class="btn btn-primary" onclick="PFMKnowledge.copyContent('${card.id}')">
+                <i class="fas fa-copy"></i> 본문 복사
+              </button>
+              <button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>
+            </div>
           </div>
-        `,
-        actions: `
-          <button class="btn btn-secondary" onclick="PFMKnowledge.toggleFavorite('${card.id}', true)">
-            ${card.is_favorite ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'}
-          </button>
-          <button class="btn btn-primary" onclick="PFMKnowledge.copyContent('${card.id}')">
-            <i class="fas fa-copy"></i> 본문 복사
-          </button>
-          <button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>
-        `,
-      });
+        `
+      );
       // 복사용 임시 저장
       window._kbCurrentContent = card.content;
     } catch (e) {
@@ -328,11 +328,11 @@
     try {
       const meta = await api('/api/protected/knowledge/_meta/info');
       if (!meta.favorites || !meta.favorites.length) {
-        openModal({
-          title: '⭐ 내 즐겨찾기',
-          body: '<div style="padding:20px;text-align:center;color:#94a3b8">아직 즐겨찾기한 카드가 없습니다.<br>마음에 드는 카드의 ☆ 버튼을 눌러 추가해보세요.</div>',
-          actions: '<button class="btn btn-primary" onclick="PFM.closeModal()">확인</button>',
-        });
+        showModal(
+          '⭐ 내 즐겨찾기',
+          `<div style="padding:20px;text-align:center;color:#94a3b8">아직 즐겨찾기한 카드가 없습니다.<br>마음에 드는 카드의 ☆ 버튼을 눌러 추가해보세요.</div>
+           <div style="margin-top:14px;text-align:right"><button class="btn btn-primary" onclick="PFM.closeModal()">확인</button></div>`
+        );
         return;
       }
       const list = meta.favorites.map(f => `
@@ -345,11 +345,13 @@
           </div>
         </div>
       `).join('');
-      openModal({
-        title: `⭐ 내 즐겨찾기 (${meta.favorites.length}개)`,
-        body: `<div style="max-width:520px">${list}</div>`,
-        actions: '<button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>',
-      });
+      showModal(
+        `⭐ 내 즐겨찾기 (${meta.favorites.length}개)`,
+        `<div style="max-width:520px">${list}</div>
+         <div style="margin-top:14px;text-align:right;border-top:1px solid #e5e7eb;padding-top:12px">
+           <button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>
+         </div>`
+      );
     } catch (e) { toast('불러오기 실패', 'error'); }
   }
 

@@ -11,7 +11,7 @@ export const QUERY_LIMITS = {
 } as const
 
 /* helper: parse pagination from query */
-export function parsePagination(c: any, maxLimit = QUERY_LIMITS.LARGE): { limit: number; offset: number; page: number } {
+export function parsePagination(c: any, maxLimit: number = QUERY_LIMITS.LARGE): { limit: number; offset: number; page: number } {
   const limit = Math.min(Math.max(parseInt(c.req.query('limit') || String(QUERY_LIMITS.DEFAULT)) || QUERY_LIMITS.DEFAULT, 1), maxLimit)
   const page = Math.max(parseInt(c.req.query('page') || '1') || 1, 1)
   const offset = parseInt(c.req.query('offset') || '') || (page - 1) * limit
@@ -40,8 +40,8 @@ export function securityHeaders(app: AppType) {
     // CSP - allow CDN resources used by frontend
     c.header('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
       "connect-src 'self'",

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString } from '../lib/middleware'
+import { sanitizeString } from '../lib/middleware'
 const briefing = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 일일 브리핑 자동 생성 ═══ */

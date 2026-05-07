@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { calculateFanScore, classifyLevel, FAN_LEVEL_META, getLevelChangeNotification, type FanLevel } from '../lib/fan-score'
+import { calculateFanScore, FAN_LEVEL_META, getLevelChangeNotification, type FanLevel } from '../lib/fan-score'
 
 const referrals = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -25,7 +25,7 @@ function sanitizeString(s: any, max: number): string {
 
 // GET /api/protected/referrals — 소개 관계 목록
 referrals.get('/', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const limit = Math.min(parseInt(c.req.query('limit') || '500'), 2000)
 
   const result = await c.env.DB.prepare(`
@@ -48,7 +48,7 @@ referrals.get('/', async (c) => {
 
 // POST /api/protected/referrals — 소개 등록
 referrals.post('/', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const body = await c.req.json().catch(() => ({}))
 
   const referrerId = sanitizeString(body.referrer_id, 50)
@@ -98,7 +98,7 @@ referrals.post('/', async (c) => {
 
 // PUT /api/protected/referrals/:id — 소개 정보 수정
 referrals.put('/:id', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
 
@@ -149,7 +149,7 @@ referrals.put('/:id', async (c) => {
 
 // DELETE /api/protected/referrals/:id
 referrals.delete('/:id', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const id = c.req.param('id')
 
   const ref = await c.env.DB.prepare(`
@@ -172,7 +172,7 @@ referrals.delete('/:id', async (c) => {
 // GET /api/protected/referrals/graph
 // 전체 소개 트리를 3D 그래프 데이터로 반환
 referrals.get('/graph', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const minScoreParam = parseInt(c.req.query('min_score') || '0')
   const levelFilter = c.req.query('level') || ''
   const treatmentFilter = c.req.query('treatment') || ''
@@ -271,7 +271,7 @@ referrals.get('/graph', async (c) => {
 
 // GET /api/protected/referrals/fans — 팬 랭킹 TOP N
 referrals.get('/fans', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const limit = Math.min(parseInt(c.req.query('limit') || '50'), 500)
   const level = c.req.query('level') || ''
 
@@ -298,7 +298,7 @@ referrals.get('/fans', async (c) => {
 
 // GET /api/protected/referrals/fans/:patientId — 특정 환자 팬 정보 + 소개한 사람들
 referrals.get('/fans/:patientId', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const patientId = c.req.param('patientId')
 
   const patient = await c.env.DB.prepare(`
@@ -338,7 +338,7 @@ referrals.get('/fans/:patientId', async (c) => {
 
 // POST /api/protected/referrals/fans/recalculate — 전체 재계산
 referrals.post('/fans/recalculate', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
   }
@@ -353,7 +353,7 @@ referrals.post('/fans/recalculate', async (c) => {
 
 // GET /api/protected/referrals/stats
 referrals.get('/stats', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
 
   const total = await c.env.DB.prepare(`
     SELECT COUNT(*) as cnt, SUM(generated_revenue) as revenue
@@ -398,7 +398,7 @@ referrals.get('/stats', async (c) => {
 
 // GET /api/protected/referrals/notifications
 referrals.get('/notifications', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const onlyUnread = c.req.query('unread') === '1'
 
   let sql = `
@@ -426,7 +426,7 @@ referrals.get('/notifications', async (c) => {
 
 // PUT /api/protected/referrals/notifications/:id/read
 referrals.put('/notifications/:id/read', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const id = c.req.param('id')
 
   await c.env.DB.prepare(`
@@ -440,7 +440,7 @@ referrals.put('/notifications/:id/read', async (c) => {
 
 // PUT /api/protected/referrals/notifications/:id/action
 referrals.put('/notifications/:id/action', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
   const note = sanitizeString(body.note || '', 500)
@@ -459,7 +459,7 @@ referrals.put('/notifications/:id/action', async (c) => {
  * ─────────────────────────────────────────────────────────── */
 
 referrals.get('/search-patients', async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
   const q = (c.req.query('q') || '').trim()
   if (q.length < 1) return c.json({ ok: true, patients: [] })
 

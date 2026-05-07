@@ -44,7 +44,14 @@ patients.get('/', async (c) => {
     c.env.DB.prepare(`SELECT id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, desk_staff, addr_sido, addr_sigungu, status, kakao_registered, created_at FROM patients WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...filterParams, limit, offset).all(),
     c.env.DB.prepare(`SELECT COUNT(*) as c FROM patients WHERE ${where}`).bind(...filterParams).first() as Promise<any>,
   ])
-  return c.json({ patients: rows.results, total: cnt?.c || 0 })
+  // 🔒 일반 staff에게는 연락처/생년월일 마스킹 (개인정보보호법 최소권한 원칙)
+  const canSeePII = user.role === 'admin' || user.role === 'manager'
+  const maskPhone = (p: string) => p ? p.replace(/(\d{3})\d{3,4}(\d{4})/, '$1-****-$2') : ''
+  const maskBirth = (b: string) => b && b.length >= 8 ? b.slice(0, 4) + '-**-**' : b
+  const patients = canSeePII
+    ? rows.results
+    : (rows.results as any[]).map(p => ({ ...p, phone: maskPhone(p.phone), birth_date: maskBirth(p.birth_date) }))
+  return c.json({ patients, total: cnt?.c || 0 })
 })
 
 // 환자 자동완성 (상담기록에서 사용) - :id 보다 먼저 선언해야 함
@@ -132,18 +139,18 @@ patients.get('/stats/detailed', async (c) => {
     c.env.DB.prepare(`SELECT gender, COUNT(*) as c FROM patients WHERE ${baseWhere} AND gender != '' GROUP BY gender ORDER BY c DESC`).bind(...params).all(),
   ]
 
-  const results = await Promise.all(queries)
+  const results = await Promise.all(queries) as any[]
   return c.json({
-    total: (results[0] as any)?.c || 0,
-    byPatientType: results[1].results,
-    bySource: results[2].results,
-    byTreatmentArea: results[3].results,
-    bySido: results[4].results,
-    bySigungu: results[5].results,
-    byDoctor: results[6].results,
-    byCounselor: results[7].results,
-    trend: results[8].results,
-    byGender: results[9].results,
+    total: results[0]?.c || 0,
+    byPatientType: results[1]?.results || [],
+    bySource: results[2]?.results || [],
+    byTreatmentArea: results[3]?.results || [],
+    bySido: results[4]?.results || [],
+    bySigungu: results[5]?.results || [],
+    byDoctor: results[6]?.results || [],
+    byCounselor: results[7]?.results || [],
+    trend: results[8]?.results || [],
+    byGender: results[9]?.results || [],
     period, from, to,
   })
 })
@@ -154,9 +161,18 @@ patients.get('/:id', async (c) => {
   const id = c.req.param('id')
   const patient: any = await c.env.DB.prepare('SELECT * FROM patients WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
   if (!patient) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
-  // 상담 이력 연결
-  const consults = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND patient_name=? ORDER BY record_date DESC LIMIT 50').bind(user.hospitalId, patient.patient_name).all()
-  return c.json({ ...patient, consult_history: consults.results })
+  // 상담 이력 연결 (소프트 딜리트 제외)
+  const consults = await c.env.DB.prepare('SELECT * FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND patient_name=? ORDER BY record_date DESC LIMIT 50').bind(user.hospitalId, patient.patient_name).all()
+  // 🔒 권한별 민감정보 마스킹
+  const canSeePII = user.role === 'admin' || user.role === 'manager'
+  const canSeeFinancials = canSeePII
+  const maskPhone = (p: string) => p ? p.replace(/(\d{3})\d{3,4}(\d{4})/, '$1-****-$2') : ''
+  const maskBirth = (b: string) => b && b.length >= 8 ? b.slice(0, 4) + '-**-**' : b
+  const masked = canSeePII ? patient : { ...patient, phone: maskPhone(patient.phone), birth_date: maskBirth(patient.birth_date), address: '', addr_detail: '' }
+  const consultHistory = canSeeFinancials
+    ? consults.results
+    : (consults.results as any[]).map(r => ({ ...r, planned_amount: null, agreed_amount: null, discount_note: null }))
+  return c.json({ ...masked, consult_history: consultHistory })
 })
 
 // 환자 등록
@@ -222,9 +238,19 @@ patients.put('/:id', async (c) => {
 })
 
 // 환자 삭제 (비활성화)
+/**
+ * 🏥 환자 비활성화 (소프트 딜리트) - admin/manager 전용
+ * 의료법: 환자 정보는 5년 보존, 하드 딜리트 금지
+ */
 patients.delete('/:id', async (c) => {
   const user = c.get('user')!
-  await c.env.DB.prepare("UPDATE patients SET status='inactive', updated_at=? WHERE id=? AND hospital_id=?").bind(new Date().toISOString(), c.req.param('id'), user.hospitalId).run()
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '환자 비활성화는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const id = c.req.param('id')
+  const exist: any = await c.env.DB.prepare('SELECT id FROM patients WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  if (!exist) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare("UPDATE patients SET status='inactive', updated_at=? WHERE id=? AND hospital_id=?").bind(new Date().toISOString(), id, user.hospitalId).run()
   return c.json({ success: true })
 })
 

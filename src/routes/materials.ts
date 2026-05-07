@@ -32,7 +32,7 @@ materials.post('/materials', async (c) => {
   const title = sanitizeString(form.get('title') as string || '', 200)
   const categoryId = sanitizeString(form.get('category_id') as string || '', 100)
   const description = sanitizeString(form.get('description') as string || '', 2000)
-  const file = form.get('file') as File
+  const file = form.get('file') as unknown as File
   if (!title || !categoryId || !file) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
   const fv = validateFile(file, 50)
   if (!fv.valid) return c.json({ error: fv.error }, 400)
@@ -154,7 +154,7 @@ materials.post('/cases/:id/images', async (c) => {
   const cs = await c.env.DB.prepare('SELECT id FROM cases WHERE id=? AND hospital_id=?').bind(caseId, user.hospitalId).first()
   if (!cs) return c.json({ error: '케이스를 찾을 수 없습니다' }, 404)
   const form = await c.req.formData()
-  const file = form.get('file') as File
+  const file = form.get('file') as unknown as File
   const imageType = sanitizeString((form.get('image_type') as string) || 'during', 20)
   const caption = sanitizeString((form.get('caption') as string) || '', 500)
   if (!file) return c.json({ error: '파일을 선택해주세요' }, 400)

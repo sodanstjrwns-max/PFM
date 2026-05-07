@@ -16,7 +16,7 @@ complaints.get('/', async (c) => {
   const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
   const offset = (page - 1) * limit
 
-  let where = 'hospital_id=?'
+  let where = 'hospital_id=? AND COALESCE(is_deleted,0)=0'
   const params: any[] = [user.hospitalId]
   if (from) { where += ' AND complaint_date >= ?'; params.push(from) }
   if (to) { where += ' AND complaint_date <= ?'; params.push(to) }
@@ -73,9 +73,20 @@ complaints.put('/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/**
+ * 🏥 컴플레인 기록 삭제 - 소프트 딜리트 + admin/manager 권한
+ * 의료분쟁 발생 시 증거 자료, 하드 딜리트 금지
+ */
 complaints.delete('/:id', async (c) => {
   const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM complaints WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '컴플레인 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const id = c.req.param('id')
+  const exist: any = await c.env.DB.prepare('SELECT id FROM complaints WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  if (!exist) return c.json({ error: '컴플레인을 찾을 수 없습니다' }, 404)
+  await c.env.DB.prepare('UPDATE complaints SET is_deleted=1, deleted_at=?, deleted_by=? WHERE id=? AND hospital_id=?')
+    .bind(new Date().toISOString(), user.id, id, user.hospitalId).run()
   return c.json({ success: true })
 })
 
@@ -88,7 +99,7 @@ complaints.get('/stats', async (c) => {
   if (from && to) { dateFilter = ' AND complaint_date >= ? AND complaint_date <= ?'; params.push(from, to) }
   else if (from) { dateFilter = ' AND complaint_date >= ?'; params.push(from) }
   else if (to) { dateFilter = ' AND complaint_date <= ?'; params.push(to) }
-  const baseWhere = 'hospital_id=?' + dateFilter
+  const baseWhere = 'hospital_id=? AND COALESCE(is_deleted,0)=0' + dateFilter
   const results = await Promise.all([
     c.env.DB.prepare(`SELECT COUNT(*) as total FROM complaints WHERE ${baseWhere}`).bind(...params).first(),
     c.env.DB.prepare(`SELECT part, COUNT(*) as c FROM complaints WHERE ${baseWhere} GROUP BY part ORDER BY c DESC`).bind(...params).all(),

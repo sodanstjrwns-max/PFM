@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 const reviewMgmt = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 리뷰 통합 관리 시스템 ═══ */

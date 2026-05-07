@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody, verifyOwnership } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 
 const community = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 

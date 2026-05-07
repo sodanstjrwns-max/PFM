@@ -10,8 +10,28 @@
 
 import { Hono } from 'hono'
 import type { Bindings } from '../lib/types'
+import { requireRole } from '../lib/middleware'
 
 const reports = new Hono<{ Bindings: Bindings; Variables: { user: any } }>()
+
+/**
+ * 🔒 환자 민감정보 포함 CSV는 admin/manager 전용
+ * (개인정보보호법·의료법 준수, 환자정보 무단 반출 차단)
+ */
+reports.use('/csv/*', requireRole('admin', 'manager'))
+
+/** 감사 로그 기록 (누가 언제 어떤 데이터를 다운로드했는지 추적) */
+async function logExport(c: any, table: string, rowCount: number) {
+  try {
+    const user = c.get('user')
+    await c.env.DB.prepare(
+      'INSERT INTO export_logs (hospital_id, user_id, export_type, table_name, row_count, format) VALUES (?,?,?,?,?,?)'
+    ).bind(user.hospitalId, user.id, 'csv', table, rowCount, 'csv').run()
+  } catch (e) {
+    // 로그 실패해도 다운로드는 진행 (단, 콘솔에 경고)
+    console.error('[AUDIT] export log failed:', table, e)
+  }
+}
 
 /** CSV escape 헬퍼 */
 function csvCell(v: any): string {
@@ -79,6 +99,7 @@ reports.get('/csv/patients', async (c) => {
     { key: 'address', label: '주소' },
     { key: 'memo', label: '메모' },
   ])
+  await logExport(c, 'patients', rows.results?.length || 0)
   return new Response(csv, { headers: attachmentHeaders(`patients_${month || 'all'}.csv`) })
 })
 
@@ -90,7 +111,7 @@ reports.get('/csv/consult', async (c) => {
     .prepare(`SELECT record_date, chart_number, patient_name, doctor_name, counselor_name,
               patient_type, treatment_category, planned_amount, agreed_amount,
               treatment_confirmed, appointment_made, recall_done, notes
-              FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?
+              FROM consult_records WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND record_date LIKE ?
               ORDER BY record_date DESC LIMIT 50000`)
     .bind(user.hospitalId, month + '%')
     .all<any>()
@@ -109,6 +130,7 @@ reports.get('/csv/consult', async (c) => {
     { key: 'recall_done', label: '리콜완료' },
     { key: 'notes', label: '메모' },
   ])
+  await logExport(c, 'consult_records', rows.results?.length || 0)
   return new Response(csv, { headers: attachmentHeaders(`consult_${month}.csv`) })
 })
 
@@ -148,6 +170,7 @@ reports.get('/csv/daily', async (c) => {
     { key: 'avg_wait_time', label: '평균대기(분)' },
     { key: 'notes', label: '특이사항' },
   ])
+  await logExport(c, 'daily_records', rows.results?.length || 0)
   return new Response(csv, { headers: attachmentHeaders(`daily_${month}.csv`) })
 })
 
@@ -159,7 +182,7 @@ reports.get('/csv/calls', async (c) => {
     .prepare(`SELECT call_date, call_type, patient_name, phone, patient_type, staff_name,
               treatment_interest, recognition_path, call_purpose, reservation_status,
               reservation_date, reservation_fulfilled, comment
-              FROM call_records WHERE hospital_id = ? AND call_date LIKE ?
+              FROM call_records WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND call_date LIKE ?
               ORDER BY call_date DESC LIMIT 50000`)
     .bind(user.hospitalId, month + '%')
     .all<any>()
@@ -178,6 +201,7 @@ reports.get('/csv/calls', async (c) => {
     { key: 'reservation_fulfilled', label: '방문여부' },
     { key: 'comment', label: '메모' },
   ])
+  await logExport(c, 'call_records', rows.results?.length || 0)
   return new Response(csv, { headers: attachmentHeaders(`calls_${month}.csv`) })
 })
 
@@ -188,7 +212,7 @@ reports.get('/csv/complaints', async (c) => {
   const rows = await c.env.DB
     .prepare(`SELECT complaint_date, patient_name, part, category, description,
               responder, resolver, resolution, status, severity
-              FROM complaints WHERE hospital_id = ? AND complaint_date LIKE ?
+              FROM complaints WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND complaint_date LIKE ?
               ORDER BY complaint_date DESC`)
     .bind(user.hospitalId, month + '%')
     .all<any>()
@@ -204,6 +228,7 @@ reports.get('/csv/complaints', async (c) => {
     { key: 'status', label: '상태' },
     { key: 'severity', label: '심각도' },
   ])
+  await logExport(c, 'complaints', rows.results?.length || 0)
   return new Response(csv, { headers: attachmentHeaders(`complaints_${month}.csv`) })
 })
 
@@ -264,7 +289,7 @@ reports.get('/monthly-report', async (c) => {
   // 컴플레인 요약
   const complaintSummary = await c.env.DB.prepare(`
     SELECT category, COUNT(*) as cnt
-    FROM complaints WHERE hospital_id = ? AND complaint_date LIKE ?
+    FROM complaints WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND complaint_date LIKE ?
     GROUP BY category ORDER BY cnt DESC LIMIT 10
   `).bind(user.hospitalId, month + '%').all<any>()
 
@@ -275,7 +300,7 @@ reports.get('/monthly-report', async (c) => {
       SUM(CASE WHEN agreed_amount > 0 THEN 1 ELSE 0 END) as agreed,
       COALESCE(SUM(planned_amount), 0) as total_planned,
       COALESCE(SUM(agreed_amount), 0) as total_agreed
-    FROM consult_records WHERE hospital_id = ? AND record_date LIKE ?
+    FROM consult_records WHERE hospital_id = ? AND COALESCE(is_deleted,0)=0 AND record_date LIKE ?
   `).bind(user.hospitalId, month + '%').first()
 
   const conversionRate = (kpi?.total_consult || 0) > 0
@@ -404,7 +429,7 @@ ${target ? `
       <td>매출</td>
       <td>${fmtKRW(target.target_revenue)}</td>
       <td>${fmtKRW(kpi.total_revenue)}</td>
-      <td><span class="target-badge ${targetAchievement >= 100 ? 'target-achieved' : 'target-miss'}">${targetAchievement}%</span></td>
+      <td><span class="target-badge ${(targetAchievement ?? 0) >= 100 ? 'target-achieved' : 'target-miss'}">${targetAchievement ?? 0}%</span></td>
     </tr>
     <tr>
       <td>비급여 비율</td>

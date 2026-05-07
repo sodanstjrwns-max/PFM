@@ -140,7 +140,7 @@ meetings.post('/:id/minutes', async (c) => {
 
 meetings.post('/:id/minutes/upload', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
-  const formData = await c.req.formData(); const file = formData.get('file') as File
+  const formData = await c.req.formData(); const file = formData.get('file') as unknown as File
   if (!file) return c.json({ error: '파일이 없습니다' }, 400)
   const fv = validateFile(file, 20)
   if (!fv.valid) return c.json({ error: fv.error }, 400)

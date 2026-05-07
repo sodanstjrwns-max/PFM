@@ -467,7 +467,7 @@ function renderAuth() {
         <strong>✨ 둘러보러 오셨나요?</strong><br>
         아래 데모 계정으로 <u>3개월치 샘플 데이터</u>를 바로 체험할 수 있습니다
         <div class="demo-creds">
-          <span style="cursor:pointer" onclick="(function(){document.getElementById('authEmail').value='fin2@test.com';document.getElementById('authPassword').value='pfm2026!';})()">📧 fin2@test.com  /  🔑 pfm2026!  <span style="color:#d97706;font-weight:700">(클릭해서 입력)</span></span>
+          <span style="cursor:pointer" onclick="(function(){document.getElementById('authEmail').value='fin2@test.com';document.getElementById('authPassword').value='test1234';})()">📧 fin2@test.com  /  🔑 test1234  <span style="color:#d97706;font-weight:700">(클릭해서 입력)</span></span>
         </div>
       </div>
     </div>
@@ -661,7 +661,7 @@ function renderAuth() {
 function getNavConfig() {
   const isManager = ['admin','manager'].includes(state.user?.role);
   const nav = [
-    { id: 'dashboard', label: '대시보드', icon: ICONS.dashboard },
+    { id: 'dashboard', label: '🏠 대시보드', icon: ICONS.dashboard },
     { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
     {
       id: 'patient_group', label: '👥 환자 관리', icon: ICONS.users,
@@ -669,15 +669,15 @@ function getNavConfig() {
         { id: 'patients', label: '환자 DB', icon: ICONS.users },
         { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
-        { id: 'recall', label: '📞 리콜 자동화', icon: ICONS.phone || ICONS.message },
+        { id: 'recall', label: '리콜 자동화', icon: ICONS.phone || ICONS.message },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
         { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
         { id: 'complaints_stats', label: '컴플레인 통계', icon: ICONS.chart },
-        { id: 'reservations', label: '📅 예약 관리', icon: ICONS.calendar },
-        { id: 'reservation_stats', label: '📅 예약 통계', icon: ICONS.chart },
-        { id: 'wait_times', label: '⏱️ 대기시간 관리', icon: ICONS.clock || ICONS.calendar },
-        { id: 'wait_time_stats', label: '⏱️ 대기시간 통계', icon: ICONS.chart },
+        { id: 'reservations', label: '예약 관리', icon: ICONS.calendar },
+        { id: 'reservation_stats', label: '예약 통계', icon: ICONS.chart },
+        { id: 'wait_times', label: '대기시간 관리', icon: ICONS.clock || ICONS.calendar },
+        { id: 'wait_time_stats', label: '대기시간 통계', icon: ICONS.chart },
       ]
     },
     {
@@ -702,23 +702,23 @@ function getNavConfig() {
       id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
       children: [
         { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
-        ...(isManager ? [{ id: 'weekly_insights', label: '📊 주간 인사이트', icon: ICONS.chart }] : []),
+        ...(isManager ? [{ id: 'weekly_insights', label: '주간 인사이트', icon: ICONS.chart }] : []),
         { id: 'kpi_stats', label: 'KPI 통계', icon: ICONS.chart },
-        { id: 'kpi_benchmark', label: '🏆 벤치마킹', icon: ICONS.chart },
+        { id: 'kpi_benchmark', label: '벤치마킹', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
-        { id: 'reports', label: '📄 월간 보고서', icon: ICONS.edit || ICONS.folder },
+        { id: 'reports', label: '월간 보고서', icon: ICONS.edit || ICONS.folder },
       ]
     },
     {
       id: 'marketing_group', label: '📈 마케팅', icon: ICONS.chart,
       children: [
         { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
-        { id: 'heatmap', label: '🗺️ 유입 히트맵', icon: ICONS.chart },
-        { id: 'review_mgmt', label: '⭐ 리뷰 관리', icon: ICONS.star },
+        { id: 'heatmap', label: '유입 히트맵', icon: ICONS.chart },
+        { id: 'review_mgmt', label: '리뷰 관리', icon: ICONS.star },
         { id: 'reviews', label: '후기 관리', icon: ICONS.star },
         ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
-        ...(isManager ? [{ id: 'kakao', label: '💛 카카오 알림톡', icon: ICONS.message }] : []),
+        ...(isManager ? [{ id: 'kakao', label: '카카오 알림톡', icon: ICONS.message }] : []),
       ]
     },
     {
@@ -726,7 +726,7 @@ function getNavConfig() {
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
-        { id: 'gamification', label: '🏆 성과 게이미피케이션', icon: ICONS.star },
+        { id: 'gamification', label: '성과 게이미피케이션', icon: ICONS.star },
         { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
         { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
@@ -743,8 +743,8 @@ function getNavConfig() {
         { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
-        { id: 'parking', label: '🅿️ 주차권 관리', icon: ICONS.cart },
-        { id: 'parking_stats', label: '🅿️ 주차권 통계', icon: ICONS.chart },
+        { id: 'parking', label: '주차권 관리', icon: ICONS.cart },
+        { id: 'parking_stats', label: '주차권 통계', icon: ICONS.chart },
       ]
     },
     {
@@ -753,10 +753,10 @@ function getNavConfig() {
         { id: 'free', label: '자유게시판', icon: ICONS.edit },
         { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
         { id: 'mistake', label: '실수노트 (자진신고)', icon: ICONS.shield },
-        { id: 'feedback_notes', label: '📚 피드백 노트 (학습자산)', icon: ICONS.edit || ICONS.message },
+        { id: 'feedback_notes', label: '피드백 노트 (학습자산)', icon: ICONS.edit || ICONS.message },
       ]
     },
-    { id: 'messenger', label: '💬 메신저', icon: ICONS.message, hidden: true },
+    { id: 'messenger', label: '💌 메신저', icon: ICONS.message, hidden: true },
     { id: 'pf_index', label: '📊 페이션트 인덱스', icon: ICONS.chart || ICONS.dashboard },
     { id: 'knowledge', label: '📚 PF 지식베이스', icon: ICONS.materials || ICONS.folder },
     { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users || ICONS.chart },
