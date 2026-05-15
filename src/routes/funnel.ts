@@ -350,4 +350,248 @@ funnel.delete('/:id', async (c) => {
   return c.json({ success: true })
 })
 
+/* ═══════════════════════════════════════════════════════════
+ * 🏆 페이션트 퍼널 10단계 자동 채점 (Signature Feature)
+ *  - 환자 데이터 기반으로 10단계 통과율 산출
+ *  - 가중 합산 → 0~100점 (병원 페이션트 퍼널 점수)
+ *  - 단계별 약점 식별 + 액션 제안
+ * ═══════════════════════════════════════════════════════════ */
+
+// 페이션트 퍼널 10단계 정의 (문석준 모델)
+const PF_STAGES_META = [
+  { key: 'awareness',    no: 1,  label: '인지',   icon: '📡', weight: 8,  desc: '병원을 처음 알게 된 환자 수 (콜 인입)' },
+  { key: 'interest',     no: 2,  label: '관심',   icon: '🔍', weight: 10, desc: '관심을 갖고 환자 등록까지 진행' },
+  { key: 'appointment',  no: 3,  label: '예약',   icon: '📅', weight: 12, desc: '예약을 잡은 환자' },
+  { key: 'visit',        no: 4,  label: '방문',   icon: '🏥', weight: 12, desc: '실제 내원한 환자 (no-show 제외)' },
+  { key: 'waiting',      no: 5,  label: '대기',   icon: '⏱️', weight: 6,  desc: '내원 후 대기 경험 (이탈 없이 진료실 진입)' },
+  { key: 'diagnosis',    no: 6,  label: '진단',   icon: '🔬', weight: 8,  desc: '진단 완료 (진료 시작 시점)' },
+  { key: 'consultation', no: 7,  label: '상담',   icon: '💬', weight: 12, desc: '상담 후 동의금액 입력' },
+  { key: 'treatment',    no: 8,  label: '진료',   icon: '🦷', weight: 12, desc: '진료 완료 및 결제' },
+  { key: 'management',   no: 9,  label: '관리',   icon: '🔔', weight: 10, desc: '재방문 / 리콜 / 리뷰 작성' },
+  { key: 'referral',     no: 10, label: '소개',   icon: '🌟', weight: 10, desc: '소개 발생 (가장 어려운 단계)' },
+] as const
+
+/**
+ * 10단계 자동 채점 GET /api/protected/funnel/score
+ * Query: ?period=month|quarter|all (default: month)
+ *
+ * 산출 로직:
+ *  - 단계별 통과 인원 / 이전 단계 통과 인원 = 통과율 (0~1)
+ *  - 통과율 × 단계 가중치 = 단계 점수
+ *  - 단계 점수 합계 = 페이션트 퍼널 점수 (0~100)
+ *  - 가중치 합계가 100이 되도록 설계됨 (8+10+12+12+6+8+12+12+10+10=100)
+ */
+funnel.get('/score', async (c) => {
+  const user = c.get('user')!
+  const period = sanitizeString(c.req.query('period') || 'month', 10)
+  const hid = user.hospitalId
+
+  // 기간 필터 계산
+  const now = new Date()
+  let dateFrom = ''
+  if (period === 'month') {
+    dateFrom = now.toISOString().slice(0, 7) + '-01'
+  } else if (period === 'quarter') {
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+    dateFrom = qStart.toISOString().slice(0, 10)
+  } else {
+    dateFrom = '1970-01-01'
+  }
+
+  // 각 단계 실측 카운트 (병렬 조회) — 환자 데이터로부터 실제 통과한 사람 수 측정
+  const [
+    callsCnt,         // 1. 인지: 인바운드 콜
+    patientsCnt,      // 2. 관심: 환자 등록
+    apptCnt,          // 3. 예약: 예약 생성
+    visitedCnt,       // 4. 방문: 첫 내원 발생
+    waitingPassCnt,   // 5. 대기: 진료 시작 (대기 통과)
+    diagnosedCnt,     // 6. 진단: 진단 완료된 환자
+    consultCnt,       // 7. 상담: 상담 후 동의금액 > 0
+    treatedCnt,       // 8. 진료: 진료 완료 (결제 완료)
+    revisitCnt,       // 9. 관리: 2회 이상 방문
+    referredCnt,      // 10. 소개: 소개 발생
+  ] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM call_records WHERE hospital_id=? AND call_type='inbound' AND call_date >= ?`
+    ).bind(hid, dateFrom).first<any>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM patients WHERE hospital_id=? AND created_at >= ?`
+    ).bind(hid, dateFrom).first<any>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(DISTINCT id) AS c FROM patients WHERE hospital_id=? AND first_visit_date >= ?`
+    ).bind(hid, dateFrom).first<any>().catch(() => ({ c: 0 })),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM patients WHERE hospital_id=? AND visit_count >= 1 AND first_visit_date >= ?`
+    ).bind(hid, dateFrom).first<any>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM patients WHERE hospital_id=? AND visit_count >= 1 AND first_visit_date >= ?`
+    ).bind(hid, dateFrom).first<any>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND consult_date >= ?`
+    ).bind(hid, dateFrom).first<any>().catch(() => ({ c: 0 })),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND agreed_amount > 0 AND consult_date >= ?`
+    ).bind(hid, dateFrom).first<any>().catch(() => ({ c: 0 })),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0 AND status IN ('payment','treatment','completed') AND consult_date >= ?`
+    ).bind(hid, dateFrom).first<any>().catch(() => ({ c: 0 })),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM patients WHERE hospital_id=? AND visit_count >= 2`
+    ).bind(hid).first<any>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM patients WHERE hospital_id=? AND referrer_name IS NOT NULL AND referrer_name != '' AND created_at >= ?`
+    ).bind(hid, dateFrom).first<any>(),
+  ])
+
+  const counts = [
+    Number(callsCnt?.c || 0),
+    Number(patientsCnt?.c || 0),
+    Number(apptCnt?.c || 0),
+    Number(visitedCnt?.c || 0),
+    Number(waitingPassCnt?.c || 0),
+    Number(diagnosedCnt?.c || 0),
+    Number(consultCnt?.c || 0),
+    Number(treatedCnt?.c || 0),
+    Number(revisitCnt?.c || 0),
+    Number(referredCnt?.c || 0),
+  ]
+
+  // 단계별 통과율 계산 (이전 단계 대비)
+  // 1단계는 baseline이라 통과율 100%로 처리
+  const stages = PF_STAGES_META.map((meta, idx) => {
+    const current = counts[idx]
+    const previous = idx === 0 ? current : counts[idx - 1]
+    const passRate = previous === 0 ? 0 : Math.min(current / previous, 1)
+    const stageScore = Math.round(passRate * meta.weight * 100) / 100
+    
+    // 단계별 색상 & 액션 제안
+    let color = '#10b981' // green
+    let action = ''
+    if (passRate < 0.3) {
+      color = '#ef4444'  // red - 심각
+      action = getActionAdvice(meta.key, 'critical')
+    } else if (passRate < 0.6) {
+      color = '#f59e0b'  // amber - 주의
+      action = getActionAdvice(meta.key, 'warning')
+    } else if (passRate < 0.85) {
+      color = '#3b82f6'  // blue - 개선여지
+      action = getActionAdvice(meta.key, 'improve')
+    } else {
+      action = getActionAdvice(meta.key, 'good')
+    }
+
+    return {
+      no: meta.no,
+      key: meta.key,
+      label: meta.label,
+      icon: meta.icon,
+      desc: meta.desc,
+      weight: meta.weight,
+      count: current,
+      previousCount: idx === 0 ? null : counts[idx - 1],
+      passRate: Math.round(passRate * 1000) / 10, // %로 표기 (소수1)
+      score: stageScore,
+      color,
+      action,
+    }
+  })
+
+  const totalScore = Math.round(stages.reduce((s, st) => s + st.score, 0) * 10) / 10
+
+  // 등급 분류
+  const grade = totalScore >= 85 ? { label: '최상위', emoji: '🏆', color: '#fbbf24', desc: '페이션트 퍼널 마스터 — 페이션트 퍼널 모범 사례' }
+              : totalScore >= 70 ? { label: '우수',   emoji: '🥇', color: '#10b981', desc: '안정적인 환자 여정 — 추가 최적화 여지' }
+              : totalScore >= 55 ? { label: '양호',   emoji: '🥈', color: '#3b82f6', desc: '평균 이상 — 약한 단계 집중 개선 필요' }
+              : totalScore >= 40 ? { label: '보통',   emoji: '🥉', color: '#f59e0b', desc: '개선 시급 — 페이션트 퍼널 체계 재정비 권장' }
+              :                    { label: '미흡',   emoji: '⚠️',  color: '#ef4444', desc: '전반적 재설계 필요 — 페이션트 퍼널 교육 수강 강력 권장' }
+
+  // 가장 약한 단계 TOP 3
+  const weakest = [...stages]
+    .filter(s => s.no > 1) // 1단계는 baseline 제외
+    .sort((a, b) => a.passRate - b.passRate)
+    .slice(0, 3)
+
+  return c.json({
+    period,
+    dateFrom,
+    score: totalScore,           // 0~100
+    grade,
+    stages,
+    weakest,
+    summary: {
+      totalCalls: counts[0],
+      totalPatients: counts[1],
+      conversionFunnel: counts[0] > 0 ? Math.round((counts[7] / counts[0]) * 1000) / 10 : 0, // 콜→진료완료 최종 전환율
+      referralRate: counts[1] > 0 ? Math.round((counts[9] / counts[1]) * 1000) / 10 : 0,
+    }
+  })
+})
+
+/** 단계별 액션 제안 (상태에 따라 자동 메시지) */
+function getActionAdvice(stage: string, level: 'critical' | 'warning' | 'improve' | 'good'): string {
+  const advice: Record<string, Record<string, string>> = {
+    awareness: {
+      critical: '⚠️ 콜 인입 자체가 부족합니다. 광고/마케팅 채널 점검 + 키워드 분석 우선',
+      warning: '광고 채널별 ROI 분석 → 효율 낮은 채널 정리, 신규 유입 채널 테스트',
+      improve: '유입 경로별 콜 품질 측정해서 고품질 채널 비중 확대',
+      good: '✅ 인지 단계 양호 — 다음 단계 전환율 집중',
+    },
+    interest: {
+      critical: '⚠️ 콜은 들어오지만 환자 등록까지 이어지지 않음. 상담사 응대 스크립트 재검토',
+      warning: '인바운드 콜 시 환자 정보 입력 누락이 많습니다. 등록 의무화 정책 검토',
+      improve: '관심을 환자 등록으로 전환하는 클로징 멘트 강화',
+      good: '✅ 콜 → 등록 전환 양호',
+    },
+    appointment: {
+      critical: '⚠️ 등록은 되는데 예약이 안 잡힙니다. 캘린더 가시성/예약 동기부여 점검',
+      warning: '예약 안내 타이밍/방식 개선 — 콜 종료 전 예약 확정 의무화',
+      improve: '예약 미확정 환자에게 24시간 내 재안내 SOP 구축',
+      good: '✅ 예약 전환 양호',
+    },
+    visit: {
+      critical: '⚠️ 예약은 잡혔으나 No-show 비율 심각. 리마인더 시스템 재점검',
+      warning: '카카오톡 리마인더 D-1, D-당일 자동 발송 활성화 권장',
+      improve: '주말/평일 예약별 no-show 패턴 분석 → 차별화된 리마인더',
+      good: '✅ 방문 전환 양호',
+    },
+    waiting: {
+      critical: '⚠️ 내원 후 대기 중 이탈이 큽니다. 대기시간 측정 + 안내 시스템 도입',
+      warning: '평균 대기시간 점검 — 15분 초과 시 양해 인사 SOP 적용',
+      improve: '대기 환자 만족도 설문 도입',
+      good: '✅ 대기 단계 양호',
+    },
+    diagnosis: {
+      critical: '⚠️ 대기까지 통과한 환자가 진단까지 못 갑니다. 진료 흐름 재점검',
+      warning: '진단 단계 기록 누락 가능성 — 진료 노트 의무화',
+      improve: '진단 후 상담 연결 동선 최적화',
+      good: '✅ 진단 단계 양호',
+    },
+    consultation: {
+      critical: '⚠️ 진단은 됐는데 상담 동의가 안 됩니다. 상담사 역량 점검 + 견적 설명 방식 재설계',
+      warning: '동의율이 낮습니다. 견적 시각화 자료(사례 사진/비교표) 도입 권장',
+      improve: '상담 시간 평균 20분 이상 확보 + 침묵의 클로징 기법 적용',
+      good: '✅ 상담 동의 단계 양호',
+    },
+    treatment: {
+      critical: '⚠️ 동의는 받았는데 결제까지 안 갑니다. 결제 안내 타이밍/방식 점검',
+      warning: '결제 단계 이탈 발생 — 분납/카드 옵션 다양화 검토',
+      improve: '결제 후 first follow-up 24시간 내 강화',
+      good: '✅ 진료/결제 단계 양호',
+    },
+    management: {
+      critical: '⚠️ 재방문/리콜이 안 됩니다. 사후 관리 시스템 부재 — 즉시 구축 필요',
+      warning: '리콜 발송률 점검 — 진료 후 D+30, D+90, D+180 자동화 권장',
+      improve: '환자별 맞춤 리콜 메시지 + 정기 검진 안내 시스템',
+      good: '✅ 사후 관리 단계 양호',
+    },
+    referral: {
+      critical: '⚠️ 소개가 거의 없습니다. 환자 만족도 점검 + 소개 유도 시스템 필요',
+      warning: '소개 환자 인센티브/감사 시스템 도입 권장',
+      improve: '팬 등급 환자 발굴 → 개별 소개 부탁 캠페인',
+      good: '🌟 소개 단계 우수 — 페이션트 퍼널 완성형',
+    },
+  }
+  return advice[stage]?.[level] || ''
+}
+
 export default funnel

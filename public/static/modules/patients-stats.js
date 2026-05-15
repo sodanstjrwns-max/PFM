@@ -355,7 +355,94 @@ async function renderPatientsStats(body, actions) {
   await loadStats();
 }
 
+/* ════════════════════════════════════════════════
+   👑 LTV 랭킹 (C-3: 통계 기반, AI 호출 없음)
+   ════════════════════════════════════════════════ */
+const LTV_TIER_COLORS = {
+  VIP:     { bg:'#f5f3ff', color:'#7c3aed', border:'#c4b5fd', icon:'👑' },
+  GOLD:    { bg:'#fffbeb', color:'#d97706', border:'#fde68a', icon:'🏆' },
+  SILVER:  { bg:'#f0f9ff', color:'#0369a1', border:'#bae6fd', icon:'🥈' },
+  REGULAR: { bg:'#f8fafc', color:'#475569', border:'#cbd5e1', icon:'👤' },
+};
+
+async function renderLtvRanking(body, actions) {
+  actions.innerHTML = '<button class="btn btn-sm" onclick="PFM.navigate(\'patients_stats\')">📊 환자 통계</button>';
+  body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
+
+  try {
+    const data = await api('/api/protected/ai/ltv-ranking?limit=50');
+    const ranking = data.ranking || [];
+
+    if (ranking.length === 0) {
+      body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:48px;margin-bottom:16px">👑</div><h3>LTV 데이터가 충분하지 않습니다</h3><p style="font-size:13px">상담 기록이 누적되면 자동으로 랭킹이 생성됩니다.</p></div>';
+      return;
+    }
+
+    // 등급별 카운트
+    const tierCount = { VIP:0, GOLD:0, SILVER:0, REGULAR:0 };
+    ranking.forEach(r => { tierCount[r.tier] = (tierCount[r.tier]||0) + 1; });
+
+    body.innerHTML = `
+      <div style="margin-bottom:16px">
+        <h2 style="margin:0 0 6px;font-size:20px;font-weight:900">👑 환자 LTV 랭킹 TOP ${ranking.length}</h2>
+        <div style="font-size:12px;color:var(--text-muted)">누적 동의금액 + 내원횟수 + 소개 기여도 종합 (개별 환자 → AI 상세분석은 환자 상세에서)</div>
+      </div>
+
+      <!-- 등급 요약 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">
+        ${['VIP','GOLD','SILVER','REGULAR'].map(t => {
+          const m = LTV_TIER_COLORS[t];
+          return `<div style="background:${m.bg};border:1px solid ${m.border};border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:20px">${m.icon}</div>
+            <div style="font-weight:900;font-size:18px;color:${m.color}">${tierCount[t]||0}</div>
+            <div style="font-size:11px;color:${m.color};font-weight:700">${t}</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- 랭킹 테이블 -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:var(--bg-hover)">
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)">#</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)">등급</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)">환자명</th>
+              <th class="tbl-cell">차트번호</th>
+              <th class="tbl-cell">내원</th>
+              <th class="tbl-cell">누적 동의</th>
+              <th class="tbl-cell">소개</th>
+              <th class="tbl-cell">유입</th>
+              <th class="tbl-cell">최근내원</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ranking.map(r => {
+              const m = LTV_TIER_COLORS[r.tier] || LTV_TIER_COLORS.REGULAR;
+              return `<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="PFM.modules.patients?.openPatientDetail?.('${r.id}', null, ()=>{})">
+                <td style="padding:8px 12px;font-weight:900;color:#64748b">${r.rank}</td>
+                <td style="padding:8px 12px"><span style="background:${m.bg};color:${m.color};border:1px solid ${m.border};padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px">${m.icon} ${r.tier}</span></td>
+                <td style="padding:8px 12px;font-weight:700">${esc(r.patient_name)}</td>
+                <td class="tbl-cell">${r.chart_number || '-'}</td>
+                <td class="tbl-cell">${r.visit_count || 1}회</td>
+                <td class="tbl-cell" style="font-weight:700;color:${m.color}">${((r.total_agreed||0)/10000).toLocaleString()}만</td>
+                <td class="tbl-cell">${r.referral_count > 0 ? `<span style="color:#16a34a;font-weight:700">${r.referral_count}명</span>` : '-'}</td>
+                <td class="tbl-cell">${r.visit_source || '-'}</td>
+                <td class="tbl-cell">${r.last_visit_date ? r.last_visit_date.slice(0,10) : '-'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:12px;font-size:11px;color:var(--text-muted);text-align:center">💡 환자 행 클릭 → 상세 모달 → AI LTV 분석 가능</div>
+    `;
+  } catch(e) {
+    body.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">LTV 랭킹을 불러올 수 없습니다: ${e.message || ''}</div>`;
+  }
+}
+
 // ═══ 모듈 등록 ═══
-PFM.modules.patientsStats = { renderPatientsStats: renderPatientsStats };
+PFM.modules.patientsStats = { renderPatientsStats: renderPatientsStats, renderLtvRanking: renderLtvRanking };
 
 })(window.PFM);

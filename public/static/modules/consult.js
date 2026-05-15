@@ -70,6 +70,7 @@ async function renderConsultRecords(body, actions) {
   actions.innerHTML = `
     ${isManager ? '<button class="btn btn-primary btn-sm" id="addConsultBtn">➕ 상담 기록</button>' : ''}
     <button class="btn btn-sm" onclick="PFM.navigate('consult_dashboard')" style="margin-left:6px">📊 분석</button>
+    ${isManager ? '<button class="btn btn-sm" id="seedConsultBtn" style="margin-left:6px;background:#fef3c7;border-color:#fcd34d;color:#92400e">✨ 샘플 데이터</button>' : ''}
   `;
   
   body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
@@ -88,6 +89,24 @@ async function renderConsultRecords(body, actions) {
   
   document.getElementById('addConsultBtn')?.addEventListener('click', () => {
     openRecordForm(null, staffData, async () => { await loadRecords(currentMonth); });
+  });
+  
+  // ✨ 상담기록 샘플 데이터 주입
+  document.getElementById('seedConsultBtn')?.addEventListener('click', async () => {
+    if (!confirm('최근 90일치 상담기록 샘플 30건을 주입합니다.\n(이미 5건 이상 있으면 차단됩니다)\n\n진행할까요?')) return;
+    const btn = document.getElementById('seedConsultBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 주입 중...';
+    try {
+      const res = await api('/api/protected/onboarding/seed-consult-sample', { method: 'POST' });
+      toast(res.message || `상담기록 ${res.inserted}건 주입 완료!`, 'success');
+      await loadRecords(currentMonth);
+    } catch (e) {
+      toast(e.message || '샘플 주입 실패', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '✨ 샘플 데이터';
+    }
   });
 }
 
@@ -862,6 +881,9 @@ function renderDashboardContent(body, data, month, isManager, reload) {
     <!-- 📚 노하우 카드 추천 (확정률 낮을 때 자동 노출) -->
     <div id="consultKbRecommend" style="margin-bottom:20px"></div>
 
+    <!-- 🤖 AI 상담 인사이트 (GPT 분석) -->
+    <div id="consultAiInsight" style="margin-bottom:20px"></div>
+
     <!-- 상담사별 분석 -->
     <div class="section-title">👩‍⚕️ <span>상담사별 분석</span></div>
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow-x:auto;margin-bottom:20px">
@@ -1127,11 +1149,148 @@ async function loadConsultKnowledgeRecommend(summary) {
   }
 }
 
+/* ════════════════════════════════════════════════
+   🤖 AI 상담 인사이트 (C-2: GPT-4o-mini 분석)
+   ════════════════════════════════════════════════ */
+async function loadConsultAiInsight(month, summary) {
+  const slot = document.getElementById('consultAiInsight');
+  if (!slot) return;
+
+  const total = Number(summary?.total ?? 0);
+  // 표본 너무 작으면(<5건) AI 호출 안 함 — 비용/품질 모두 안 좋음
+  if (total < 5) { slot.innerHTML = ''; return; }
+
+  // 초기 상태: 분석 버튼만 (자동 호출 X — 비용 통제)
+  slot.innerHTML = `
+    <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🤖</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px;color:#3730a3">AI 상담 인사이트</div>
+        <div style="font-size:12px;color:#4338ca;margin-top:2px">${month.replace('-','년 ')}월 상담 ${total}건을 GPT가 분석해드려요 (강점/약점/액션 + 상담사별 코칭)</div>
+      </div>
+      <button id="consultAiRunBtn" class="btn btn-sm" style="background:#4f46e5;color:#fff;border:none;font-weight:700">✨ 분석 시작</button>
+    </div>
+  `;
+
+  document.getElementById('consultAiRunBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('consultAiRunBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 분석 중...'; }
+    slot.innerHTML = `
+      <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:12px;padding:20px;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🤖</div>
+        <div style="font-weight:700;color:#3730a3;margin-bottom:4px">GPT-4o-mini가 분석 중입니다...</div>
+        <div style="font-size:12px;color:#6366f1">상담 데이터를 읽고 인사이트를 정리하고 있어요 (5~15초)</div>
+        <div style="margin-top:12px"><span class="loading-spinner"></span></div>
+      </div>
+    `;
+
+    try {
+      const data = await api(`/api/protected/ai/consult-insight?month=${month}`);
+      renderConsultAiInsight(slot, data, month);
+    } catch (e) {
+      slot.innerHTML = `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px 18px">
+          <div style="font-weight:700;color:#991b1b;margin-bottom:4px">⚠️ AI 분석 실패</div>
+          <div style="font-size:12px;color:#7f1d1d">${esc(e.message || '알 수 없는 오류')}</div>
+          <div style="font-size:11px;color:#991b1b;margin-top:6px">설정 → AI에서 OpenAI 키가 등록되어 있는지 확인해주세요.</div>
+        </div>
+      `;
+    }
+  });
+}
+
+function renderConsultAiInsight(slot, data, month) {
+  const ai = data?.ai || {};
+  const stats = data?.stats || {};
+  const cached = data?.cached ? '<span style="background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;margin-left:6px">💾 캐시</span>' : '';
+  const trendIcon = ai.trend === 'up' ? '📈' : ai.trend === 'down' ? '📉' : '➡️';
+  const trendColor = ai.trend === 'up' ? '#16a34a' : ai.trend === 'down' ? '#dc2626' : '#64748b';
+
+  const strengths = Array.isArray(ai.strengths) ? ai.strengths : [];
+  const weaknesses = Array.isArray(ai.weaknesses) ? ai.weaknesses : [];
+  const actions = Array.isArray(ai.actions) ? ai.actions : [];
+  const counselorAdvice = Array.isArray(ai.counselorAdvice) ? ai.counselorAdvice : [];
+
+  slot.innerHTML = `
+    <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:14px;padding:18px 20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span style="font-size:24px">🤖</span>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:15px;color:#3730a3">AI 상담 인사이트 ${cached}</div>
+          <div style="font-size:11px;color:#6366f1;margin-top:2px">${month.replace('-','년 ')}월 · GPT-4o-mini 분석</div>
+        </div>
+        <button id="consultAiRefreshBtn" class="btn btn-sm" style="background:#fff;color:#4f46e5;border:1px solid #c7d2fe">🔄 새로고침</button>
+      </div>
+
+      <!-- 요약 -->
+      <div style="background:#fff;border:1px solid #e0e7ff;border-radius:10px;padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:18px">${trendIcon}</span>
+          <span style="font-weight:700;font-size:13px;color:${trendColor}">한 줄 요약</span>
+        </div>
+        <div style="font-size:13px;color:#1e293b;line-height:1.6">${esc(ai.summary || '요약 없음')}</div>
+      </div>
+
+      <!-- 강점/약점 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px">
+        <div style="background:#fff;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px">
+          <div style="font-weight:700;font-size:12px;color:#15803d;margin-bottom:8px">✅ 강점</div>
+          ${strengths.length ? `<ul style="margin:0;padding-left:18px;font-size:12px;color:#166534;line-height:1.7">${strengths.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '<div style="font-size:11px;color:#6b7280">데이터 부족</div>'}
+        </div>
+        <div style="background:#fff;border:1px solid #fecaca;border-radius:10px;padding:12px 14px">
+          <div style="font-weight:700;font-size:12px;color:#b91c1c;margin-bottom:8px">⚠️ 약점</div>
+          ${weaknesses.length ? `<ul style="margin:0;padding-left:18px;font-size:12px;color:#991b1b;line-height:1.7">${weaknesses.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '<div style="font-size:11px;color:#6b7280">없음</div>'}
+        </div>
+      </div>
+
+      <!-- 액션 아이템 -->
+      ${actions.length ? `
+        <div style="background:#fff;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:12px">
+          <div style="font-weight:700;font-size:12px;color:#a16207;margin-bottom:8px">🎯 이번 주 액션 (우선순위순)</div>
+          <ol style="margin:0;padding-left:20px;font-size:12px;color:#854d0e;line-height:1.7">
+            ${actions.map(a => `<li style="margin-bottom:4px"><strong>${esc(a)}</strong></li>`).join('')}
+          </ol>
+        </div>
+      ` : ''}
+
+      <!-- 상담사별 코칭 -->
+      ${counselorAdvice.length ? `
+        <div style="background:#fff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 14px">
+          <div style="font-weight:700;font-size:12px;color:#4338ca;margin-bottom:10px">👩‍⚕️ 상담사별 코칭</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+            ${counselorAdvice.map(ca => `
+              <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px 12px">
+                <div style="font-weight:700;font-size:12px;color:#5b21b6;margin-bottom:4px">${esc(ca.name || '상담사')}</div>
+                <div style="font-size:11px;color:#6d28d9;line-height:1.6">${esc(ca.advice || '')}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  document.getElementById('consultAiRefreshBtn')?.addEventListener('click', async () => {
+    // 강제 새로고침 — 캐시 무시 파라미터
+    slot.innerHTML = '<div class="mod-empty" style="padding:20px"><span class="loading-spinner"></span> AI 재분석 중...</div>';
+    try {
+      const fresh = await api(`/api/protected/ai/consult-insight?month=${month}&nocache=1`);
+      renderConsultAiInsight(slot, fresh, month);
+    } catch (e) {
+      // 실패 시 원본 다시 표시
+      renderConsultAiInsight(slot, data, month);
+    }
+  });
+}
+
 // renderDashboardContent 호출 후 위젯 자동 로드
 const _origRenderDashboardContent = renderDashboardContent;
 renderDashboardContent = function(body, data, month, isManager, reload) {
   _origRenderDashboardContent(body, data, month, isManager, reload);
-  if (data?.summary) loadConsultKnowledgeRecommend(data.summary);
+  if (data?.summary) {
+    loadConsultKnowledgeRecommend(data.summary);
+    loadConsultAiInsight(month, data.summary);
+  }
 };
 
 PFM.modules.consult = { renderConsultRecords, renderConsultDashboard };

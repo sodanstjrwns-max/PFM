@@ -40,6 +40,7 @@ import insightsRoute from './routes/insights'
 import pfIndexRoute from './routes/pf-index'
 import knowledgeRoute from './routes/knowledge'
 import referralsRoute from './routes/referrals'
+import aiRoute from './routes/ai'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -162,6 +163,7 @@ app.route('/api/protected/insights', insightsRoute)   // v3.5 주간 인사이�
 app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스 (매주 월요일 설문)
 app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (원장님 6권 노하우 카드)
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
+app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness

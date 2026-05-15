@@ -29,7 +29,7 @@ auth.post('/register', async (c) => {
   return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName, onboardingCompleted: false } })
 })
 
-/* ─── Staff Join (invite code) ─── */
+/* ─── Staff Join (invite code) - v2: 다인용 코드 + 취소 상태 체크 ─── */
 auth.post('/join', async (c) => {
   const { invite_code, email, password, name, phone, position, team, work_schedule } = await c.req.json()
   const missing = validateRequired({ invite_code, email, password, name }, ['invite_code', 'email', 'password', 'name'])
@@ -39,9 +39,16 @@ auth.post('/join', async (c) => {
 
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(sanitizeString(email, 200)).first()
   if (existing) return c.json({ error: '이미 등록된 이메일입니다' }, 400)
-  const invite: any = await c.env.DB.prepare('SELECT * FROM staff_invites WHERE invite_code=? AND used_by IS NULL').bind(invite_code).first()
-  if (!invite) return c.json({ error: '유효하지 않거나 사용된 초대코드입니다' }, 400)
+
+  const codeUpper = sanitizeString(invite_code, 20).toUpperCase()
+  const invite: any = await c.env.DB.prepare('SELECT * FROM staff_invites WHERE invite_code=?').bind(codeUpper).first()
+  if (!invite) return c.json({ error: '유효하지 않은 초대코드입니다' }, 400)
+  if (invite.status === 'revoked') return c.json({ error: '취소된 초대코드입니다' }, 400)
   if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
+  const maxUses = invite.max_uses || 1
+  const useCount = invite.use_count || 0
+  if (useCount >= maxUses) return c.json({ error: '사용 횟수를 모두 소진한 초대코드입니다' }, 400)
+
   const uid = crypto.randomUUID()
   const hash = await hashPassword(password)
   const pos = sanitizeString(position || invite.position || '', 100)
@@ -51,7 +58,22 @@ auth.post('/join', async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO users (id, hospital_id, email, password_hash, name, role, position, team, phone, hire_date, work_schedule) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(uid, invite.hospital_id, sanitizeString(email, 200), hash, sanitizeString(name, 100), invite.role||'staff', pos, tm, sanitizeString(phone||'', 20), hireDate, ws).run()
-  await c.env.DB.prepare('UPDATE staff_invites SET used_by=? WHERE id=?').bind(uid, invite.id).run()
+
+  // 사용 이력 기록 (다인용 코드 추적용)
+  const useId = 'iu-' + crypto.randomUUID().slice(0,8)
+  await c.env.DB.prepare(
+    'INSERT INTO staff_invite_uses (id, invite_id, user_id, hospital_id) VALUES (?,?,?,?)'
+  ).bind(useId, invite.id, uid, invite.hospital_id).run()
+
+  // 사용 횟수 증가 + 단일 코드면 used_by 갱신 + 소진 시 status 변경
+  const newCount = useCount + 1
+  const newStatus = newCount >= maxUses ? 'used_up' : 'active'
+  if (maxUses === 1) {
+    await c.env.DB.prepare('UPDATE staff_invites SET used_by=?, use_count=?, status=? WHERE id=?').bind(uid, newCount, newStatus, invite.id).run()
+  } else {
+    await c.env.DB.prepare('UPDATE staff_invites SET use_count=?, status=? WHERE id=?').bind(newCount, newStatus, invite.id).run()
+  }
+
   const hospital: any = await c.env.DB.prepare('SELECT name FROM hospitals WHERE id=?').bind(invite.hospital_id).first()
   const role = invite.role || 'staff'
   const secret = getJwtSecret(c.env.JWT_SECRET)
@@ -59,13 +81,28 @@ auth.post('/join', async (c) => {
   return c.json({ token, user: { id: uid, hospitalId: invite.hospital_id, email, name, role, hospitalName: hospital?.name } })
 })
 
-/* ─── Validate invite code ─── */
+/* ─── Validate invite code - v2 ─── */
 auth.get('/invite/:code', async (c) => {
-  const code = c.req.param('code')
-  const invite: any = await c.env.DB.prepare('SELECT si.*, h.name as hospital_name FROM staff_invites si JOIN hospitals h ON si.hospital_id=h.id WHERE si.invite_code=? AND si.used_by IS NULL').bind(code).first()
+  const code = c.req.param('code').toUpperCase()
+  const invite: any = await c.env.DB.prepare(
+    'SELECT si.*, h.name as hospital_name FROM staff_invites si JOIN hospitals h ON si.hospital_id=h.id WHERE si.invite_code=?'
+  ).bind(code).first()
   if (!invite) return c.json({ error: '유효하지 않은 초대코드입니다' }, 404)
+  if (invite.status === 'revoked') return c.json({ error: '취소된 초대코드입니다' }, 400)
   if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
-  return c.json({ hospital_name: invite.hospital_name, role: invite.role, position: invite.position, team: invite.team })
+  const maxUses = invite.max_uses || 1
+  const useCount = invite.use_count || 0
+  if (useCount >= maxUses) return c.json({ error: '사용 횟수를 모두 소진한 초대코드입니다' }, 400)
+  return c.json({
+    hospital_name: invite.hospital_name,
+    role: invite.role,
+    position: invite.position,
+    team: invite.team,
+    max_uses: maxUses,
+    use_count: useCount,
+    remaining: maxUses - useCount,
+    expires_at: invite.expires_at,
+  })
 })
 
 /* ─── Login (with rate limiting) ─── */

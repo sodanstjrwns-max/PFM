@@ -422,6 +422,103 @@ body.app-loaded {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+/* ═══ A안 v2: 깔끔한 SaaS 리디자인 (거대한 SVG 제거) ═══ */
+.auth-wordmark-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 36px;
+  position: relative;
+  z-index: 2;
+}
+.auth-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #5eead4 0%, #14b8a6 100%);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #0f172a;
+  box-shadow: 0 4px 14px rgba(94, 234, 212, 0.35);
+  box-sizing: border-box;
+}
+.auth-brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #ffffff;
+  white-space: nowrap;
+  opacity: 0.95;
+}
+.auth-story-headline {
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: -2px;
+  margin: 0 0 24px;
+  color: #ffffff !important;
+  position: relative;
+  z-index: 2;
+}
+.auth-story-headline .highlight {
+  background: linear-gradient(135deg, #5eead4 0%, #a7f3d0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.auth-story-sub {
+  font-size: 16px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 40px;
+  letter-spacing: -0.2px;
+  position: relative;
+  z-index: 2;
+}
+.auth-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  position: relative;
+  z-index: 2;
+}
+.auth-feature-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 16px 14px;
+  transition: all 0.2s ease;
+}
+.auth-feature-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(94, 234, 212, 0.3);
+  transform: translateY(-2px);
+}
+.auth-feature-emoji {
+  font-size: 22px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+.auth-feature-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+.auth-feature-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: -0.1px;
+  line-height: 1.4;
+}
 .auth-story .subtitle {
   font-size: 15px;
   line-height: 1.6;
@@ -550,12 +647,20 @@ body.app-loaded {
   .auth-layout { grid-template-columns: 1fr; gap: 24px; max-width: 480px; }
   .auth-story { text-align: center; padding: 16px 8px 0; }
   .auth-story h2 { font-size: 26px; }
+  .auth-wordmark-v2 { margin-bottom: 24px; justify-content: center; }
+  .auth-story-headline { font-size: 40px; letter-spacing: -1.4px; margin-bottom: 18px; }
+  .auth-story-sub { font-size: 14px; margin-bottom: 28px; }
+  .auth-feature-grid { max-width: 460px; margin: 0 auto; }
   .auth-story-features { max-width: 420px; margin: 0 auto 24px; }
   .auth-story-metrics { max-width: 420px; margin: 0 auto 20px; }
   .auth-quote { text-align: left; max-width: 420px; margin: 0 auto; }
 }
 @media (max-width: 640px) {
   .auth-story h2 { font-size: 22px; }
+  .auth-story-headline { font-size: 32px; letter-spacing: -1px; }
+  .auth-brand-name { font-size: 14px; }
+  .auth-feature-grid { grid-template-columns: 1fr; gap: 8px; }
+  .auth-feature-card { padding: 12px; }
   .auth-story .subtitle { font-size: 13px; }
   .auth-metric-value { font-size: 18px; }
   .auth-metric-label { font-size: 10px; }
@@ -578,14 +683,21 @@ body.app-loaded {
 }
 .auth-logo-icon svg { color: white; }
 .auth-logo h1 {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 38px;
+  font-weight: 900;
   color: var(--text);
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin: 8px 0 0;
 }
 .auth-logo p {
   color: var(--text-secondary);
-  font-size: 13px;
-  margin-top: 4px;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 500;
+}
+@media (max-width: 768px) {
+  .auth-logo h1 { font-size: 30px; }
 }
 .auth-tabs {
   display: flex;
@@ -2599,4 +2711,141 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 @keyframes gradBorder {
   0%, 100% { background-position: 0% 50% }
   50% { background-position: 100% 50% }
+}
+
+/* ═══════════════════════════════════════════════════════════
+ * 📱 모바일 반응형 글로벌 보강 (v5.3.0)
+ * 인라인 grid/flex 스타일이 너무 좁은 화면에서 깨지는 것 방지
+ * ═══════════════════════════════════════════════════════════ */
+
+/* 태블릿 (≤900px): 헤더/사이드 컬럼이 좁아짐 */
+@media (max-width: 900px) {
+  /* 인라인 minmax(260px+) 그리드 → 1열 강제 */
+  [style*="minmax(260px"],
+  [style*="minmax(280px"],
+  [style*="minmax(300px"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* 모달 가로 폭 100%로 */
+  .modal-content { max-width: 95vw !important; margin: 12px auto !important; }
+  /* 테이블 가로 스크롤 */
+  .pfm-table-wrap, table[style*="width:100%"] { overflow-x: auto; }
+}
+
+/* 모바일 (≤640px): 본격 1단 레이아웃 */
+@media (max-width: 640px) {
+  /* 모든 인라인 multi-column grid를 1~2열로 */
+  [style*="minmax(200px"],
+  [style*="minmax(220px"],
+  [style*="minmax(240px"],
+  [style*="minmax(180px"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="minmax(110px"],
+  [style*="minmax(130px"],
+  [style*="minmax(140px"],
+  [style*="minmax(150px"],
+  [style*="minmax(160px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  /* repeat(3, 1fr) 같은 명시 3열 → 1열 */
+  [style*="repeat(3,1fr)"],
+  [style*="repeat(3, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* repeat(2, 1fr)도 좁으면 1열 */
+  [style*="repeat(2,1fr)"],
+  [style*="repeat(2, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* 7열(주간 캘린더 등)은 가로 스크롤 */
+  [style*="repeat(7,1fr)"],
+  [style*="repeat(7, 1fr)"] {
+    overflow-x: auto;
+    min-width: 0;
+  }
+
+  /* 헤더 액션 영역 줄바꿈 */
+  .actions, [class*="action-bar"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .actions .btn, .actions button {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* 페이지 본문 패딩 축소 */
+  .page-body { padding: 12px !important; }
+  
+  /* 모달 풀스크린에 가깝게 */
+  .modal-content {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    min-height: 100vh;
+  }
+
+  /* 폼 grid → 1열 */
+  .form-grid, .grid-2col, .grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* details 패딩 축소 */
+  details summary { padding: 10px !important; }
+
+  /* 큰 폰트 줄이기 */
+  h1, .h1 { font-size: 22px !important; }
+  h2, .h2 { font-size: 18px !important; }
+  h3, .h3 { font-size: 16px !important; }
+
+  /* 백업/시뮬레이션 진행률 박스 */
+  #backupSection > div:first-child,
+  #simulationSection > div:first-child {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    text-align: left !important;
+  }
+
+  /* 사이드바 모바일 처리 (기존 .open 클래스 활용) */
+  .sidebar:not(.open) { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-left: 0 !important; padding-left: 0 !important; }
+}
+
+/* 초소형 (≤400px): 거의 모든 그리드 1열 */
+@media (max-width: 400px) {
+  [style*="minmax(110px"],
+  [style*="minmax(130px"],
+  [style*="minmax(140px"],
+  [style*="minmax(150px"],
+  [style*="minmax(160px"] {
+    grid-template-columns: 1fr !important;
+  }
+  .btn { padding: 8px 12px !important; font-size: 13px !important; }
+  .btn-sm { padding: 6px 10px !important; font-size: 12px !important; }
+}
+
+/* 터치 디바이스: 버튼 최소 44x44px (Apple HIG 가이드) */
+@media (hover: none) and (pointer: coarse) {
+  .btn { min-height: 44px; }
+  input[type="checkbox"], input[type="radio"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+  /* 작은 아이콘 버튼은 터치 영역만 확보 */
+  .btn-icon, .modal-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 빈 상태 UI 일관 스타일 */
+.pfm-empty-state .btn {
+  margin: 0 auto;
+}
+@media (max-width: 480px) {
+  .pfm-empty-state { padding: 40px 12px !important; }
+  .pfm-empty-state > div:first-child { font-size: 44px !important; }
 }

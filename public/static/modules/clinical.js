@@ -571,20 +571,31 @@ async function renderTreatmentBoard(body, actions) {
   });
 
   document.getElementById('addTreatmentBtn').addEventListener('click', async () => {
-    // 체어를 층/방 기준으로 그룹핑
-    const chairsByLocation = {};
+    // 진료 유닛을 유형별로 그룹핑 (체어/베드/진료실/수술실/상담실/기타)
+    const UNIT_META = {
+      chair:   { label: '체어',   icon: '💺' },
+      bed:     { label: '베드',   icon: '🛏️' },
+      room:    { label: '진료실', icon: '🚪' },
+      surgery: { label: '수술실', icon: '🔬' },
+      consult: { label: '상담실', icon: '💬' },
+      other:   { label: '기타',   icon: '🏷️' },
+    };
+    const chairsByType = {};
     chairs.forEach(c => {
-      const key = (c.floor ? c.floor + ' ' : '') + (c.room_name || '기타');
-      if (!chairsByLocation[key]) chairsByLocation[key] = [];
-      chairsByLocation[key].push(c);
+      const t = c.unit_type || 'chair';
+      if (!chairsByType[t]) chairsByType[t] = [];
+      chairsByType[t].push(c);
     });
-    const chairSelectHtml = Object.entries(chairsByLocation).length > 0
-      ? Object.entries(chairsByLocation).map(([loc, chs]) =>
-          `<optgroup label="📍 ${esc(loc)}">${chs.map(c =>
-            `<option value="${c.id}">${c.chair_number}번 ${T.chair}${c.room_name?' ('+esc(c.room_name)+')':''}${c.floor?' · '+esc(c.floor):''}</option>`
-          ).join('')}</optgroup>`
-        ).join('')
-      : '<option value="" disabled>등록된 ' + T.chair + '가 없습니다</option>';
+    Object.values(chairsByType).forEach(arr => arr.sort((a,b) => a.chair_number - b.chair_number));
+    const orderedTypes = ['chair','bed','room','surgery','consult','other'];
+    const chairSelectHtml = chairs.length > 0
+      ? orderedTypes.filter(t => chairsByType[t]?.length).map(t => {
+          const meta = UNIT_META[t];
+          return `<optgroup label="${meta.icon} ${meta.label}">${chairsByType[t].map(c =>
+            `<option value="${c.id}">${meta.icon} ${meta.label} ${c.chair_number}번${c.room_name?' ('+esc(c.room_name)+')':''}</option>`
+          ).join('')}</optgroup>`;
+        }).join('')
+      : '<option value="" disabled>등록된 진료 유닛이 없습니다 (설정 → 진료 유닛 관리)</option>';
 
     const modal = document.getElementById('modalContent');
     modal.style.maxWidth = '640px';
@@ -602,14 +613,14 @@ async function renderTreatmentBoard(body, actions) {
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:var(--radius);padding:14px;margin-bottom:16px">
           <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;display:flex;align-items:center;gap:6px">📍 위치 배정</div>
           <div class="form-grid">
-            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">${T.chair} / ${T.room}</label>
+            <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">진료 유닛</label>
               <select class="form-input" id="tbChair" style="font-size:13px">
                 <option value="">미배정</option>
                 ${chairSelectHtml}
               </select>
             </div>
             <div class="form-group" style="margin-bottom:0"><label style="font-size:11px">위치 메모 <span style="color:var(--text-muted);font-weight:400">(선택)</span></label>
-              <input class="form-input" id="tbLocationNote" placeholder="예: ${T.surgery_room}, VIP${T.room} 등" style="font-size:13px">
+              <input class="form-input" id="tbLocationNote" placeholder="예: VIP룸, 임플란트 전용 등" style="font-size:13px">
             </div>
           </div>
           <div id="tbChairInfo" style="margin-top:8px;font-size:11px;color:#0369a1;display:none"></div>
@@ -632,15 +643,16 @@ async function renderTreatmentBoard(body, actions) {
       <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="tbSubmitBtn">등록</button></div>`;
     showModal();
 
-    // 체어 선택 시 상세정보 표시
+    // 진료 유닛 선택 시 상세정보 표시
     document.getElementById('tbChair').addEventListener('change', (e) => {
       const chairId = e.target.value;
       const infoEl = document.getElementById('tbChairInfo');
       if (chairId) {
         const chair = chairs.find(c => c.id === chairId);
         if (chair) {
+          const meta = UNIT_META[chair.unit_type || 'chair'] || UNIT_META.chair;
           infoEl.style.display = 'block';
-          infoEl.innerHTML = `💺 <strong>${chair.chair_number}번 ${T.chair}</strong>${chair.room_name?' · 🚪 '+esc(chair.room_name):''}${chair.floor?' · 🏢 '+esc(chair.floor):''}`;
+          infoEl.innerHTML = `${meta.icon} <strong>${meta.label} ${chair.chair_number}번</strong>${chair.room_name?' · '+esc(chair.room_name):''}`;
         }
       } else {
         infoEl.style.display = 'none';

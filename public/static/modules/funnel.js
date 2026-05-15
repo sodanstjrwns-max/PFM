@@ -20,7 +20,7 @@ const SOURCES = ['네이버','인스타그램','구글','지인소개','블로�
 
 let funnelState = {
   period: 'month',
-  tab: 'analytics', // analytics | patients
+  tab: 'score', // score | analytics | patients
 };
 
 async function renderFunnel(body, actions) {
@@ -29,6 +29,7 @@ async function renderFunnel(body, actions) {
   body.innerHTML = `
     <div class="funnel-controls">
       <div class="funnel-tabs">
+        <button class="funnel-tab-btn ${funnelState.tab === 'score' ? 'active' : ''}" data-tab="score">🏆 페이션트 퍼널 점수</button>
         <button class="funnel-tab-btn ${funnelState.tab === 'analytics' ? 'active' : ''}" data-tab="analytics">📊 퍼널 분석</button>
         <button class="funnel-tab-btn ${funnelState.tab === 'patients' ? 'active' : ''}" data-tab="patients">👥 환자 목록</button>
       </div>
@@ -61,11 +62,277 @@ async function renderFunnel(body, actions) {
 
   document.getElementById('addFunnelBtn')?.addEventListener('click', () => openAddPatient(body, actions));
 
-  if (funnelState.tab === 'analytics') {
+  if (funnelState.tab === 'score') {
+    await renderFunnelScore(body, actions);
+  } else if (funnelState.tab === 'analytics') {
     await renderAnalytics(body, actions);
   } else {
     await renderPatientsList(body, actions);
   }
+}
+
+/* ══════════════════════════════════════
+   🏆 페이션트 퍼널 10단계 자동 채점 (Signature)
+   ══════════════════════════════════════ */
+async function renderFunnelScore(body, actions) {
+  const content = document.getElementById('funnelContent');
+  try {
+    const data = await api(`/api/protected/funnel/score?period=${funnelState.period}`);
+    content.innerHTML = buildFunnelScoreDashboard(data);
+    // 점수 화면 렌더 후 벤치마크 위젯 비동기 로드
+    loadFunnelBenchmark();
+  } catch(e) {
+    content.innerHTML = `<div style="color:#ef4444;padding:24px;text-align:center">점수 산출 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+/* ════════════════════════════════════════════════
+   🌐 전국 벤치마크 비교 (C-4)
+   ════════════════════════════════════════════════ */
+async function loadFunnelBenchmark() {
+  const slot = document.getElementById('funnelBenchmark');
+  if (!slot) return;
+  // 관리자/매니저만 노출 (전국 데이터 비교는 관리 권한)
+  if (!['admin','manager'].includes(state.user?.role)) { slot.innerHTML = ''; return; }
+
+  slot.innerHTML = `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px">
+      <span class="loading-spinner" style="margin-right:8px"></span> 전국 평균 데이터 불러오는 중...
+    </div>
+  `;
+
+  try {
+    const d = await api('/api/protected/ai/benchmark');
+    renderFunnelBenchmark(slot, d);
+  } catch(e) {
+    slot.innerHTML = ''; // 실패 시 조용히 숨김 (퍼널 점수는 이미 보여줬으니 OK)
+  }
+}
+
+function renderFunnelBenchmark(slot, d) {
+  const me = d.me || {};
+  const nat = d.national || {};
+  const pct = d.percentile || {};
+
+  // 4개 지표 메타
+  const metrics = [
+    { key:'calls',       label:'콜 인입',     icon:'📞', myVal:me.calls,        natVal:nat.avgCalls,        suffix:'건' },
+    { key:'patients',    label:'신규 환자',   icon:'👥', myVal:me.patients,     natVal:nat.avgPatients,     suffix:'명' },
+    { key:'consentRate', label:'동의율(금액)', icon:'💰', myVal:me.consentRate,  natVal:nat.avgConsentRate,  suffix:'%' },
+    { key:'treated',     label:'치료 확정',   icon:'✅', myVal:me.treated,      natVal:nat.avgTreated,      suffix:'건' },
+  ];
+
+  function pctColor(p) {
+    if (p >= 80) return { bg:'#dcfce7', color:'#15803d', border:'#bbf7d0', label:'상위권' };
+    if (p >= 60) return { bg:'#fef3c7', color:'#a16207', border:'#fde68a', label:'평균 이상' };
+    if (p >= 40) return { bg:'#e0f2fe', color:'#0369a1', border:'#bae6fd', label:'평균선' };
+    return { bg:'#fee2e2', color:'#b91c1c', border:'#fecaca', label:'개선 필요' };
+  }
+
+  const cardsHtml = metrics.map(m => {
+    const p = Number(pct[m.key] || 50);
+    const c = pctColor(p);
+    const my = Number(m.myVal) || 0;
+    const avg = Number(m.natVal) || 0;
+    const diff = avg > 0 ? Math.round(((my - avg) / avg) * 100) : 0;
+    const diffSign = diff > 0 ? '+' : '';
+    const diffColor = diff > 0 ? '#15803d' : diff < 0 ? '#b91c1c' : '#64748b';
+    // 진행바: 50%가 전국 평균선
+    const barPct = Math.min(p, 99);
+
+    return `
+      <div style="background:#fff;border:1px solid ${c.border};border-radius:10px;padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;font-weight:600">
+            <span style="font-size:16px">${m.icon}</span> ${m.label}
+          </div>
+          <span style="background:${c.bg};color:${c.color};border:1px solid ${c.border};padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700">${c.label}</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
+          <div style="font-size:22px;font-weight:900;color:${c.color};font-variant-numeric:tabular-nums">${my.toLocaleString()}<span style="font-size:12px;font-weight:600;opacity:.8">${m.suffix}</span></div>
+          <div style="font-size:11px;color:${diffColor};font-weight:700">${diffSign}${diff}%</div>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">
+          전국 평균 <strong style="color:#475569">${avg.toLocaleString()}${m.suffix}</strong>
+        </div>
+        <!-- 백분위 진행바 -->
+        <div style="position:relative;height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+          <!-- 평균선 (50% 위치) -->
+          <div style="position:absolute;left:50%;top:-2px;height:12px;width:2px;background:#94a3b8;z-index:2"></div>
+          <div style="position:absolute;left:0;top:0;height:100%;width:${barPct}%;background:linear-gradient(90deg,${c.color}aa,${c.color});border-radius:4px;transition:width 1s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;margin-top:3px">
+          <span>하위</span><span>평균</span><span>상위 ${p}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // 종합 점수 = 4지표 평균
+  const overall = Math.round((Number(pct.calls||0) + Number(pct.patients||0) + Number(pct.consentRate||0) + Number(pct.treated||0)) / 4);
+  const overallC = pctColor(overall);
+
+  slot.innerHTML = `
+    <div style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);color:#fff;border-radius:14px;padding:20px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;background:rgba(255,255,255,.08);border-radius:50%"></div>
+      <div style="position:relative">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px">
+              🌐 전국 벤치마크 비교
+            </div>
+            <div style="font-size:11px;opacity:.85;margin-top:2px">${esc(d.period || '')} · ${esc(d.disclaimer || '')}</div>
+          </div>
+          <div style="background:rgba(255,255,255,.18);border-radius:10px;padding:8px 14px;text-align:center">
+            <div style="font-size:10px;opacity:.85">종합 백분위</div>
+            <div style="font-size:24px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums">${overall}<span style="font-size:12px;opacity:.8">%</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+          ${cardsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildFunnelScoreDashboard(d) {
+  const g = d.grade || {};
+  const score = d.score || 0;
+  const pctOf100 = Math.min(score, 100);
+  // 도넛 SVG 진행률 (지름 240, stroke 18)
+  const r = 100, cx = 120, cy = 120;
+  const circ = 2 * Math.PI * r;
+  const dashOffset = circ * (1 - pctOf100 / 100);
+
+  // 퍼널 시각화: 단계별 가로 막대
+  const stagesHtml = (d.stages || []).map((s, idx) => {
+    const widthPct = Math.max(s.passRate, 4); // 최소 4% 보이도록
+    const isFirst = idx === 0;
+    return `
+      <div class="pf-stage-row" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <span style="background:${s.color};color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${s.no}</span>
+            <span style="font-size:18px">${s.icon}</span>
+            <strong style="font-size:14px">${esc(s.label)}</strong>
+            <span style="color:#94a3b8;font-size:11px">(가중치 ${s.weight}pt)</span>
+          </div>
+          <div style="font-size:12px;color:#64748b;font-variant-numeric:tabular-nums">
+            <strong style="color:${s.color};font-size:14px">${s.count.toLocaleString()}명</strong>
+            ${isFirst ? '<span style="color:#94a3b8"> · baseline</span>' : ` <span style="color:#94a3b8">/ ${s.previousCount.toLocaleString()}명</span> <strong style="color:${s.color}">${s.passRate}%</strong>`}
+            <span style="color:#475569;margin-left:6px"> · <strong>${s.score}pt</strong></span>
+          </div>
+        </div>
+        <div style="position:relative;height:18px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${widthPct}%;background:linear-gradient(90deg,${s.color}cc,${s.color});border-radius:4px;transition:width .8s ease;display:flex;align-items:center;padding-left:6px;color:#fff;font-size:10px;font-weight:600">
+            ${widthPct >= 15 ? s.passRate + '%' : ''}
+          </div>
+        </div>
+        ${s.action ? `<div style="font-size:11px;color:#475569;margin-top:4px;padding:6px 10px;background:#f8fafc;border-left:3px solid ${s.color};border-radius:3px;line-height:1.5">${esc(s.action)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const weakestHtml = (d.weakest || []).map((s, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:6px">
+      <span style="background:${s.color};color:#fff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${i+1}</span>
+      <span style="font-size:18px">${s.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${esc(s.label)} 단계 — 통과율 ${s.passRate}%</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.5">${esc(s.action)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div style="max-width:960px;margin:0 auto">
+      <!-- 점수 헤더 카드 -->
+      <div style="background:linear-gradient(135deg,#0f766e 0%,#0891b2 50%,#6366f1 100%);color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-30px;right:-30px;width:200px;height:200px;background:rgba(255,255,255,.08);border-radius:50%"></div>
+        <div style="position:absolute;bottom:-50px;left:-50px;width:160px;height:160px;background:rgba(255,255,255,.05);border-radius:50%"></div>
+        <div style="position:relative;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+          <!-- 도넛 -->
+          <div style="position:relative;width:240px;height:240px;flex-shrink:0">
+            <svg width="240" height="240" viewBox="0 0 240 240" style="transform:rotate(-90deg)">
+              <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="18"/>
+              <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${g.color || '#fbbf24'}" stroke-width="18"
+                      stroke-linecap="round"
+                      stroke-dasharray="${circ}"
+                      stroke-dashoffset="${dashOffset}"
+                      style="transition:stroke-dashoffset 1.5s ease-out;filter:drop-shadow(0 0 8px ${g.color || '#fbbf24'}aa)"/>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="font-size:14px;opacity:.85;margin-bottom:4px">페이션트 퍼널 점수</div>
+              <div style="font-size:56px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${score.toFixed(1)}</div>
+              <div style="font-size:12px;opacity:.75;margin-top:4px">/ 100</div>
+            </div>
+          </div>
+          <!-- 등급 + 요약 -->
+          <div style="flex:1;min-width:240px">
+            <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(255,255,255,.15);border-radius:24px;font-size:18px;font-weight:700;margin-bottom:10px">
+              <span style="font-size:24px">${g.emoji || '🏆'}</span>
+              <span>${esc(g.label || '-')}</span>
+            </div>
+            <div style="font-size:14px;line-height:1.6;opacity:.95;margin-bottom:16px">${esc(g.desc || '')}</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:12px">
+              <div style="background:rgba(255,255,255,.1);padding:10px 12px;border-radius:8px">
+                <div style="opacity:.75;font-size:11px">총 콜 인입</div>
+                <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">${(d.summary?.totalCalls || 0).toLocaleString()}</div>
+              </div>
+              <div style="background:rgba(255,255,255,.1);padding:10px 12px;border-radius:8px">
+                <div style="opacity:.75;font-size:11px">최종 전환율 (콜→완료)</div>
+                <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">${d.summary?.conversionFunnel || 0}%</div>
+              </div>
+              <div style="background:rgba(255,255,255,.1);padding:10px 12px;border-radius:8px">
+                <div style="opacity:.75;font-size:11px">등록 환자</div>
+                <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">${(d.summary?.totalPatients || 0).toLocaleString()}</div>
+              </div>
+              <div style="background:rgba(255,255,255,.1);padding:10px 12px;border-radius:8px">
+                <div style="opacity:.75;font-size:11px">소개 비율</div>
+                <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">${d.summary?.referralRate || 0}%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 약점 TOP 3 -->
+      ${weakestHtml ? `
+        <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            🎯 <span>가장 약한 단계 TOP 3 — 우선 개선 대상</span>
+          </div>
+          ${weakestHtml}
+        </div>
+      ` : ''}
+
+      <!-- 🌐 전국 벤치마크 비교 (C-4) -->
+      <div id="funnelBenchmark" style="margin-bottom:20px"></div>
+
+      <!-- 10단계 상세 -->
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span>📊 10단계별 통과율 + 액션 제안</span>
+          <span style="font-size:11px;color:#64748b;font-weight:400">가중치 합계 100pt = 페이션트 퍼널 점수</span>
+        </div>
+        ${stagesHtml}
+      </div>
+
+      <!-- 안내 -->
+      <details style="background:#f0fdfa;border:1px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-bottom:20px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#0f766e">ℹ️ 페이션트 퍼널 점수란?</summary>
+        <div style="margin-top:10px;font-size:12px;color:#475569;line-height:1.7">
+          문석준 원장의 <strong>페이션트 퍼널 10단계 모델</strong>에 기반한 자동 채점 시스템입니다.<br>
+          환자가 인지 → 관심 → 예약 → 방문 → 대기 → 진단 → 상담 → 진료 → 관리 → 소개까지<br>
+          이르는 10단계 여정에서 각 단계 통과율을 측정하고, 단계별 가중치(8~12pt)를 곱해 합산합니다.<br><br>
+          <strong>등급:</strong> 85+ 최상위 · 70+ 우수 · 55+ 양호 · 40+ 보통 · 40- 미흡<br>
+          <strong>측정 데이터:</strong> 콜 기록, 환자 등록, 상담 기록, 결제, 재방문, 소개 데이터<br>
+          <strong>업데이트:</strong> 실시간 (페이지 진입 시마다 재계산)
+        </div>
+      </details>
+    </div>
+  `;
 }
 
 /* ══════════════════════════════════════

@@ -594,6 +594,167 @@ onboarding.get('/insights', async (c) => {
   }
 })
 
+/* ═════════════════════════════════════════════════════════════
+   상담기록 단독 샘플 데이터 주입 (Aha Moment for Consult)
+   - 기존 seed-sample과 별개로 상담기록만 빠르게 주입
+   - 이미 5건 이상 상담기록이 있으면 거부 (덮어쓰기 방지)
+   ═════════════════════════════════════════════════════════════ */
+onboarding.post('/seed-consult-sample', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '관리자/매니저만 실행할 수 있습니다' }, 403)
+  }
+  const hid = user.hospitalId
+
+  // 이미 실제 상담기록이 있으면 거부
+  const existing: any = await c.env.DB.prepare(
+    'SELECT COUNT(*) as cnt FROM consult_records WHERE hospital_id=? AND COALESCE(is_deleted,0)=0'
+  ).bind(hid).first()
+  if ((existing?.cnt || 0) > 5) {
+    return c.json({ error: '이미 상담기록이 충분히 있습니다. 기존 데이터 보호를 위해 샘플 주입이 차단되었습니다.' }, 400)
+  }
+
+  const today = new Date()
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const daysAgo = (n: number) => { const d = new Date(today); d.setDate(d.getDate() - n); return d }
+
+  /* ─── 샘플 환자 풀 ─── */
+  const firstNames = ['민준','서연','지우','하준','수아','도윤','예준','시우','건우','채원','지호','유나','서윤','지민','준서','하은','승우','예원','시윤','수현']
+  const lastNames = ['김','이','박','최','정','강','조','윤','장','임','오','서','신','권','황','안','송','류','전','홍']
+  const sources = ['네이버 검색', '인스타그램', '지인 소개', '간판 보고', '블로그', '카카오맵', '홈페이지']
+  const treatCategories = ['임플란트', '보철', '교정', '심미', '일반진료', '치주', '소아치과']
+  const doctors = ['김원장', '이원장', '박원장', '데모 원장']
+  const counselors = ['최실장', '정실장', '한실장', '데모 실장']
+  const desks = ['이데스크', '박데스크', '데모 데스크']
+  const discountNotes = ['', '', '', '가족 할인 5%', '재방문 할인', '현금 결제 할인', '학생 할인']
+  const notesSamples = [
+    '환자가 가격 부담 호소. 분할 결제 제안 후 긍정 반응.',
+    '치료 계획 상세 설명. 다음 주 가족과 상의 후 결정 예정.',
+    '타원에서 상담 받고 비교 차원으로 방문. 신뢰도 강조 필요.',
+    '경제적 여유 있음. 프리미엄 옵션 제안 가능.',
+    '통증 호소 강함. 빠른 치료 일정 잡기로 합의.',
+    '심미적 만족도 매우 중요시. 사례 사진 제공.',
+    '교정 상담. 투명교정과 메탈 비교 설명 후 투명 선택.',
+    '임플란트 1차 동의. 2차 본 뜨기 일정 조율 필요.',
+    '',
+    '재방문. 이전 상담 내용 기반 후속 진행.',
+  ]
+
+  /* ─── 상담기록 30건 생성 (최근 90일) ─── */
+  const treatmentTypes = ['신환 첫 상담', '재상담', '치료 계획 동의', '추가 치료 상담']
+  let inserted = 0
+  for (let i = 0; i < 30; i++) {
+    const fn = firstNames[i % firstNames.length]
+    const ln = lastNames[Math.floor(i / 2) % lastNames.length]
+    const name = ln + fn
+    const chartNum = `DEMO-C-${String(2000 + i).padStart(4, '0')}`
+    const daysBack = Math.floor(Math.random() * 88) + 1
+    const recordDate = iso(daysAgo(daysBack))
+
+    // 시술 카테고리 + 금액 매트릭스
+    const cat = treatCategories[Math.floor(Math.random() * treatCategories.length)]
+    let planned = 0
+    if (cat === '임플란트') planned = [1300000, 2600000, 3900000, 5200000][Math.floor(Math.random() * 4)]
+    else if (cat === '보철') planned = [550000, 1100000, 1650000, 2200000][Math.floor(Math.random() * 4)]
+    else if (cat === '교정') planned = [4500000, 5500000, 6500000, 8000000][Math.floor(Math.random() * 4)]
+    else if (cat === '심미') planned = [350000, 700000, 1500000, 2800000][Math.floor(Math.random() * 4)]
+    else if (cat === '치주') planned = [200000, 400000, 800000, 1200000][Math.floor(Math.random() * 4)]
+    else if (cat === '소아치과') planned = [80000, 150000, 250000, 400000][Math.floor(Math.random() * 4)]
+    else planned = [40000, 90000, 280000, 450000][Math.floor(Math.random() * 4)] // 일반진료
+
+    // 동의율 60%, 부분동의 20%, 거절 20%
+    const r = Math.random()
+    let confirmed = ''
+    let agreed = 0
+    let appointmentMade = ''
+    if (r < 0.6) {
+      confirmed = 'O'
+      agreed = planned
+      appointmentMade = 'O'
+    } else if (r < 0.8) {
+      confirmed = ''  // 미정
+      agreed = Math.floor(planned * (0.3 + Math.random() * 0.4))  // 30~70% 부분 동의
+      appointmentMade = Math.random() > 0.5 ? 'O' : ''
+    } else {
+      confirmed = 'X'
+      agreed = 0
+      appointmentMade = ''
+    }
+
+    const patientType = Math.random() > 0.35 ? 'new' : 'existing'
+    const visitSource = sources[Math.floor(Math.random() * sources.length)]
+    const doctor = doctors[Math.floor(Math.random() * doctors.length)]
+    const counselor = counselors[Math.floor(Math.random() * counselors.length)]
+    const desk = desks[Math.floor(Math.random() * desks.length)]
+    const discount = discountNotes[Math.floor(Math.random() * discountNotes.length)]
+    const notes = notesSamples[Math.floor(Math.random() * notesSamples.length)]
+    const recallDone = (confirmed !== 'O' && Math.random() > 0.5) ? 'O' : ''
+    const kakaoReg = Math.random() > 0.5 ? 'O' : ''
+    const pdfProv = (confirmed === 'O' && Math.random() > 0.4) ? 'O' : ''
+
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO consult_records (
+          id, hospital_id, record_date, chart_number, patient_name,
+          doctor_name, counselor_name, desk_name,
+          planned_amount, agreed_amount, discount_note,
+          patient_type, visit_source, treatment_category,
+          treatment_confirmed, appointment_made, recall_done,
+          kakao_registered, pdf_provided, notes, created_by
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(
+        crypto.randomUUID(), hid, recordDate, chartNum, name,
+        doctor, counselor, desk,
+        planned, agreed, discount,
+        patientType, visitSource, cat,
+        confirmed, appointmentMade, recallDone,
+        kakaoReg, pdfProv, notes, user.id
+      ).run()
+      inserted++
+    } catch (e) {
+      // visit_source/desk_name 컬럼 없는 구버전 대비 fallback
+      try {
+        await c.env.DB.prepare(
+          `INSERT INTO consult_records (
+            id, hospital_id, record_date, chart_number, patient_name,
+            doctor_name, counselor_name,
+            planned_amount, agreed_amount,
+            patient_type, treatment_category,
+            treatment_confirmed, appointment_made, recall_done, notes
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        ).bind(
+          crypto.randomUUID(), hid, recordDate, chartNum, name,
+          doctor, counselor,
+          planned, agreed,
+          patientType, cat,
+          confirmed, appointmentMade, recallDone, notes
+        ).run()
+        inserted++
+      } catch {}
+    }
+  }
+
+  return c.json({
+    success: true,
+    inserted,
+    message: `상담기록 샘플 ${inserted}건 주입 완료! 최근 90일치 상담 데이터입니다.`,
+  })
+})
+
+/* ─── 상담기록 샘플만 삭제 ─── */
+onboarding.post('/clear-consult-sample', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '관리자/매니저만 실행할 수 있습니다' }, 403)
+  }
+  const hid = user.hospitalId
+  // DEMO-C- 접두사로 시작하는 샘플 상담기록만 삭제
+  const result: any = await c.env.DB.prepare(
+    "DELETE FROM consult_records WHERE hospital_id=? AND chart_number LIKE 'DEMO-C-%'"
+  ).bind(hid).run()
+  return c.json({ success: true, deleted: result?.meta?.changes || 0, message: '상담기록 샘플이 삭제되었습니다.' })
+})
+
 /* ─── 샘플 데이터 삭제 (원래 상태로 복구) ─── */
 onboarding.post('/clear-sample', async (c) => {
   const user = c.get('user')!

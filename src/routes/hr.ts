@@ -105,7 +105,7 @@ hr.put('/staff/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// 초대 코드 생성
+// 초대 코드 생성 (v2: 다인용 + 만료일 + 메모)
 hr.post('/invite', async (c) => {
   const user = c.get('user')!
   if (user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
@@ -114,19 +114,71 @@ hr.post('/invite', async (c) => {
     role: { type: 'enum', values: ['admin','manager','staff'] },
     position: { type: 'string', max: 100 },
     team: { type: 'string', max: 100 },
+    max_uses: { type: 'number', min: 1, max: 100, default: 1 },
+    expires_days: { type: 'number', min: 1, max: 90, default: 7 },
+    memo: { type: 'string', max: 200 },
   })
+  // manager는 admin 권한의 초대 불가
+  if (user.role === 'manager' && b.role === 'admin') {
+    return c.json({ error: '실장은 원장(admin) 권한의 초대를 만들 수 없습니다' }, 403)
+  }
   const id = 'inv-' + crypto.randomUUID().slice(0,8)
   const code = Math.random().toString(36).slice(2,8).toUpperCase()
-  const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString()
-  await c.env.DB.prepare('INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, code, b.role||'staff', b.position||'', b.team||'', user.id, expiresAt).run()
-  return c.json({ invite_code: code, expires_at: expiresAt })
+  const days = b.expires_days || 7
+  const expiresAt = new Date(Date.now() + days*24*60*60*1000).toISOString()
+  const maxUses = b.max_uses || 1
+  await c.env.DB.prepare(
+    'INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at, max_uses, use_count, status, memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).bind(id, user.hospitalId, code, b.role||'staff', b.position||'', b.team||'', user.id, expiresAt, maxUses, 0, 'active', b.memo || '').run()
+  return c.json({ id, invite_code: code, expires_at: expiresAt, max_uses: maxUses, memo: b.memo || '' })
 })
 
-// 초대 코드 목록
+// 초대 코드 목록 (v2: 사용 이력 포함)
 hr.get('/invites', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare(`SELECT si.*, u1.name as created_by_name, u2.name as used_by_name FROM staff_invites si JOIN users u1 ON si.created_by=u1.id LEFT JOIN users u2 ON si.used_by=u2.id WHERE si.hospital_id=? ORDER BY si.created_at DESC`).bind(user.hospitalId).all()
+  const rows = await c.env.DB.prepare(`
+    SELECT si.*, u1.name as created_by_name, u2.name as used_by_name, ur.name as revoked_by_name,
+      (SELECT COUNT(*) FROM staff_invite_uses WHERE invite_id = si.id) as actual_use_count
+    FROM staff_invites si
+    JOIN users u1 ON si.created_by=u1.id
+    LEFT JOIN users u2 ON si.used_by=u2.id
+    LEFT JOIN users ur ON si.revoked_by=ur.id
+    WHERE si.hospital_id=?
+    ORDER BY si.created_at DESC
+  `).bind(user.hospitalId).all()
   return c.json(rows.results)
+})
+
+// 초대 코드 사용 이력 (특정 코드를 누가 사용했는지)
+hr.get('/invites/:id/uses', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
+  const inviteId = c.req.param('id')
+  // 본인 병원 소속 확인 (IDOR 방어)
+  const invite = await c.env.DB.prepare('SELECT id FROM staff_invites WHERE id=? AND hospital_id=?').bind(inviteId, user.hospitalId).first()
+  if (!invite) return c.json({ error: '초대 코드를 찾을 수 없습니다' }, 404)
+  const rows = await c.env.DB.prepare(`
+    SELECT siu.*, u.name as user_name, u.email as user_email, u.position, u.team
+    FROM staff_invite_uses siu
+    JOIN users u ON siu.user_id = u.id
+    WHERE siu.invite_id = ? AND siu.hospital_id = ?
+    ORDER BY siu.used_at DESC
+  `).bind(inviteId, user.hospitalId).all()
+  return c.json(rows.results)
+})
+
+// 초대 코드 취소 (revoke)
+hr.delete('/invites/:id', async (c) => {
+  const user = c.get('user')!
+  if (user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
+  const inviteId = c.req.param('id')
+  const invite: any = await c.env.DB.prepare('SELECT * FROM staff_invites WHERE id=? AND hospital_id=?').bind(inviteId, user.hospitalId).first()
+  if (!invite) return c.json({ error: '초대 코드를 찾을 수 없습니다' }, 404)
+  if (invite.status === 'revoked') return c.json({ error: '이미 취소된 초대 코드입니다' }, 400)
+  await c.env.DB.prepare(
+    'UPDATE staff_invites SET status=?, revoked_at=CURRENT_TIMESTAMP, revoked_by=? WHERE id=? AND hospital_id=?'
+  ).bind('revoked', user.id, inviteId, user.hospitalId).run()
+  return c.json({ success: true })
 })
 
 // 출퇴근

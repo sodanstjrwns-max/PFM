@@ -140,6 +140,9 @@ meetings.post('/:id/minutes', async (c) => {
 
 meetings.post('/:id/minutes/upload', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
+  // IDOR 방어: 미팅이 본인 병원 소속인지 사전 확인
+  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id = ? AND hospital_id = ?').bind(meetingId, user.hospitalId).first()
+  if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
   const formData = await c.req.formData(); const file = formData.get('file') as unknown as File
   if (!file) return c.json({ error: '파일이 없습니다' }, 400)
   const fv = validateFile(file, 20)

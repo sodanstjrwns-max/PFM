@@ -300,7 +300,7 @@ async function renderPatients(body, actions) {
             </tr>
           </thead>
           <tbody>
-            ${sorted.length === 0 ? `<tr><td colspan="13" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 환자가 없습니다</td></tr>` : ''}
+            ${sorted.length === 0 ? `<tr><td colspan="13" style="padding:0">${emptyState({ icon:'👥', title:'아직 등록된 환자가 없습니다', description:'신규 환자를 등록하면 여기에 표시됩니다. 콜 인입에서 자동으로 환자가 등록될 수도 있습니다.', actionLabel:'+ 환자 신규 등록', actionId:'emptyAddPatientBtn' })}</td></tr>` : ''}
             ${sorted.map(p => {
               const typeColor = p.patient_type === 'new' ? '#3b82f6' : '#22c55e';
               const typeLabel = p.patient_type === 'new' ? '신환' : '구환';
@@ -438,10 +438,10 @@ async function renderPatients(body, actions) {
   
   await loadPatients();
   
-  // 환자 등록 버튼
-  document.getElementById('addPatientBtn')?.addEventListener('click', () => {
-    openPatientForm(null, staffData, loadPatients);
-  });
+  // 환자 등록 버튼 (헤더 + 빈 상태)
+  const triggerAdd = () => openPatientForm(null, staffData, loadPatients);
+  document.getElementById('addPatientBtn')?.addEventListener('click', triggerAdd);
+  document.getElementById('emptyAddPatientBtn')?.addEventListener('click', triggerAdd);
 }
 
 // ═══ 환자 등록/수정 폼 ═══
@@ -729,6 +729,9 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
           ${p.memo ? `<div style="margin-top:8px;font-size:12px"><span style="color:var(--text-muted);font-size:10px">메모</span><br>${esc(p.memo)}</div>` : ''}
         </div>
         
+        <!-- 🤖 AI LTV 분석 (C-3) -->
+        ${isManager ? `<div id="patientAiLtv" style="margin-bottom:12px"></div>` : ''}
+
         <!-- 상담 이력 -->
         <div class="mb-12">
           <h4 style="font-size:14px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:6px">
@@ -767,10 +770,166 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
       closeModal();
       setTimeout(() => openPatientForm(p, staffData, onUpdate), 150);
     });
+
+    // AI LTV 분석 패널 (관리자만)
+    if (isManager) loadPatientAiLtv(patientId, p);
     
   } catch(e) {
     mc.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">환자 정보를 불러올 수 없습니다</div>`;
   }
+}
+
+/* ════════════════════════════════════════════════
+   🤖 환자 LTV AI 분석 (C-3: GPT-4o-mini)
+   ════════════════════════════════════════════════ */
+const LTV_TIER_META = {
+  VIP:     { color:'#7c3aed', bg:'linear-gradient(135deg,#f5f3ff,#ede9fe)', border:'#c4b5fd', icon:'👑' },
+  GOLD:    { color:'#d97706', bg:'linear-gradient(135deg,#fffbeb,#fef3c7)', border:'#fde68a', icon:'🏆' },
+  SILVER:  { color:'#0369a1', bg:'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border:'#bae6fd', icon:'🥈' },
+  REGULAR: { color:'#475569', bg:'linear-gradient(135deg,#f8fafc,#f1f5f9)', border:'#cbd5e1', icon:'👤' },
+  NEW:     { color:'#16a34a', bg:'linear-gradient(135deg,#f0fdf4,#dcfce7)', border:'#bbf7d0', icon:'🌱' },
+};
+
+async function loadPatientAiLtv(patientId, patient) {
+  const slot = document.getElementById('patientAiLtv');
+  if (!slot) return;
+
+  const visitCount = Number(patient?.visit_count || 1);
+  // 표본 매우 작은 신환은 통계만 보여주고 AI 호출 X
+  if (visitCount < 1) { slot.innerHTML = ''; return; }
+
+  slot.innerHTML = `
+    <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">🤖</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px;color:#3730a3">AI LTV 분석</div>
+        <div style="font-size:11px;color:#4338ca;margin-top:2px">환자 평생가치와 다음 액션을 GPT가 추천해드려요</div>
+      </div>
+      <button id="ptAiLtvRunBtn" class="btn btn-sm" style="background:#4f46e5;color:#fff;border:none;font-weight:700">✨ 분석</button>
+    </div>
+  `;
+
+  document.getElementById('ptAiLtvRunBtn')?.addEventListener('click', async () => {
+    slot.innerHTML = `
+      <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">🤖</div>
+        <div style="font-weight:700;color:#3730a3;font-size:12px">GPT가 환자 데이터 분석 중...</div>
+        <div style="margin-top:8px"><span class="loading-spinner"></span></div>
+      </div>
+    `;
+    try {
+      const data = await api(`/api/protected/ai/patient-ltv/${patientId}`);
+      renderPatientAiLtv(slot, data, patientId);
+    } catch (e) {
+      slot.innerHTML = `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 14px;font-size:12px">
+          <div style="font-weight:700;color:#991b1b">⚠️ AI 분석 실패</div>
+          <div style="color:#7f1d1d;margin-top:4px">${esc(e.message || '오류')}</div>
+        </div>
+      `;
+    }
+  });
+}
+
+function renderPatientAiLtv(slot, data, patientId) {
+  const stats = data?.stats || {};
+  const ai = data?.ai || {};
+  const tier = ai.tier || 'REGULAR';
+  const meta = LTV_TIER_META[tier] || LTV_TIER_META.REGULAR;
+  const cached = data?.cached ? '<span style="background:#ecfdf5;color:#065f46;padding:2px 6px;border-radius:6px;font-size:9px;font-weight:600;margin-left:4px">💾 캐시</span>' : '';
+  const nextActions = Array.isArray(ai.nextActions) ? ai.nextActions : [];
+  const riskFactors = Array.isArray(ai.riskFactors) ? ai.riskFactors : [];
+
+  const refPotColor = ai.referralPotential === 'high' ? '#16a34a' : ai.referralPotential === 'medium' ? '#d97706' : '#64748b';
+
+  slot.innerHTML = `
+    <div style="background:${meta.bg};border:1px solid ${meta.border};border-radius:12px;padding:14px 16px">
+      <!-- 헤더 (등급 + 핵심 지표) -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="background:#fff;border:2px solid ${meta.border};border-radius:10px;padding:8px 12px;text-align:center;min-width:80px">
+          <div style="font-size:24px;line-height:1">${meta.icon}</div>
+          <div style="font-weight:900;font-size:14px;color:${meta.color};margin-top:2px">${tier}</div>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <div style="font-weight:700;font-size:13px;color:${meta.color}">AI LTV 분석${cached}</div>
+          <div style="font-size:11px;color:#475569;margin-top:2px;line-height:1.5">${esc(ai.tierReason || '')}</div>
+        </div>
+      </div>
+
+      <!-- LTV 핵심 숫자 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:12px">
+        <div style="background:#fff;border:1px solid ${meta.border};border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#64748b">예상 LTV(24M)</div>
+          <div style="font-weight:900;font-size:14px;color:${meta.color};margin-top:2px">${(stats.projectedLTV/10000).toLocaleString()}만</div>
+        </div>
+        <div style="background:#fff;border:1px solid ${meta.border};border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#64748b">누적 동의</div>
+          <div style="font-weight:900;font-size:14px;color:#1e293b;margin-top:2px">${(stats.totalAgreed/10000).toLocaleString()}만</div>
+        </div>
+        <div style="background:#fff;border:1px solid ${meta.border};border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#64748b">소개 환자</div>
+          <div style="font-weight:900;font-size:14px;color:${stats.referralCount>0?'#16a34a':'#94a3b8'};margin-top:2px">${stats.referralCount}명</div>
+        </div>
+        <div style="background:#fff;border:1px solid ${meta.border};border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:10px;color:#64748b">소개 가능성</div>
+          <div style="font-weight:900;font-size:12px;color:${refPotColor};margin-top:3px">${(ai.referralPotential||'-').toUpperCase()}</div>
+        </div>
+      </div>
+
+      <!-- 종합 평가 -->
+      ${ai.ltvAssessment ? `
+        <div style="background:#fff;border-left:3px solid ${meta.color};padding:8px 12px;margin-bottom:10px;font-size:12px;color:#1e293b;line-height:1.5">
+          💡 ${esc(ai.ltvAssessment)}
+        </div>
+      ` : ''}
+
+      <!-- 다음 액션 -->
+      ${nextActions.length ? `
+        <div style="background:#fff;border:1px solid ${meta.border};border-radius:8px;padding:10px 12px;margin-bottom:8px">
+          <div style="font-weight:700;font-size:11px;color:${meta.color};margin-bottom:6px">🎯 다음 액션</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${nextActions.map(a => `
+              <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px">
+                <span style="background:${meta.color};color:#fff;padding:2px 6px;border-radius:6px;font-weight:700;font-size:9px;white-space:nowrap;flex-shrink:0">${esc(a.when || '추후')}</span>
+                <div style="flex:1">
+                  <div style="font-weight:700;color:#1e293b">${esc(a.title || '')}</div>
+                  <div style="color:#64748b;margin-top:2px;line-height:1.5">${esc(a.detail || '')}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 업셀 + 소개 전략 -->
+      ${ai.upsellOpportunity || ai.referralStrategy ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;margin-bottom:8px">
+          ${ai.upsellOpportunity ? `
+            <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:11px">
+              <div style="font-weight:700;color:#a16207;margin-bottom:3px">💰 업셀 기회</div>
+              <div style="color:#854d0e;line-height:1.5">${esc(ai.upsellOpportunity)}</div>
+            </div>
+          ` : ''}
+          ${ai.referralStrategy ? `
+            <div style="background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px;font-size:11px">
+              <div style="font-weight:700;color:#15803d;margin-bottom:3px">🌟 소개 전략</div>
+              <div style="color:#166534;line-height:1.5">${esc(ai.referralStrategy)}</div>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      <!-- 이탈 위험 -->
+      ${riskFactors.length ? `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:11px">
+          <div style="font-weight:700;color:#b91c1c;margin-bottom:4px">⚠️ 이탈 위험 요인</div>
+          <ul style="margin:0;padding-left:18px;color:#7f1d1d;line-height:1.6">
+            ${riskFactors.map(r => `<li>${esc(r)}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
 
 // ═══ 모듈 등록 ═══

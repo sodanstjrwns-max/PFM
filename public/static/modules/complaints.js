@@ -54,6 +54,10 @@ async function renderComplaints(body, actions) {
 
   actions.innerHTML = '<button class="btn btn-primary" id="addComplaint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> 기록 추가</button>';
   document.getElementById('addComplaint').onclick = function() { showComplaintForm(null); };
+  // 빈 상태 액션 버튼 위임 (테이블이 비어있을 때만 표시)
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'emptyAddComplaintBtn') showComplaintForm(null);
+  });
 
   async function loadList() {
     body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
@@ -189,7 +193,7 @@ async function renderComplaints(body, actions) {
 
     html += '<tbody>';
     if (pageData.length === 0) {
-      html += '<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--text-muted)">조건에 맞는 컴플레인 기록이 없습니다</td></tr>';
+      html += '<tr><td colspan="10" style="padding:0">' + emptyState({ icon:'⚠️', title:'컴플레인 기록이 없습니다', description:'좋은 신호이지만, 발생한 컴플레인은 반드시 기록하세요. 같은 실수가 반복되지 않도록 모든 컴플레인은 분석되어 KPI에 반영됩니다.', actionLabel:'+ 컴플레인 등록', actionId:'emptyAddComplaintBtn' }) + '</td></tr>';
     }
     pageData.forEach(function(c) {
       var partLabel = PARTS[c.part] || c.part || '-';

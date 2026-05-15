@@ -4,12 +4,14 @@ import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 
 const clinical = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-/* ─── Chairs ─── */
+/* ─── Treatment Units (체어/베드/진료실/수술실 등 범용) ─── */
 clinical.get('/chairs', async (c) => {
   const user = c.get('user')!
-  const chairs = await c.env.DB.prepare('SELECT id, chair_number, floor, room_name, is_active, sort_order FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number').bind(user.hospitalId).all()
+  const chairs = await c.env.DB.prepare('SELECT id, chair_number, floor, room_name, unit_type, is_active, sort_order FROM chairs WHERE hospital_id=? AND is_active=1 ORDER BY sort_order, chair_number').bind(user.hospitalId).all()
   return c.json(chairs.results)
 })
+
+const ALLOWED_UNIT_TYPES = ['chair', 'bed', 'room', 'surgery', 'consult', 'other']
 
 clinical.post('/chairs', async (c) => {
   const user = c.get('user')!
@@ -18,10 +20,12 @@ clinical.post('/chairs', async (c) => {
     chair_number: { type: 'number', min: 1, max: 999 },
     floor: { type: 'string', max: 20 },
     room_name: { type: 'string', max: 100 },
+    unit_type: { type: 'string', max: 20 },
   })
-  if (!b.chair_number) return c.json({ error: '체어 번호를 입력해주세요' }, 400)
+  if (!b.chair_number) return c.json({ error: '번호를 입력해주세요' }, 400)
+  const unitType = ALLOWED_UNIT_TYPES.includes(b.unit_type) ? b.unit_type : 'chair'
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO chairs (id, hospital_id, chair_number, floor, room_name, sort_order) VALUES (?,?,?,?,?,?)').bind(id, user.hospitalId, b.chair_number, b.floor||'', b.room_name||'', b.chair_number).run()
+  await c.env.DB.prepare('INSERT INTO chairs (id, hospital_id, chair_number, floor, room_name, unit_type, sort_order) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.chair_number, b.floor||'', b.room_name||'', unitType, b.chair_number).run()
   return c.json({ id })
 })
 
@@ -163,7 +167,7 @@ clinical.delete('/staff/temp/:id', async (c) => {
 clinical.get('/treatment-board', async (c) => {
   const user = c.get('user')!
   const date = sanitizeString(c.req.query('date') || new Date().toISOString().split('T')[0], 10)
-  const rows = await c.env.DB.prepare(`SELECT tb.*, c.chair_number, c.floor, c.room_name, d.name as doctor_name, s.name as staff_name FROM treatment_board tb LEFT JOIN chairs c ON tb.chair_id = c.id LEFT JOIN users d ON tb.assigned_doctor = d.id LEFT JOIN users s ON tb.assigned_staff = s.id WHERE tb.hospital_id = ? AND tb.board_date = ? ORDER BY tb.sort_order ASC, tb.appointment_time ASC`).bind(user.hospitalId, date).all()
+  const rows = await c.env.DB.prepare(`SELECT tb.*, c.chair_number, c.floor, c.room_name, c.unit_type, d.name as doctor_name, s.name as staff_name FROM treatment_board tb LEFT JOIN chairs c ON tb.chair_id = c.id LEFT JOIN users d ON tb.assigned_doctor = d.id LEFT JOIN users s ON tb.assigned_staff = s.id WHERE tb.hospital_id = ? AND tb.board_date = ? ORDER BY tb.sort_order ASC, tb.appointment_time ASC`).bind(user.hospitalId, date).all()
   return c.json(rows.results)
 })
 

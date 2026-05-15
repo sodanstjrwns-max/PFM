@@ -42,18 +42,8 @@ async function renderSettings(body) {
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
 
-      <div class="section-title">🏢 <span>층별 / 공간 구성</span></div>
-      <div id="floorMapSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
-        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
-      </div>
-
-      <div class="section-title">📍 <span>위치 용어 설정</span></div>
-      <div id="locationTermsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
-        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
-      </div>
-
-      <div class="section-title">📋 <span>위치 프리셋 관리</span></div>
-      <div id="locationPresetsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+      <div class="section-title">🏥 <span>진료 유닛 관리</span></div>
+      <div id="chairsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
 
@@ -64,6 +54,16 @@ async function renderSettings(body) {
 
       <div class="section-title">📍 <span>핵심 지역 설정 (KPI용)</span></div>
       <div id="coreRegionsSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
+      <div class="section-title">🗄️ <span>데이터 백업 / 복구</span></div>
+      <div id="backupSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
+      <div class="section-title">🧪 <span>실사용 시뮬레이션 체크리스트</span></div>
+      <div id="simulationSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
       </div>
       ` : ''}
@@ -169,11 +169,11 @@ async function renderSettings(body) {
     renderHospitalInfo(hospitalInfo);
     if (isManager && hospitalSettings) {
       renderOperatingHours(hospitalSettings);
-      renderFloorMap(hospitalSettings);
-      renderLocationTerms(hospitalSettings);
-      renderLocationPresets(hospitalSettings);
+      renderChairs();
       renderCoreTreatments(hospitalSettings);
       renderCoreRegions(hospitalSettings);
+      renderBackup();
+      renderSimulation();
     }
   } catch(e) {
     document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
@@ -536,323 +536,143 @@ function renderOperatingHours(settings) {
   });
 }
 
-/* ═══ 층별 / 공간 구성 ═══ */
-function renderFloorMap(settings) {
-  const floors = settings.floor_map || [];
-  const terms = settings.location_terms || defaultTerms;
-  const section = document.getElementById('floorMapSection');
+/* ═══ 진료 유닛 관리 (체어/베드/진료실/수술실 등 범용) ═══ */
+const UNIT_TYPES = [
+  { value: 'chair',   label: '체어',   icon: '💺', color: '#0ea5e9', desc: '치과 등 의자형' },
+  { value: 'bed',     label: '베드',   icon: '🛏️', color: '#8b5cf6', desc: '피부과·내과 등 침대형' },
+  { value: 'room',    label: '진료실', icon: '🚪', color: '#22c55e', desc: '일반 진료실/처치실' },
+  { value: 'surgery', label: '수술실', icon: '🔬', color: '#ef4444', desc: '수술실/시술실' },
+  { value: 'consult', label: '상담실', icon: '💬', color: '#f59e0b', desc: '상담 전용 공간' },
+  { value: 'other',   label: '기타',   icon: '🏷️', color: '#94a3b8', desc: '기타 공간' },
+];
+
+function getUnitTypeMeta(t) {
+  return UNIT_TYPES.find(u => u.value === t) || UNIT_TYPES[0];
+}
+
+async function renderChairs() {
+  const section = document.getElementById('chairsSection');
   if (!section) return;
+  const isEditable = ['admin','manager'].includes(state.user.role);
 
-  const spaceTypes = [
-    { value: 'treatment', label: '진료실', icon: '🦷', color: '#3b82f6' },
-    { value: 'surgery', label: '수술실', icon: '🔬', color: '#ef4444' },
-    { value: 'orthodontics', label: '교정실', icon: '🔧', color: '#8b5cf6' },
-    { value: 'xray', label: '촬영실', icon: '📷', color: '#f59e0b' },
-    { value: 'consult', label: '상담실', icon: '💬', color: '#22c55e' },
-    { value: 'waiting', label: '대기실', icon: '🪑', color: '#6b7280' },
-    { value: 'sterilization', label: '소독실', icon: '🧹', color: '#ec4899' },
-    { value: 'office', label: '사무실', icon: '💼', color: '#0ea5e9' },
-    { value: 'storage', label: '창고', icon: '📦', color: '#78716c' },
-    { value: 'other', label: '기타', icon: '🏷️', color: '#a1a1aa' },
-  ];
-
-  function renderFloorList() {
-    section.innerHTML = `
-      <div class="mb-16">
-        <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
-          병원의 층별/공간 구성을 설정합니다. 각 층에 어떤 공간이 있는지 등록하면<br>
-          <strong>진료보드, 체어 배정, 환자 동선</strong> 관리에 활용됩니다.
-        </p>
-      </div>
-
-      ${floors.length ? floors.map((f, fi) => {
-        const spaces = f.spaces || [];
-        return `
-          <div style="background:var(--bg);border:1px solid var(--border-light);border-radius:var(--radius);padding:16px;margin-bottom:12px;position:relative" data-floor-idx="${fi}">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:22px;font-weight:800;color:var(--primary)">${esc(f.name)}</span>
-                <span class="mod-muted-sm">${spaces.length}개 공간</span>
-              </div>
-              <div style="display:flex;gap:6px">
-                <button class="btn-icon fm-add-space-btn" data-fi="${fi}" title="공간 추가">➕</button>
-                <button class="btn-icon fm-del-floor-btn" data-fi="${fi}" title="층 삭제">${ICONS.trash}</button>
-              </div>
-            </div>
-            ${spaces.length ? `
-              <div style="display:flex;flex-wrap:wrap;gap:8px">
-                ${spaces.map((sp, si) => {
-                  const st = spaceTypes.find(t => t.value === sp.type) || spaceTypes[spaceTypes.length-1];
-                  return `
-                    <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${st.color}0a;border:1px solid ${st.color}33;border-radius:20px;font-size:12px">
-                      <span>${st.icon}</span>
-                      <span style="font-weight:600">${esc(sp.name)}</span>
-                      ${sp.chairs ? `<span class="mod-muted-xs">(${terms.chair||'체어'} ${sp.chairs}개)</span>` : ''}
-                      <button class="btn-icon fm-del-space-btn" data-fi="${fi}" data-si="${si}" title="삭제" style="width:18px;height:18px;font-size:10px">&times;</button>
-                    </div>`;
-                }).join('')}
-              </div>
-            ` : '<div style="text-align:center;padding:10px;color:var(--text-muted);font-size:11px">등록된 공간이 없습니다. ➕ 버튼을 눌러 추가하세요.</div>'}
-          </div>`;
-      }).join('') : '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">등록된 층이 없습니다. 아래에서 층을 추가해주세요.</div>'}
-
-      <!-- 층 추가 -->
-      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius);padding:14px;margin-top:8px">
-        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:10px">🏢 새 층 추가</div>
-        <div style="display:flex;gap:8px;align-items:end">
-          <div class="form-group" style="flex:1;margin-bottom:0">
-            <label style="font-size:11px">층 이름</label>
-            <input class="form-input" id="fmNewFloor" placeholder="예: 1F, 2F, B1, 본관 3층" style="font-size:13px">
-          </div>
-          <div class="form-group" style="flex:1;margin-bottom:0">
-            <label style="font-size:11px">설명 (선택)</label>
-            <input class="form-input" id="fmNewFloorDesc" placeholder="예: 접수·대기·상담" style="font-size:13px">
-          </div>
-          <button class="btn btn-primary btn-sm" id="fmAddFloorBtn">추가</button>
-        </div>
-      </div>
-
-      <!-- 저장 -->
-      <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
-        <button class="btn btn-primary btn-sm" id="fmSaveBtn">💾 층별 구성 저장</button>
-        <span id="fmSaveStatus" class="mod-muted-sm"></span>
-      </div>
-    `;
-
-    // 층 추가
-    document.getElementById('fmAddFloorBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('fmNewFloor')?.value?.trim();
-      if (!name) { toast('층 이름을 입력해주세요', 'error'); return; }
-      const desc = document.getElementById('fmNewFloorDesc')?.value?.trim() || '';
-      floors.push({ name, description: desc, spaces: [] });
-      renderFloorList();
-      toast(`${name} 추가됨 (저장 버튼을 눌러주세요)`, 'info');
-    });
-
-    // 층 삭제
-    section.querySelectorAll('.fm-del-floor-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const fi = parseInt(btn.dataset.fi);
-        if (!confirm(`"${floors[fi]?.name}" 층과 모든 공간을 삭제하시겠습니까?`)) return;
-        floors.splice(fi, 1);
-        renderFloorList();
-        toast('삭제됨 (저장 버튼을 눌러주세요)', 'info');
-      });
-    });
-
-    // 공간 추가 (모달)
-    section.querySelectorAll('.fm-add-space-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const fi = parseInt(btn.dataset.fi);
-        showModal(`➕ ${esc(floors[fi]?.name)} - 공간 추가`, `
-          <div class="form-group">
-            <label>공간 이름</label>
-            <input class="form-input" id="fmSpaceName" placeholder="예: 진료실 A, 수술실 1, VIP 상담실">
-          </div>
-          <div class="form-group">
-            <label>공간 유형</label>
-            <select class="form-input" id="fmSpaceType">
-              ${spaceTypes.map(st => `<option value="${st.value}">${st.icon} ${st.label}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>${esc(terms.chair||'체어')} 수 (선택, 진료 공간인 경우)</label>
-            <input class="form-input" type="number" id="fmSpaceChairs" min="0" max="50" placeholder="0">
-          </div>
-          <div class="form-group">
-            <label>메모 (선택)</label>
-            <input class="form-input" id="fmSpaceNote" placeholder="예: 임플란트 전용, VIP">
-          </div>
-          <button class="btn btn-primary" id="fmSpaceAddConfirm" style="width:100%;margin-top:8px">추가</button>
-        `);
-        document.getElementById('fmSpaceAddConfirm')?.addEventListener('click', () => {
-          const name = document.getElementById('fmSpaceName')?.value?.trim();
-          if (!name) { toast('공간 이름을 입력해주세요', 'error'); return; }
-          const sp = {
-            name,
-            type: document.getElementById('fmSpaceType')?.value || 'other',
-            chairs: parseInt(document.getElementById('fmSpaceChairs')?.value) || 0,
-            note: document.getElementById('fmSpaceNote')?.value?.trim() || '',
-          };
-          floors[fi].spaces.push(sp);
-          closeModal();
-          renderFloorList();
-          toast(`${name} 추가됨 (저장 버튼을 눌러주세요)`, 'info');
-        });
-      });
-    });
-
-    // 공간 삭제
-    section.querySelectorAll('.fm-del-space-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const fi = parseInt(btn.dataset.fi);
-        const si = parseInt(btn.dataset.si);
-        const sp = floors[fi]?.spaces?.[si];
-        if (!sp) return;
-        floors[fi].spaces.splice(si, 1);
-        renderFloorList();
-        toast(`${h(sp.name)} 삭제됨 (저장 버튼을 눌러주세요)`, 'info');
-      });
-    });
-
-    // 전체 저장
-    document.getElementById('fmSaveBtn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('fmSaveBtn'); btn.disabled = true;
-      try {
-        await api('/api/protected/hospital/settings', { method: 'PUT', json: { floor_map: floors }});
-        toast('층별 구성이 저장되었습니다!', 'success');
-        document.getElementById('fmSaveStatus').textContent = '✅ 저장됨';
-        setTimeout(() => { const s = document.getElementById('fmSaveStatus'); if(s) s.textContent=''; }, 3000);
-      } catch(e) { toast(e.message, 'error'); }
-      btn.disabled = false;
-    });
+  let chairs = [];
+  try {
+    chairs = await api('/api/protected/clinical/chairs') || [];
+  } catch(e) {
+    section.innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
+    return;
   }
 
-  renderFloorList();
-}
-
-/* ═══ 위치 용어 설정 ═══ */
-function renderLocationTerms(settings) {
-  const terms = settings.location_terms || defaultTerms;
-  const isEditable = ['admin','manager'].includes(state.user.role);
-  const section = document.getElementById('locationTermsSection');
-
-  section.innerHTML = `
-    <div style="margin-bottom:14px">
-      <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
-        병원에서 사용하는 위치 관련 용어를 설정합니다.<br>
-        여기서 설정한 용어가 <strong>진료보드, 환자등록, 체어 관리</strong> 등 모든 화면에 자동 적용됩니다.
-      </p>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-      ${Object.entries(termDescriptions).map(([key, desc]) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border-light)">
-          <span style="font-size:18px;width:28px;text-align:center">${desc.icon}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:3px">${desc.label}</div>
-            <input class="form-input lt-input" data-key="${key}" value="${esc(terms[key] || defaultTerms[key])}" placeholder="${desc.hint}" style="font-size:13px;padding:5px 10px" ${!isEditable?'disabled':''}>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-    ${isEditable ? `
-      <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
-        <button class="btn btn-primary btn-sm" id="ltSaveBtn">💾 용어 저장</button>
-        <button class="btn btn-secondary btn-sm" id="ltResetBtn">↩️ 기본값으로</button>
-        <span id="ltSaveStatus" class="mod-muted-sm"></span>
-      </div>
-    ` : '<div style="font-size:11px;color:var(--text-muted);margin-top:12px">* 용어 변경은 원장/실장만 가능합니다</div>'}`;
-
-  if (isEditable) {
-    document.getElementById('ltSaveBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('ltSaveBtn'); btn.disabled = true;
-      const newTerms = {};
-      section.querySelectorAll('.lt-input').forEach(el => {
-        const key = el.dataset.key;
-        const val = el.value.trim();
-        if (val) newTerms[key] = val;
-      });
-      try {
-        await api('/api/protected/hospital/settings', { method: 'PUT', json: { location_terms: newTerms }});
-        toast('위치 용어가 저장되었습니다! 진료보드에 즉시 반영됩니다.', 'success');
-        document.getElementById('ltSaveStatus').textContent = '✅ 저장됨';
-        setTimeout(() => { const s = document.getElementById('ltSaveStatus'); if(s) s.textContent=''; }, 3000);
-      } catch(e) { toast(e.message, 'error'); }
-      btn.disabled = false;
+  function renderList() {
+    // 유형별 그룹핑
+    const grouped = {};
+    chairs.forEach(c => {
+      const t = c.unit_type || 'chair';
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(c);
     });
+    Object.values(grouped).forEach(arr => arr.sort((a,b) => a.chair_number - b.chair_number));
 
-    document.getElementById('ltResetBtn').addEventListener('click', () => {
-      section.querySelectorAll('.lt-input').forEach(el => {
-        el.value = defaultTerms[el.dataset.key] || '';
-      });
-      toast('기본값으로 복원되었습니다. 저장 버튼을 눌러주세요.', 'info');
-    });
-  }
-}
-
-function renderLocationPresets(settings) {
-  const presets = settings.location_presets || [];
-  const terms = settings.location_terms || defaultTerms;
-  const isEditable = ['admin','manager'].includes(state.user.role);
-  const section = document.getElementById('locationPresetsSection');
-
-  function renderPresetList() {
     section.innerHTML = `
       <div style="margin-bottom:14px">
         <p style="font-size:12px;color:var(--text-muted);line-height:1.6">
-          자주 사용하는 위치 조합을 프리셋으로 등록하면, 환자 등록 시 빠르게 선택할 수 있습니다.
+          진료 유닛(체어·베드·진료실·수술실 등)을 등록해두면 <strong>진료보드, 환자등록</strong>에서 드롭다운으로 선택할 수 있습니다.<br>
+          진료과(치과·피부과·내과·외과 등)에 맞춰 유형을 선택하세요.
         </p>
       </div>
-      ${presets.length ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-          ${presets.map((p, i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border-light)">
-              <span style="font-size:14px">📍</span>
-              <div class="flex-1">
-                <span style="font-weight:700;font-size:13px">${esc(p.label)}</span>
-                <span style="font-size:11px;color:var(--text-muted);margin-left:8px">
-                  ${p.floor ? (terms.floor||'층')+': '+esc(p.floor)+' ' : ''}${p.room ? (terms.room||'진료실')+': '+esc(p.room) : ''}
-                </span>
-              </div>
-              ${isEditable ? `<button class="btn-icon lp-del-btn" data-idx="${i}" title="삭제">${ICONS.trash}</button>` : ''}
-            </div>
-          `).join('')}
-        </div>
-      ` : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">등록된 프리셋이 없습니다</div>'}
-      ${isEditable ? `
-        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:var(--radius);padding:14px">
-          <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px">➕ 새 프리셋 추가</div>
-          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
-            <div class="form-group" style="margin-bottom:0">
-              <label style="font-size:11px">표시 이름</label>
-              <input class="form-input" id="lpLabel" placeholder="예: 2F 진료실A" style="font-size:13px">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label style="font-size:11px">${esc(terms.floor||'층')}</label>
-              <input class="form-input" id="lpFloor" placeholder="예: 2F, 3층" style="font-size:13px">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label style="font-size:11px">${esc(terms.room||'진료실')}</label>
-              <input class="form-input" id="lpRoom" placeholder="예: 진료실 A" style="font-size:13px">
-            </div>
+
+      ${Object.keys(grouped).length ? UNIT_TYPES.filter(t => grouped[t.value]?.length).map(t => `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;color:${t.color};margin-bottom:6px;display:flex;align-items:center;gap:6px">
+            <span>${t.icon}</span><span>${t.label}</span>
+            <span style="color:var(--text-muted);font-weight:500">· ${grouped[t.value].length}개</span>
           </div>
-          <button class="btn btn-primary btn-sm" id="lpAddBtn" style="margin-top:10px">추가</button>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${grouped[t.value].map(ch => `
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:${t.color}11;border:1px solid ${t.color}55;border-radius:24px;font-size:13px">
+                <span style="font-size:16px">${t.icon}</span>
+                <span style="font-weight:700;color:${t.color}">${esc(String(ch.chair_number))}번</span>
+                ${ch.room_name ? `<span style="font-size:11px;color:#64748b">(${esc(ch.room_name)})</span>` : ''}
+                ${isEditable ? `<button class="ch-del-btn" data-id="${esc(ch.id)}" data-label="${t.label} ${esc(String(ch.chair_number))}번" title="삭제" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:#ef4444;font-size:14px;padding:0;display:flex;align-items:center;justify-content:center">×</button>` : ''}
+              </div>
+            `).join('')}
+          </div>
         </div>
-      ` : ''}`;
+      `).join('') : '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;background:var(--bg);border-radius:8px;margin-bottom:16px">등록된 진료 유닛이 없습니다. 아래에서 추가해주세요.</div>'}
+
+      ${isEditable ? `
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius);padding:14px;margin-top:12px">
+          <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:10px">➕ 진료 유닛 추가</div>
+          <div style="display:grid;grid-template-columns:1fr 100px 1.5fr auto;gap:8px;align-items:end">
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:11px">유형 *</label>
+              <select class="form-input" id="chType" style="font-size:13px">
+                ${UNIT_TYPES.map(t => `<option value="${t.value}">${t.icon} ${t.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:11px">번호 *</label>
+              <input class="form-input" type="number" id="chNumber" min="1" max="999" placeholder="1" style="font-size:13px">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:11px">이름/설명 (선택)</label>
+              <input class="form-input" id="chRoom" placeholder="예: VIP룸, 임플란트 전용, 처치실A" style="font-size:13px">
+            </div>
+            <button class="btn btn-primary btn-sm" id="chAddBtn" style="height:36px">추가</button>
+          </div>
+          <div style="font-size:11px;color:#166534;margin-top:10px;line-height:1.6">
+            💡 <strong>Tip:</strong> 유형 + 번호만 적어도 됩니다. 같은 유형 내에서만 번호 중복이 차단됩니다 (예: 체어 1번 / 수술실 1번 동시 가능).<br>
+            예시: 치과 → "체어 1번"·"수술실 1번"·"상담실 1번" / 피부과 → "베드 1번"·"진료실 1번"·"수술실 1번"
+          </div>
+        </div>
+      ` : ''}
+    `;
 
     if (isEditable) {
-      document.getElementById('lpAddBtn')?.addEventListener('click', async () => {
-        const label = document.getElementById('lpLabel').value.trim();
-        if (!label) { toast('표시 이름을 입력해주세요', 'error'); return; }
-        const newPreset = {
-          label,
-          floor: document.getElementById('lpFloor').value.trim(),
-          room: document.getElementById('lpRoom').value.trim(),
-        };
-        presets.push(newPreset);
+      document.getElementById('chAddBtn')?.addEventListener('click', async () => {
+        const typeEl = document.getElementById('chType');
+        const numEl = document.getElementById('chNumber');
+        const roomEl = document.getElementById('chRoom');
+        const unitType = typeEl?.value || 'chair';
+        const num = parseInt(numEl?.value);
+        if (!num || num < 1) { toast('번호를 입력해주세요', 'error'); return; }
+        // 같은 유형 내 중복 차단
+        if (chairs.some(c => (c.unit_type||'chair') === unitType && c.chair_number === num)) {
+          const meta = getUnitTypeMeta(unitType);
+          toast(`${meta.label} ${num}번이 이미 있습니다`, 'error');
+          return;
+        }
+        const btn = document.getElementById('chAddBtn'); btn.disabled = true;
         try {
-          await api('/api/protected/hospital/settings', { method: 'PUT', json: { location_presets: presets }});
-          toast('프리셋이 추가되었습니다', 'success');
-          renderPresetList();
-        } catch(e) { presets.pop(); toast(e.message, 'error'); }
+          await api('/api/protected/clinical/chairs', {
+            method: 'POST',
+            json: { chair_number: num, room_name: roomEl?.value?.trim() || '', unit_type: unitType }
+          });
+          chairs = await api('/api/protected/clinical/chairs') || [];
+          renderList();
+          const meta = getUnitTypeMeta(unitType);
+          toast(`✅ ${meta.label} ${num}번 추가됨`, 'success');
+        } catch(e) { toast(e.message, 'error'); }
+        const b2 = document.getElementById('chAddBtn'); if (b2) b2.disabled = false;
       });
 
-      section.querySelectorAll('.lp-del-btn').forEach(btn => {
+      section.querySelectorAll('.ch-del-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const idx = parseInt(btn.dataset.idx);
-          if (!confirm(`"${presets[idx]?.label}" 프리셋을 삭제하시겠습니까?`)) return;
-          const removed = presets.splice(idx, 1);
+          const id = btn.dataset.id;
+          const label = btn.dataset.label;
+          if (!confirm(`${label}을 삭제하시겠습니까?`)) return;
           try {
-            await api('/api/protected/hospital/settings', { method: 'PUT', json: { location_presets: presets }});
-            toast('프리셋이 삭제되었습니다', 'success');
-            renderPresetList();
-          } catch(e) { presets.splice(idx, 0, ...removed); toast(e.message, 'error'); }
+            await api(`/api/protected/clinical/chairs/${id}`, { method: 'DELETE' });
+            chairs = chairs.filter(c => c.id !== id);
+            renderList();
+            toast(`${label} 삭제됨`, 'info');
+          } catch(e) { toast(e.message, 'error'); }
         });
       });
     }
   }
 
-  renderPresetList();
+  renderList();
 }
 
 /* ─── 핵심 진료 설정 ─── */
@@ -968,6 +788,684 @@ function renderCoreRegions(settings) {
       toast('✅ 핵심지역이 저장되었습니다');
     } catch(e) { toast('❌ 저장 실패: ' + e.message, 'error'); }
   });
+}
+
+/* ═══ 데이터 백업 / 복구 ═══ */
+
+// JSZip 동적 로더 (초기 번들 사이즈 영향 0)
+let _jszipPromise = null;
+function loadJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (_jszipPromise) return _jszipPromise;
+  _jszipPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => reject(new Error('JSZip 로드 실패 (네트워크 확인)'));
+    document.head.appendChild(s);
+  });
+  return _jszipPromise;
+}
+
+async function renderBackup() {
+  const section = document.getElementById('backupSection');
+  if (!section) return;
+
+  // 매니페스트 로드
+  let manifest;
+  try {
+    manifest = await api('/api/protected/admin/backup/manifest');
+  } catch(e) {
+    section.innerHTML = `<div style="color:#ef4444;font-size:13px">백업 정보 로딩 실패: ${esc(e.message)}</div>`;
+    return;
+  }
+  const tables = manifest.tables || [];
+  const totalRows = tables.reduce((s, t) => s + (t.count || 0), 0);
+
+  section.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <strong style="font-size:14px">📦 전체 데이터 ZIP 백업</strong>
+        <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0;line-height:1.5">
+          체크된 테이블을 CSV로 묶어 한 번에 다운로드합니다.<br>
+          총 <strong style="color:#0f766e">${totalRows.toLocaleString()}</strong>건의 레코드 백업 가능 · Excel 호환 (UTF-8 BOM)
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" id="bkSelectAll">전체 선택</button>
+        <button class="btn btn-secondary btn-sm" id="bkSelectNone">전체 해제</button>
+      </div>
+    </div>
+
+    <div id="bkTableList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">
+      ${tables.map(t => `
+        <label class="bk-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;cursor:pointer;background:#fafafa">
+          <input type="checkbox" class="bk-check" data-table="${esc(t.key)}" checked style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:18px">${t.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${esc(t.label)}</div>
+            <div style="font-size:11px;color:var(--text-secondary)">${(t.count || 0).toLocaleString()}건 · ${esc(t.desc)}</div>
+          </div>
+        </label>
+      `).join('')}
+    </div>
+
+    <div id="bkProgress" style="display:none;margin-bottom:12px;padding:12px;background:#f0fdfa;border:1px solid #a7f3d0;border-radius:8px;font-size:12px">
+      <div id="bkProgressText" style="margin-bottom:6px">준비 중...</div>
+      <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
+        <div id="bkProgressBar" style="height:100%;background:linear-gradient(90deg,#10b981,#0f766e);width:0%;transition:width .3s"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px">
+      <button class="btn btn-primary" id="bkRunBtn">📦 ZIP 백업 다운로드</button>
+      <button class="btn btn-secondary" id="bkHistoryBtn">📋 백업 이력 보기</button>
+    </div>
+
+    <details style="border-top:1px solid var(--border-light);padding-top:16px">
+      <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#475569">ℹ️ 복구 / 데이터 이전 안내</summary>
+      <div style="margin-top:12px;font-size:12px;color:#64748b;line-height:1.7;background:#f8fafc;padding:12px;border-radius:8px">
+        <strong>📥 복구 방법</strong><br>
+        다운받은 ZIP을 풀면 테이블별 CSV가 들어 있습니다. 각 CSV는 Excel에서 바로 열리며,
+        다른 시스템으로 이전하거나 백업 보관용으로 사용할 수 있습니다.<br><br>
+        <strong>⚠️ 운영 권장</strong><br>
+        • 월 1회 이상 백업을 권장합니다<br>
+        • 백업 파일은 별도 클라우드(Google Drive, Dropbox 등)에 보관하세요<br>
+        • 환자 정보가 포함되므로 <strong>암호화된 저장소</strong>에 보관하세요<br>
+        • 모든 백업 작업은 자동으로 감사 로그에 기록됩니다
+      </div>
+    </details>
+  `;
+
+  // 전체 선택/해제
+  const checks = () => section.querySelectorAll('.bk-check');
+  document.getElementById('bkSelectAll').addEventListener('click', () => {
+    checks().forEach(c => c.checked = true);
+  });
+  document.getElementById('bkSelectNone').addEventListener('click', () => {
+    checks().forEach(c => c.checked = false);
+  });
+
+  // 백업 실행
+  document.getElementById('bkRunBtn').addEventListener('click', () => runBackup(tables));
+
+  // 이력 보기
+  document.getElementById('bkHistoryBtn').addEventListener('click', openBackupHistory);
+}
+
+async function runBackup(allTables) {
+  const section = document.getElementById('backupSection');
+  const selected = Array.from(section.querySelectorAll('.bk-check'))
+    .filter(c => c.checked)
+    .map(c => c.dataset.table);
+
+  if (selected.length === 0) {
+    toast('백업할 테이블을 1개 이상 선택하세요', 'warning');
+    return;
+  }
+
+  const runBtn = document.getElementById('bkRunBtn');
+  const progress = document.getElementById('bkProgress');
+  const progressText = document.getElementById('bkProgressText');
+  const progressBar = document.getElementById('bkProgressBar');
+
+  runBtn.disabled = true;
+  runBtn.textContent = '⏳ 진행 중...';
+  progress.style.display = 'block';
+
+  try {
+    progressText.textContent = '📥 JSZip 라이브러리 로딩 중...';
+    progressBar.style.width = '5%';
+    const JSZip = await loadJSZip();
+    const zip = new JSZip();
+
+    // 메타데이터 파일
+    const tableMap = Object.fromEntries(allTables.map(t => [t.key, t]));
+    const meta = {
+      pfm_version: '5.2.3',
+      backup_type: 'full_csv_bundle',
+      generated_at: new Date().toISOString(),
+      generated_by: state.user?.name || state.user?.email || 'unknown',
+      hospital_id: state.user?.hospitalId,
+      tables: selected.map(k => ({
+        key: k,
+        label: tableMap[k]?.label,
+        row_count: tableMap[k]?.count || 0,
+      })),
+    };
+    zip.file('_BACKUP_INFO.json', JSON.stringify(meta, null, 2));
+    zip.file('README.txt',
+      'PFM 데이터 백업 패키지\n' +
+      '=========================\n\n' +
+      `생성 일시: ${new Date().toLocaleString('ko-KR')}\n` +
+      `생성자: ${meta.generated_by}\n` +
+      `포함 테이블: ${selected.length}개\n\n` +
+      '각 CSV 파일은 UTF-8 BOM이 포함되어 있어\n' +
+      'Excel에서 한글이 깨지지 않습니다.\n\n' +
+      '복구가 필요한 경우 PFM 관리자에게 문의하세요.\n'
+    );
+
+    // 테이블별 CSV 다운로드
+    const token = localStorage.getItem('pfm_token');
+    let completed = 0;
+    for (const tableKey of selected) {
+      const tableInfo = tableMap[tableKey];
+      progressText.textContent = `📊 ${tableInfo?.icon || ''} ${tableInfo?.label || tableKey} CSV 가져오는 중... (${completed + 1}/${selected.length})`;
+      progressBar.style.width = (5 + (90 * completed / selected.length)) + '%';
+
+      const res = await fetch(`/api/protected/admin/export/${tableKey}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error(`${tableInfo?.label || tableKey}: ${res.status} ${res.statusText}`);
+      }
+      const csvText = await res.text();
+      zip.file(`${tableKey}_${new Date().toISOString().slice(0, 10)}.csv`, csvText);
+      completed++;
+    }
+
+    progressText.textContent = '🗜️ ZIP 파일 생성 중...';
+    progressBar.style.width = '95%';
+
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
+
+    progressBar.style.width = '100%';
+    progressText.textContent = `✅ 완료! (${(blob.size / 1024).toFixed(1)} KB)`;
+
+    // 다운로드 트리거
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pfm-backup_${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    toast(`✅ ${selected.length}개 테이블 백업 완료`, 'success');
+
+    setTimeout(() => {
+      progress.style.display = 'none';
+      progressBar.style.width = '0%';
+    }, 3000);
+  } catch (e) {
+    progressText.textContent = `❌ 실패: ${e.message}`;
+    toast('백업 실패: ' + e.message, 'error');
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = '📦 ZIP 백업 다운로드';
+  }
+}
+
+async function openBackupHistory() {
+  let logs;
+  try {
+    logs = await api('/api/protected/admin/export-logs');
+  } catch(e) {
+    toast('이력 로딩 실패: ' + e.message, 'error');
+    return;
+  }
+
+  const labelMap = {
+    patients: '👥 환자',
+    daily_records: '📅 일일기록',
+    consult_records: '💬 상담',
+    call_records: '📞 콜',
+    complaints: '⚠️ 컴플레인',
+    kpi_targets: '🎯 KPI',
+  };
+
+  const html = `
+    <div class="modal-overlay" id="bkHistModal">
+      <div class="modal-content" style="max-width:720px">
+        <div class="modal-header">
+          <h2>📋 백업 / 내보내기 이력</h2>
+          <button class="modal-close" data-close>×</button>
+        </div>
+        <div class="modal-body">
+          ${logs.length === 0 ? `
+            <div style="text-align:center;padding:40px;color:var(--text-secondary)">
+              아직 백업 이력이 없습니다.
+            </div>
+          ` : `
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">최근 50건</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="background:#f8fafc;border-bottom:2px solid var(--border)">
+                  <th style="padding:8px;text-align:left">일시</th>
+                  <th style="padding:8px;text-align:left">테이블</th>
+                  <th style="padding:8px;text-align:right">건수</th>
+                  <th style="padding:8px;text-align:left">작업자</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${logs.map(l => `
+                  <tr style="border-bottom:1px solid var(--border-light)">
+                    <td style="padding:8px;color:#475569">${esc(l.created_at?.slice(0,16).replace('T',' ') || '-')}</td>
+                    <td style="padding:8px">${esc(labelMap[l.table_name] || l.table_name || '-')}</td>
+                    <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums">${(l.row_count || 0).toLocaleString()}</td>
+                    <td style="padding:8px;color:#475569">${esc(l.user_name || '-')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = document.getElementById('bkHistModal');
+  modal.querySelector('[data-close]').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+/* ═══ 실사용 시뮬레이션 체크리스트 ═══ */
+
+const SIM_STORAGE_KEY = 'pfm_simulation_v1';
+
+// 가상 환자 1명이 통과해야 할 9단계 시나리오
+const SIM_SCENARIO = {
+  patient: {
+    name: '김민지 (가상 환자)',
+    age: 35,
+    gender: '여',
+    source: '인스타그램 광고',
+    chief: '왼쪽 어금니 신경치료 문의',
+  },
+  steps: [
+    {
+      id: 's1_call_in',
+      icon: '📞',
+      title: '1단계: 콜 인입 등록',
+      menu: '콜 → 인바운드',
+      actions: [
+        '인바운드 콜 등록 화면 진입',
+        '환자명 "김민지", 전화번호, 유입경로 "인스타광고", 문의내용 입력',
+        '담당 직원 본인으로 지정 후 저장',
+      ],
+      verify: [
+        '저장 후 콜 목록 최상단에 표시되는가',
+        '오늘 날짜·시간이 자동 입력되었는가',
+        '대시보드 위젯의 "오늘 인바운드 콜" 카운트가 +1 되는가',
+      ],
+    },
+    {
+      id: 's2_patient_register',
+      icon: '👤',
+      title: '2단계: 환자 등록',
+      menu: '환자 → 신규 등록',
+      actions: [
+        '환자 신규 등록 폼 작성 (이름, 생년월일, 연락처, 주소)',
+        '환자 유형: "신환", 유입경로: "인스타광고"',
+        '차트번호 자동 생성 또는 수동 입력 후 저장',
+      ],
+      verify: [
+        '환자 목록에서 검색되는가',
+        '환자 상세 페이지에서 모든 정보가 정확히 표시되는가',
+        '시도/시군구가 핵심지역 KPI에 반영될 위치인가',
+      ],
+    },
+    {
+      id: 's3_reservation',
+      icon: '📅',
+      title: '3단계: 예약 생성',
+      menu: '예약',
+      actions: [
+        '예약 등록 모달 열기',
+        '환자 "김민지" 검색해서 선택',
+        '예약 날짜·시간·진료유닛(체어/베드/진료실 등) 배정',
+        '진료내용 "신경치료 1차" 입력 후 저장',
+      ],
+      verify: [
+        '예약 캘린더에 표시되는가',
+        '선택한 진료 유닛에 시간 충돌이 없는가',
+        '환자 상세 페이지 "예약" 탭에 노출되는가',
+      ],
+    },
+    {
+      id: 's4_arrival',
+      icon: '🏥',
+      title: '4단계: 내원 / 진료보드',
+      menu: '진료보드',
+      actions: [
+        '예약 시간에 환자 도착 → 진료보드에 "도착" 상태 변경',
+        '진료 유닛에 환자 카드 표시 확인',
+        '대기시간 시작 기록',
+        '진료 시작 → "진료 중" 상태 전환',
+      ],
+      verify: [
+        '진료 유닛 dropdown이 unit_type별로 그룹화되어 보이는가 (체어/베드/진료실)',
+        '대기시간이 분 단위로 카운팅되는가',
+        '진료 보드 색상/상태가 즉시 업데이트되는가',
+      ],
+    },
+    {
+      id: 's5_consult',
+      icon: '💬',
+      title: '5단계: 상담 기록 + 견적',
+      menu: '상담 기록',
+      actions: [
+        '상담 기록 신규 등록',
+        '환자 "김민지" 선택, 진료유형 "신경치료+보철"',
+        '주소(Chief complaint) 입력',
+        '견적금액 입력 (예: 850,000원)',
+        '동의금액 입력 (예: 850,000원) → 동의율 100% 시뮬',
+        '결제방식 "카드 일시불" 선택',
+        '다음 예약 일자 지정 후 저장',
+      ],
+      verify: [
+        '상담 동의율이 자동 계산되는가 (동의금액/견적금액)',
+        '상담 대시보드에 카운트 +1 반영',
+        '환자 상세에 상담 이력이 누적되는가',
+      ],
+    },
+    {
+      id: 's6_payment',
+      icon: '💰',
+      title: '6단계: 결제 / 일일기록',
+      menu: '일일기록',
+      actions: [
+        '오늘 일일기록 열기',
+        '비급여 매출에 850,000원 추가 입력',
+        '신환수 +1 증가 확인',
+        '상담 건수 +1 증가 확인',
+        '저장',
+      ],
+      verify: [
+        'KPI 대시보드에 오늘 매출이 즉시 반영되는가',
+        '월 누적 매출이 KPI 목표 대비 % 업데이트되는가',
+        '전일 대비/전주 대비 인사이트 위젯이 정확한가',
+      ],
+    },
+    {
+      id: 's7_recall',
+      icon: '🔔',
+      title: '7단계: 리콜 / 차회 예약',
+      menu: '리콜',
+      actions: [
+        '리콜 메뉴 진입',
+        '"김민지" 환자에게 차주 신경치료 2차 예약 안내 발송 시뮬',
+        '리콜 대상 목록에 표시되는지 확인',
+        '카카오톡 알림 발송 시뮬레이션 (있다면)',
+      ],
+      verify: [
+        '리콜 발송 이력이 환자 상세에 기록되는가',
+        '다음 예약 알림이 캘린더에 표시되는가',
+      ],
+    },
+    {
+      id: 's8_review',
+      icon: '⭐',
+      title: '8단계: 리뷰 / NPS',
+      menu: '리뷰 관리 / 설문',
+      actions: [
+        '리뷰 관리 또는 설문 메뉴 진입',
+        '김민지 환자에게 리뷰 요청 발송 시뮬',
+        '네이버 리뷰 카운트 +1 (일일기록에서 입력 시뮬)',
+        'NPS 설문 응답 시뮬 (있다면)',
+      ],
+      verify: [
+        '네이버 리뷰 누적 수가 일일기록과 일치하는가',
+        '환자별 리뷰 작성 이력이 추적되는가',
+      ],
+    },
+    {
+      id: 's9_analysis',
+      icon: '📊',
+      title: '9단계: 분석 / 데이터 정합성',
+      menu: '대시보드 / KPI / 통계',
+      actions: [
+        '메인 대시보드에서 오늘 KPI 카드 확인',
+        'KPI 통계 → 환자수/매출/상담 모든 지표 검증',
+        '환자 통계에서 김민지가 신환에 카운트되었는지',
+        '콜 통계에서 인바운드 +1 반영',
+        '백업 다운로드 → CSV에 김민지 데이터가 모두 포함되는지',
+      ],
+      verify: [
+        '대시보드 ↔ 환자통계 ↔ KPI ↔ 일일기록 숫자가 모두 일치하는가',
+        'CSV 백업의 patients/consult_records/call_records에 김민지 행이 존재하는가',
+        '백업 이력 (export_logs)에 자동 기록되었는가',
+      ],
+    },
+  ],
+};
+
+function loadSimState() {
+  try { return JSON.parse(localStorage.getItem(SIM_STORAGE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveSimState(s) {
+  localStorage.setItem(SIM_STORAGE_KEY, JSON.stringify(s));
+}
+
+function renderSimulation() {
+  const section = document.getElementById('simulationSection');
+  if (!section) return;
+
+  const simState = loadSimState();
+  const totalChecks = SIM_SCENARIO.steps.reduce(
+    (sum, s) => sum + s.actions.length + s.verify.length, 0
+  );
+  const doneChecks = Object.values(simState).filter(v => v === true).length;
+  const pct = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
+
+  const p = SIM_SCENARIO.patient;
+
+  section.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:240px">
+        <strong style="font-size:14px">🧪 실사용 검증 시나리오</strong>
+        <p style="color:var(--text-secondary);font-size:12px;margin:4px 0 0;line-height:1.6">
+          가상 환자 <strong style="color:#0f766e">${esc(p.name)} (${p.age}세, ${p.gender})</strong> 1명이<br>
+          <span style="color:#475569">콜 인입 → 예약 → 진료 → 상담 → 결제 → 리콜 → 리뷰</span> 전 과정을 통과시켜<br>
+          PFM 9단계 데이터 흐름이 막힘없이 작동하는지 검증합니다.
+        </p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--text-secondary)">진행률</div>
+        <div style="font-size:28px;font-weight:700;color:${pct === 100 ? '#10b981' : pct > 0 ? '#0f766e' : '#94a3b8'}">${pct}%</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${doneChecks} / ${totalChecks}</div>
+      </div>
+    </div>
+
+    <div style="height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin-bottom:20px">
+      <div style="height:100%;background:linear-gradient(90deg,#10b981,#0f766e);width:${pct}%;transition:width .3s"></div>
+    </div>
+
+    <details style="background:#f0fdfa;border:1px solid #a7f3d0;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#0f766e">📋 가상 환자 프로필 (이대로 입력하세요)</summary>
+      <div style="margin-top:10px;font-size:12px;color:#475569;line-height:1.8">
+        • <strong>이름</strong>: ${esc(p.name)}<br>
+        • <strong>나이/성별</strong>: ${p.age}세 / ${p.gender}<br>
+        • <strong>유입경로</strong>: ${esc(p.source)}<br>
+        • <strong>주소(C.C.)</strong>: ${esc(p.chief)}<br>
+        • <strong>가상 견적</strong>: 850,000원 (신경치료 + 보철)
+      </div>
+    </details>
+
+    <div id="simSteps">
+      ${SIM_SCENARIO.steps.map((step, idx) => renderSimStep(step, idx, simState)).join('')}
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light)">
+      <button class="btn btn-secondary btn-sm" id="simResetBtn">🔄 체크 초기화</button>
+      <button class="btn btn-secondary btn-sm" id="simExportBtn">📄 결과 리포트 내보내기</button>
+      ${pct === 100 ? '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:13px;font-weight:600">🎉 모든 단계 통과 — 실사용 준비 완료!</span>' : ''}
+    </div>
+  `;
+
+  // 체크박스 이벤트 (위임)
+  section.querySelectorAll('.sim-check').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const key = e.target.dataset.key;
+      const s = loadSimState();
+      s[key] = e.target.checked;
+      saveSimState(s);
+      // 진행률만 다시 그리기
+      renderSimulation();
+    });
+  });
+
+  // 메모 이벤트 (디바운스)
+  section.querySelectorAll('.sim-memo').forEach(ta => {
+    let timer;
+    ta.addEventListener('input', (e) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const key = e.target.dataset.key;
+        const s = loadSimState();
+        s[key] = e.target.value;
+        saveSimState(s);
+      }, 400);
+    });
+  });
+
+  // 초기화
+  document.getElementById('simResetBtn').addEventListener('click', () => {
+    if (!confirm('체크 및 메모를 모두 초기화하시겠습니까?')) return;
+    localStorage.removeItem(SIM_STORAGE_KEY);
+    renderSimulation();
+    toast('초기화되었습니다', 'info');
+  });
+
+  // 리포트 내보내기
+  document.getElementById('simExportBtn').addEventListener('click', () => {
+    exportSimReport(simState, pct, doneChecks, totalChecks);
+  });
+}
+
+function renderSimStep(step, idx, simState) {
+  const allKeys = [
+    ...step.actions.map((_, i) => `${step.id}_a${i}`),
+    ...step.verify.map((_, i) => `${step.id}_v${i}`),
+  ];
+  const stepDone = allKeys.every(k => simState[k] === true);
+  const stepTotal = allKeys.length;
+  const stepDoneCount = allKeys.filter(k => simState[k] === true).length;
+  const memoKey = `${step.id}_memo`;
+
+  return `
+    <details style="border:1px solid ${stepDone ? '#a7f3d0' : 'var(--border-light)'};border-radius:8px;margin-bottom:8px;background:${stepDone ? '#f0fdfa' : '#fff'};overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;list-style:none">
+        <span style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <span style="font-size:20px">${step.icon}</span>
+          <span>
+            <span style="font-size:13px;font-weight:600;color:${stepDone ? '#15803d' : '#1e293b'}">${stepDone ? '✅ ' : ''}${esc(step.title)}</span>
+            <span style="font-size:11px;color:var(--text-secondary);margin-left:6px">📍 ${esc(step.menu)}</span>
+          </span>
+        </span>
+        <span style="font-size:11px;color:#475569;background:${stepDone ? '#dcfce7' : '#f1f5f9'};padding:3px 8px;border-radius:10px">${stepDoneCount} / ${stepTotal}</span>
+      </summary>
+      <div style="padding:8px 14px 14px;border-top:1px solid var(--border-light)">
+        <div style="font-size:11px;font-weight:700;color:#0f766e;margin:8px 0 4px;letter-spacing:.5px">🎯 ACTIONS</div>
+        ${step.actions.map((a, i) => {
+          const k = `${step.id}_a${i}`;
+          const checked = simState[k] === true;
+          return `
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;color:${checked ? '#94a3b8' : '#1e293b'};text-decoration:${checked ? 'line-through' : 'none'}">
+              <input type="checkbox" class="sim-check" data-key="${k}" ${checked ? 'checked' : ''} style="margin-top:3px;cursor:pointer">
+              <span>${esc(a)}</span>
+            </label>
+          `;
+        }).join('')}
+
+        <div style="font-size:11px;font-weight:700;color:#a16207;margin:12px 0 4px;letter-spacing:.5px">🔍 VERIFY</div>
+        ${step.verify.map((v, i) => {
+          const k = `${step.id}_v${i}`;
+          const checked = simState[k] === true;
+          return `
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;color:${checked ? '#94a3b8' : '#1e293b'};text-decoration:${checked ? 'line-through' : 'none'}">
+              <input type="checkbox" class="sim-check" data-key="${k}" ${checked ? 'checked' : ''} style="margin-top:3px;cursor:pointer">
+              <span>${esc(v)}</span>
+            </label>
+          `;
+        }).join('')}
+
+        <div style="margin-top:10px">
+          <div style="font-size:11px;color:#475569;margin-bottom:4px">📝 발견된 이슈 / 메모</div>
+          <textarea class="sim-memo" data-key="${memoKey}" placeholder="이 단계에서 발견된 버그·개선점·특이사항을 기록하세요" style="width:100%;min-height:50px;padding:8px;border:1px solid var(--border-light);border-radius:6px;font-size:12px;resize:vertical;font-family:inherit">${esc(simState[memoKey] || '')}</textarea>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function exportSimReport(simState, pct, doneChecks, totalChecks) {
+  const lines = [];
+  lines.push('═══════════════════════════════════════════');
+  lines.push('  PFM 실사용 시뮬레이션 검증 리포트');
+  lines.push('═══════════════════════════════════════════');
+  lines.push('');
+  lines.push(`생성 일시: ${new Date().toLocaleString('ko-KR')}`);
+  lines.push(`작성자: ${state.user?.name || state.user?.email || '-'}`);
+  lines.push(`병원 ID: ${state.user?.hospitalId || '-'}`);
+  lines.push('');
+  lines.push(`📊 전체 진행률: ${pct}% (${doneChecks}/${totalChecks})`);
+  lines.push('');
+
+  const p = SIM_SCENARIO.patient;
+  lines.push('━━━ 가상 환자 ━━━');
+  lines.push(`이름: ${p.name}`);
+  lines.push(`나이/성별: ${p.age}세 / ${p.gender}`);
+  lines.push(`유입경로: ${p.source}`);
+  lines.push(`주소(C.C.): ${p.chief}`);
+  lines.push('');
+
+  SIM_SCENARIO.steps.forEach((step, idx) => {
+    const allKeys = [
+      ...step.actions.map((_, i) => `${step.id}_a${i}`),
+      ...step.verify.map((_, i) => `${step.id}_v${i}`),
+    ];
+    const stepDoneCount = allKeys.filter(k => simState[k] === true).length;
+    const status = stepDoneCount === allKeys.length ? '✅ 통과' : stepDoneCount > 0 ? '⏳ 진행중' : '⬜ 미시작';
+
+    lines.push('');
+    lines.push(`━━━ ${step.title} [${status}] ━━━`);
+    lines.push(`📍 메뉴: ${step.menu}`);
+    lines.push(`진행: ${stepDoneCount}/${allKeys.length}`);
+    lines.push('');
+    lines.push('  [ACTIONS]');
+    step.actions.forEach((a, i) => {
+      const checked = simState[`${step.id}_a${i}`] === true;
+      lines.push(`  ${checked ? '[x]' : '[ ]'} ${a}`);
+    });
+    lines.push('');
+    lines.push('  [VERIFY]');
+    step.verify.forEach((v, i) => {
+      const checked = simState[`${step.id}_v${i}`] === true;
+      lines.push(`  ${checked ? '[x]' : '[ ]'} ${v}`);
+    });
+
+    const memo = simState[`${step.id}_memo`];
+    if (memo && memo.trim()) {
+      lines.push('');
+      lines.push('  [메모]');
+      memo.split('\n').forEach(l => lines.push(`  > ${l}`));
+    }
+  });
+
+  lines.push('');
+  lines.push('═══════════════════════════════════════════');
+  lines.push('  End of Report');
+  lines.push('═══════════════════════════════════════════');
+
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pfm-simulation-report_${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  toast('✅ 리포트가 다운로드되었습니다', 'success');
 }
 
 PFM.modules.settings = { renderSettings };

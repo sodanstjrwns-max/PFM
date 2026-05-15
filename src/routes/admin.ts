@@ -132,6 +132,38 @@ admin.get('/export-logs', requireRole('admin', 'manager'), async (c) => {
   return c.json(rows.results || [])
 })
 
+/* ═══ Backup Manifest (#18 extended) ═══ */
+// 백업 가능한 테이블 목록과 행 수 미리보기 - 번들 백업 UI용
+admin.get('/backup/manifest', requireRole('admin', 'manager'), async (c) => {
+  const user = c.get('user')!
+  const tables = [
+    { key: 'patients',        label: '환자',        icon: '👥', desc: '환자 마스터 (최대 10,000건)' },
+    { key: 'daily_records',   label: '일일 기록',   icon: '📅', desc: '일별 매출/신환/콜 (최대 5,000일)' },
+    { key: 'consult_records', label: '상담 기록',   icon: '💬', desc: '상담 동의/견적 (최대 10,000건)' },
+    { key: 'call_records',    label: '콜 기록',     icon: '📞', desc: '인/아웃바운드 콜 (최대 20,000건)' },
+    { key: 'complaints',      label: '컴플레인',    icon: '⚠️',  desc: '컴플레인 이력 (최대 5,000건)' },
+    { key: 'kpi_targets',     label: 'KPI 목표',    icon: '🎯', desc: '월별 KPI 목표' },
+  ]
+
+  // 각 테이블의 행 수를 병렬로 카운트 (hospital_id 필터 필수)
+  const counts = await Promise.all(tables.map(async t => {
+    try {
+      const r = await c.env.DB.prepare(
+        `SELECT COUNT(*) as c FROM ${t.key} WHERE hospital_id=?`
+      ).bind(user.hospitalId).first() as any
+      return { ...t, count: r?.c || 0 }
+    } catch {
+      return { ...t, count: 0 }
+    }
+  }))
+
+  return c.json({
+    tables: counts,
+    generated_at: new Date().toISOString(),
+    hospital_id: user.hospitalId,
+  })
+})
+
 /* ═══ #17 Multi-tenant Admin Console Basics ═══ */
 
 // Hospital overview stats (admin only)

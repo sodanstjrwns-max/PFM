@@ -166,7 +166,10 @@ async function renderHRDashboard(body, actions) {
 /* ─── Staff Management ─── */
 async function renderStaffManagement(body, actions) {
   const isAdmin = PFM.canManage();
-  actions.innerHTML = isAdmin ? `<button class="btn btn-primary btn-sm" id="inviteStaffBtn">${ICONS.plus} 직원 초대</button>` : '';
+  actions.innerHTML = isAdmin ? `
+    <button class="btn btn-secondary btn-sm" id="inviteListBtn">📋 초대 코드 관리</button>
+    <button class="btn btn-primary btn-sm" id="inviteStaffBtn">${ICONS.plus} 직원 초대</button>
+  ` : '';
 
   body.innerHTML = `<div id="staffMgmt" style="max-width:1000px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
 
@@ -269,78 +272,271 @@ async function renderStaffManagement(body, actions) {
 
   // Invite staff
   if (isAdmin) {
-    document.getElementById('inviteStaffBtn')?.addEventListener('click', async () => {
-      const modal = document.getElementById('modalContent');
-      modal.innerHTML = `
-        <div class="modal-header"><h3>🔗 직원 초대 코드 생성</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
-        <div class="modal-body"><form class="auth-form">
-          <div class="form-grid">
-            <div class="form-group"><label>권한</label>
-              <select class="form-input" id="invRole"><option value="staff">스태프</option><option value="manager">매니저</option></select>
-            </div>
-            <div class="form-group"><label>직급 (선택)</label>
-              <select class="form-input" id="invPosition"><option value="">미지정</option>
-                ${Object.entries(positionLabels).filter(([k])=>k).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="form-group"><label>소속팀 (선택)</label>
-            <select class="form-input" id="invTeam"><option value="">미지정</option>
-              ${Object.entries(teamLabels).filter(([k])=>k&&k!=='etc').map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
-            </select>
-          </div>
-        </form></div>
-        <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="invSubmitBtn">🔗 코드 생성</button></div>`;
-      showModal();
-      document.getElementById('modalClose').addEventListener('click', closeModal);
-      document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
-      document.getElementById('invSubmitBtn').addEventListener('click', async () => {
-        try {
-          const result = await api('/api/protected/hr/invite', { method: 'POST', json: {
-            role: document.getElementById('invRole').value,
-            position: document.getElementById('invPosition').value,
-            team: document.getElementById('invTeam').value,
-          }});
-          const inviteLink = window.location.origin + '/#join/' + result.invite_code;
-          const modal2 = document.getElementById('modalContent');
-          modal2.innerHTML = `
-            <div class="modal-header"><h3>✅ 초대 링크 생성 완료</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
-            <div class="modal-body" class="text-center">
-              <div style="font-size:36px;font-weight:900;letter-spacing:6px;color:var(--primary);background:var(--primary-bg);padding:20px;border-radius:12px;margin:20px 0;font-family:monospace">${result.invite_code}</div>
-              <div style="margin:16px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:flex;align-items:center;gap:8px">
-                <input class="form-input" id="invLinkInput" value="${inviteLink}" readonly style="flex:1;font-size:12px;background:transparent;border:none;padding:0;color:var(--text)">
-                <button class="btn btn-primary btn-sm" id="invLinkCopyBtn" style="white-space:nowrap">📋 링크 복사</button>
-              </div>
-              <p style="font-size:13px;color:var(--text-secondary)">이 링크를 직원에게 카톡/문자로 보내주세요.<br>링크를 열면 <strong>바로 가입 화면</strong>으로 이동합니다.</p>
-              <p style="font-size:11px;color:var(--text-muted);margin-top:8px">유효기간: ${result.expires_at ? result.expires_at.slice(0,10) : '7일'}</p>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" id="invCodeCopyBtn">코드만 복사</button>
-              <button class="btn btn-primary" id="invShareBtn">📤 공유하기</button>
-            </div>`;
-          document.getElementById('modalClose').addEventListener('click', closeModal);
-          document.getElementById('invLinkCopyBtn').addEventListener('click', () => {
-            navigator.clipboard.writeText(inviteLink);
-            toast('초대 링크가 복사되었습니다!', 'success');
-            document.getElementById('invLinkCopyBtn').textContent = '✅ 복사됨';
-          });
-          document.getElementById('invCodeCopyBtn').addEventListener('click', () => {
-            navigator.clipboard.writeText(result.invite_code);
-            toast('코드가 복사되었습니다!', 'success');
-          });
-          document.getElementById('invShareBtn').addEventListener('click', () => {
-            const text = `[${state.user.hospitalName || 'PFM'}] 직원 초대\n아래 링크로 가입해주세요:\n${inviteLink}`;
-            if (navigator.share) {
-              navigator.share({ title: '직원 초대', text }).catch(()=>{});
-            } else {
-              navigator.clipboard.writeText(text);
-              toast('공유 메시지가 복사되었습니다!', 'success');
-            }
-          });
-        } catch(e) { toast(e.message, 'error'); }
-      });
-    });
+    document.getElementById('inviteStaffBtn')?.addEventListener('click', openInviteCreator);
+    document.getElementById('inviteListBtn')?.addEventListener('click', openInviteList);
   }
+}
+
+/* ═══ 초대 코드 생성 모달 v2 (다인용 + 만료일 + 메모) ═══ */
+function openInviteCreator() {
+  const modal = document.getElementById('modalContent');
+  modal.style.maxWidth = '560px';
+  modal.innerHTML = `
+    <div class="modal-header"><h3>🔗 직원 초대 코드 생성</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+    <div class="modal-body"><form class="auth-form">
+      <div class="form-grid">
+        <div class="form-group"><label>권한</label>
+          <select class="form-input" id="invRole">
+            <option value="staff">스태프 (일반 직원)</option>
+            <option value="manager">매니저 (실장)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>직급 (선택)</label>
+          <select class="form-input" id="invPosition"><option value="">미지정</option>
+            ${Object.entries(positionLabels).filter(([k])=>k).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>소속팀 (선택)</label>
+        <select class="form-input" id="invTeam"><option value="">미지정</option>
+          ${Object.entries(teamLabels).filter(([k])=>k&&k!=='etc').map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:14px 0">
+        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:10px">🎯 코드 유형 선택</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button type="button" class="inv-type-btn" data-type="single" style="flex:1;padding:10px;border:2px solid var(--primary);background:var(--primary-bg);color:var(--primary);border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+            👤 단일 사용<br><span style="font-size:11px;font-weight:500">1명만 가입</span>
+          </button>
+          <button type="button" class="inv-type-btn" data-type="multi" style="flex:1;padding:10px;border:2px solid var(--border);background:white;color:var(--text);border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+            👥 다인용<br><span style="font-size:11px;font-weight:500">여러 명 가입</span>
+          </button>
+        </div>
+        <div id="invMultiField" style="display:none;margin-bottom:10px">
+          <label style="font-size:11px;font-weight:600">최대 사용 인원</label>
+          <input class="form-input" type="number" id="invMaxUses" min="2" max="100" value="5" style="font-size:13px">
+          <div style="font-size:11px;color:#166534;margin-top:4px">💡 같은 링크로 N명까지 가입 가능 (신입 동시 채용 시 유용)</div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group"><label>유효 기간</label>
+          <select class="form-input" id="invExpiresDays">
+            <option value="1">1일 (당일 사용)</option>
+            <option value="3">3일</option>
+            <option value="7" selected>7일 (기본)</option>
+            <option value="14">14일</option>
+            <option value="30">30일</option>
+            <option value="90">90일 (최대)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>메모 (선택)</label>
+          <input class="form-input" id="invMemo" placeholder="예: 2026년 1분기 신입" maxlength="200">
+        </div>
+      </div>
+    </form></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modalCancelBtn">취소</button>
+      <button class="btn btn-primary" id="invSubmitBtn">🔗 코드 생성</button>
+    </div>`;
+  showModal();
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+
+  // 단일/다인 토글
+  let inviteType = 'single';
+  document.querySelectorAll('.inv-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      inviteType = btn.dataset.type;
+      document.querySelectorAll('.inv-type-btn').forEach(b => {
+        const active = b.dataset.type === inviteType;
+        b.style.border = active ? '2px solid var(--primary)' : '2px solid var(--border)';
+        b.style.background = active ? 'var(--primary-bg)' : 'white';
+        b.style.color = active ? 'var(--primary)' : 'var(--text)';
+      });
+      document.getElementById('invMultiField').style.display = inviteType === 'multi' ? '' : 'none';
+    });
+  });
+
+  document.getElementById('invSubmitBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('invSubmitBtn'); btn.disabled = true;
+    try {
+      const maxUses = inviteType === 'multi' ? parseInt(document.getElementById('invMaxUses').value) || 5 : 1;
+      const result = await api('/api/protected/hr/invite', { method: 'POST', json: {
+        role: document.getElementById('invRole').value,
+        position: document.getElementById('invPosition').value,
+        team: document.getElementById('invTeam').value,
+        max_uses: maxUses,
+        expires_days: parseInt(document.getElementById('invExpiresDays').value) || 7,
+        memo: document.getElementById('invMemo').value.trim(),
+      }});
+      showInviteResult(result);
+    } catch(e) { toast(e.message, 'error'); btn.disabled = false; }
+  });
+}
+
+function showInviteResult(result) {
+  const inviteLink = window.location.origin + '/#join/' + result.invite_code;
+  const expiresDate = result.expires_at ? new Date(result.expires_at).toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'}) : '7일';
+  const isMulti = (result.max_uses || 1) > 1;
+  const modal = document.getElementById('modalContent');
+  modal.innerHTML = `
+    <div class="modal-header"><h3>✅ 초대 링크 생성 완료</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+    <div class="modal-body" style="text-align:center">
+      ${isMulti ? `<div style="display:inline-block;background:#fef3c7;color:#92400e;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700;margin-bottom:12px">👥 다인용 코드 · 최대 ${result.max_uses}명</div>` : ''}
+      <div style="font-size:36px;font-weight:900;letter-spacing:6px;color:var(--primary);background:var(--primary-bg);padding:20px;border-radius:12px;margin:12px 0;font-family:monospace">${esc(result.invite_code)}</div>
+      <div style="margin:16px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:flex;align-items:center;gap:8px">
+        <input class="form-input" id="invLinkInput" value="${esc(inviteLink)}" readonly style="flex:1;font-size:12px;background:transparent;border:none;padding:0;color:var(--text)">
+        <button class="btn btn-primary btn-sm" id="invLinkCopyBtn" style="white-space:nowrap">📋 링크 복사</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
+        이 링크를 직원에게 카톡/문자로 보내주세요.<br>
+        링크를 열면 <strong>바로 가입 화면</strong>으로 이동합니다.
+      </p>
+      <div style="display:flex;justify-content:center;gap:16px;margin-top:12px;font-size:12px;color:var(--text-muted)">
+        <span>⏰ 만료: ${esc(expiresDate)}</span>
+        ${result.memo ? `<span>📝 ${esc(result.memo)}</span>` : ''}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="invCodeCopyBtn">코드만 복사</button>
+      <button class="btn btn-primary" id="invShareBtn">📤 공유하기</button>
+    </div>`;
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('invLinkCopyBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(inviteLink);
+    toast('초대 링크가 복사되었습니다!', 'success');
+    document.getElementById('invLinkCopyBtn').textContent = '✅ 복사됨';
+  });
+  document.getElementById('invCodeCopyBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(result.invite_code);
+    toast('코드가 복사되었습니다!', 'success');
+  });
+  document.getElementById('invShareBtn').addEventListener('click', () => {
+    const text = `[${state.user.hospitalName || 'PFM'}] 직원 초대\n아래 링크로 가입해주세요:\n${inviteLink}\n(${isMulti ? '최대 ' + result.max_uses + '명, ' : ''}만료: ${expiresDate})`;
+    if (navigator.share) {
+      navigator.share({ title: '직원 초대', text }).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(text);
+      toast('공유 메시지가 복사되었습니다!', 'success');
+    }
+  });
+}
+
+/* ═══ 초대 코드 목록/관리 모달 ═══ */
+async function openInviteList() {
+  const modal = document.getElementById('modalContent');
+  modal.style.maxWidth = '800px';
+  modal.innerHTML = `
+    <div class="modal-header"><h3>📋 초대 코드 관리</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+    <div class="modal-body" id="invListBody"><div style="text-align:center;padding:30px"><span class="loading-spinner"></span></div></div>
+    <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">닫기</button></div>`;
+  showModal();
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+
+  async function loadList() {
+    try {
+      const invites = await api('/api/protected/hr/invites') || [];
+      const body = document.getElementById('invListBody');
+      if (!invites.length) {
+        body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">아직 발급한 초대 코드가 없습니다</div>';
+        return;
+      }
+      const now = new Date();
+      const statusBadge = (inv) => {
+        if (inv.status === 'revoked') return '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">취소됨</span>';
+        if (inv.expires_at && new Date(inv.expires_at) < now) return '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">만료</span>';
+        if ((inv.use_count || 0) >= (inv.max_uses || 1)) return '<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">소진</span>';
+        return '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">활성</span>';
+      };
+      const roleLabel = { admin: '👑 원장', manager: '🎩 매니저', staff: '👤 스태프' };
+      body.innerHTML = `
+        <div style="max-height:60vh;overflow-y:auto">
+          ${invites.map(inv => {
+            const inviteLink = window.location.origin + '/#join/' + inv.invite_code;
+            const isActive = inv.status === 'active' && (!inv.expires_at || new Date(inv.expires_at) >= now) && (inv.use_count || 0) < (inv.max_uses || 1);
+            const expiresDate = inv.expires_at ? new Date(inv.expires_at).toLocaleDateString('ko-KR') : '-';
+            const createdDate = inv.created_at ? new Date(inv.created_at).toLocaleDateString('ko-KR') : '-';
+            return `
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+                  <span style="font-size:18px;font-weight:900;letter-spacing:3px;font-family:monospace;color:var(--primary)">${esc(inv.invite_code)}</span>
+                  ${statusBadge(inv)}
+                  <span style="font-size:11px;color:var(--text-muted)">${esc(roleLabel[inv.role] || inv.role)}</span>
+                  ${(inv.max_uses || 1) > 1 ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">👥 ${inv.use_count||0}/${inv.max_uses}명</span>` : ''}
+                  <div style="margin-left:auto;display:flex;gap:6px">
+                    ${isActive ? `<button class="inv-copy-btn btn btn-secondary btn-sm" data-link="${esc(inviteLink)}" style="font-size:11px;padding:4px 10px">📋 링크</button>` : ''}
+                    ${inv.actual_use_count > 0 ? `<button class="inv-uses-btn btn btn-secondary btn-sm" data-id="${esc(inv.id)}" data-code="${esc(inv.invite_code)}" style="font-size:11px;padding:4px 10px">👥 사용자 (${inv.actual_use_count})</button>` : ''}
+                    ${isActive ? `<button class="inv-revoke-btn btn btn-secondary btn-sm" data-id="${esc(inv.id)}" data-code="${esc(inv.invite_code)}" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:#fca5a5">🚫 취소</button>` : ''}
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap">
+                  <span>📅 생성: ${esc(createdDate)} (by ${esc(inv.created_by_name || '?')})</span>
+                  <span>⏰ 만료: ${esc(expiresDate)}</span>
+                  ${inv.memo ? `<span>📝 ${esc(inv.memo)}</span>` : ''}
+                  ${inv.revoked_by_name ? `<span>🚫 취소 by ${esc(inv.revoked_by_name)}</span>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      body.querySelectorAll('.inv-copy-btn').forEach(btn => btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(btn.dataset.link);
+        toast('초대 링크가 복사되었습니다!', 'success');
+      }));
+
+      body.querySelectorAll('.inv-revoke-btn').forEach(btn => btn.addEventListener('click', async () => {
+        if (!confirm(`초대 코드 "${btn.dataset.code}"를 취소하시겠습니까?\n취소된 코드는 더 이상 가입에 사용할 수 없습니다.`)) return;
+        try {
+          await api('/api/protected/hr/invites/' + btn.dataset.id, { method: 'DELETE' });
+          toast('초대 코드가 취소되었습니다', 'success');
+          loadList();
+        } catch(e) { toast(e.message, 'error'); }
+      }));
+
+      body.querySelectorAll('.inv-uses-btn').forEach(btn => btn.addEventListener('click', async () => {
+        try {
+          const uses = await api('/api/protected/hr/invites/' + btn.dataset.id + '/uses') || [];
+          showInviteUses(btn.dataset.code, uses);
+        } catch(e) { toast(e.message, 'error'); }
+      }));
+    } catch(e) {
+      document.getElementById('invListBody').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">${esc(e.message)}</div>`;
+    }
+  }
+  loadList();
+}
+
+function showInviteUses(code, uses) {
+  const teamLbl = { clinical:'진료팀', front:'프론트', support:'지원팀', management:'경영지원' };
+  const posLbl = { doctor:'원장/의사', director:'실장', hygienist:'위생사', desk:'데스크', sterilization:'소독팀', management:'경영지원' };
+  const modal = document.getElementById('modalContent');
+  modal.style.maxWidth = '560px';
+  modal.innerHTML = `
+    <div class="modal-header"><h3>👥 ${esc(code)} 사용 이력</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
+    <div class="modal-body">
+      ${uses.length ? `
+        <div style="max-height:50vh;overflow-y:auto">
+          ${uses.map(u => `
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+              <div style="width:36px;height:36px;border-radius:50%;background:var(--primary-bg);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700">${esc((u.user_name||'?')[0])}</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:13px">${esc(u.user_name)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${esc(u.user_email)}${u.position?' · '+esc(posLbl[u.position]||u.position):''}${u.team?' · '+esc(teamLbl[u.team]||u.team):''}</div>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);text-align:right">${esc(new Date(u.used_at).toLocaleString('ko-KR'))}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div style="text-align:center;padding:30px;color:var(--text-muted)">아직 가입한 직원이 없습니다</div>'}
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">닫기</button></div>`;
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
 
 // Staff editor modal

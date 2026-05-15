@@ -70,6 +70,26 @@ let state = {
 };
 
 /* ─── API Helper ─── */
+/* ─── HTTP Status → 친절한 한국어 메시지 매핑 ─── */
+function humanizeError(status, serverMsg) {
+  if (serverMsg) return serverMsg; // 서버가 친절한 메시지를 줬으면 그대로
+  const map = {
+    400: '입력 정보를 확인해주세요',
+    401: '로그인이 필요합니다',
+    403: '접근 권한이 없습니다 (관리자에게 문의)',
+    404: '요청한 데이터를 찾을 수 없습니다',
+    409: '이미 존재하거나 충돌하는 데이터가 있습니다',
+    413: '파일 크기가 너무 큽니다',
+    422: '입력 형식이 올바르지 않습니다',
+    429: '너무 많은 요청을 보내고 있습니다. 잠시 후 다시 시도해주세요',
+    500: '서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요',
+    502: '서버가 일시적으로 응답하지 않습니다',
+    503: '서버가 점검 중입니다. 잠시 후 다시 시도해주세요',
+    504: '서버 응답이 지연되고 있습니다',
+  };
+  return map[status] || `요청 처리 중 오류가 발생했습니다 (${status})`;
+}
+
 async function api(path, opts = {}) {
   const headers = {};
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
@@ -78,13 +98,13 @@ async function api(path, opts = {}) {
   try {
     res = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers } });
   } catch(e) {
-    throw new Error('네트워크 오류: 서버에 연결할 수 없습니다');
+    throw new Error('인터넷 연결을 확인해주세요. 서버에 닿지 못했습니다.');
   }
   if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.'); }
   const text = await res.text();
   let data;
-  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답 파싱 오류'); }
-  if (!res.ok) throw new Error(data?.error || `오류 (${res.status})`);
+  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답을 해석할 수 없습니다. 새로고침 후 다시 시도해주세요.'); }
+  if (!res.ok) throw new Error(humanizeError(res.status, data?.error));
   return data;
 }
 
@@ -95,13 +115,13 @@ async function apiForm(path, formData) {
   try {
     res = await fetch(path, { method: 'POST', headers, body: formData });
   } catch(e) {
-    throw new Error('네트워크 오류: 서버에 연결할 수 없습니다');
+    throw new Error('인터넷 연결을 확인해주세요. 서버에 닿지 못했습니다.');
   }
   if (res.status === 401) { logout(); throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.'); }
   const text = await res.text();
   let data;
-  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답 파싱 오류'); }
-  if (!res.ok) throw new Error(data?.error || `오류 (${res.status})`);
+  try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답을 해석할 수 없습니다.'); }
+  if (!res.ok) throw new Error(humanizeError(res.status, data?.error));
   return data;
 }
 
@@ -343,33 +363,34 @@ function renderAuth() {
     <div class="auth-layout">
       ${isJoinMode ? '' : `
       <section class="auth-story" aria-label="제품 소개">
-        <span class="auth-story-badge">🏥 서울비디치과 원장이 직접 만든</span>
-        <h2>월 6천만에서<br><span class="highlight">연 120억</span>까지,<br>그 여정을 담은 도구</h2>
-        <p class="subtitle">환자를 팬으로 만드는 10단계 퍼널.<br>6,000명 대표원장이 검증한 병원경영 시스템을 이제 한 화면에서.</p>
-        <div class="auth-story-metrics" role="list" aria-label="주요 성과 지표">
-          <div class="auth-metric" role="listitem">
-            <div class="auth-metric-value">2.1배</div>
-            <div class="auth-metric-label">평균 매출 성장</div>
+        <div class="auth-wordmark-v2">
+          <div class="auth-brand-mark">PFM</div>
+          <span class="auth-brand-name">Patient Funnel Manager</span>
+        </div>
+        <h2 class="auth-story-headline">병원 운영의<br>모든 순간을<br><span class="highlight">한 화면에서.</span></h2>
+        <p class="auth-story-sub">환자 여정 10단계 퍼널부터 상담·콜·리뷰·HR까지<br>병의원 통합 관리 플랫폼</p>
+        <div class="auth-feature-grid">
+          <div class="auth-feature-card">
+            <div class="auth-feature-emoji">🎯</div>
+            <div class="auth-feature-title">환자 퍼널 추적</div>
+            <div class="auth-feature-desc">10단계 여정 자동 분석</div>
           </div>
-          <div class="auth-metric" role="listitem">
-            <div class="auth-metric-value">40%↓</div>
-            <div class="auth-metric-label">광고비 절감</div>
+          <div class="auth-feature-card">
+            <div class="auth-feature-emoji">💬</div>
+            <div class="auth-feature-title">상담 전환 코칭</div>
+            <div class="auth-feature-desc">실시간 KPI 대시보드</div>
           </div>
-          <div class="auth-metric" role="listitem">
-            <div class="auth-metric-value">62%</div>
-            <div class="auth-metric-label">상담 전환율</div>
+          <div class="auth-feature-card">
+            <div class="auth-feature-emoji">⭐</div>
+            <div class="auth-feature-title">리뷰 감성분석</div>
+            <div class="auth-feature-desc">카카오·네이버 통합</div>
+          </div>
+          <div class="auth-feature-card">
+            <div class="auth-feature-emoji">🏆</div>
+            <div class="auth-feature-title">직원 게이미피케이션</div>
+            <div class="auth-feature-desc">미션·랭킹·만족도 설문</div>
           </div>
         </div>
-        <div class="auth-story-features">
-          <div class="auth-feature"><span class="auth-feature-check">✓</span>환자 여정 10단계 퍼널 자동 추적</div>
-          <div class="auth-feature"><span class="auth-feature-check">✓</span>상담 전환율 실시간 코칭</div>
-          <div class="auth-feature"><span class="auth-feature-check">✓</span>카카오/네이버 리뷰 감성분석</div>
-          <div class="auth-feature"><span class="auth-feature-check">✓</span>직원 게이미피케이션 + 만족도 설문</div>
-        </div>
-        <blockquote class="auth-quote">
-          "필요한 진료를 받지 못하는 사람이 없도록. 환자를 단순한 고객이 아닌 팬으로."
-          <span class="auth-quote-author">— 문석준 원장 / 서울비디치과 · 페이션트 퍼널 창립자</span>
-        </blockquote>
       </section>
       `}
     <div class="auth-card">
@@ -668,6 +689,7 @@ function getNavConfig() {
       children: [
         { id: 'patients', label: '환자 DB', icon: ICONS.users },
         { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
+        { id: 'ltv_ranking', label: '👑 LTV 랭킹', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
         { id: 'recall', label: '리콜 자동화', icon: ICONS.phone || ICONS.message },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
@@ -1155,6 +1177,7 @@ async function renderPage() {
     funnel: ['🔄 Patient Funnel', ICONS.chart],
     patients: ['👥 환자 DB', ICONS.users],
     patients_stats: ['📊 환자 통계', ICONS.chart],
+    ltv_ranking: ['👑 LTV 랭킹', ICONS.chart],
     complaints: ['⚠️ 컴플레인 기록', ICONS.edit],
     complaints_stats: ['📊 컴플레인 통계', ICONS.chart],
     calls_inbound: ['📞 인바운드 콜', ICONS.phone || ICONS.message],
@@ -1227,6 +1250,7 @@ async function renderPage() {
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
+    case 'ltv_ranking': M.patientsStats.renderLtvRanking(body, actions); break;
     case 'complaints': M.complaints.renderComplaints(body, actions); break;
     case 'complaints_stats': M.complaints.renderComplaintsStats(body, actions); break;
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
@@ -1264,7 +1288,7 @@ function canManage() { return state.user && (state.user.role === 'admin' || stat
 function isAdmin() { return state.user && state.user.role === 'admin'; }
 function canSeeFinancials() { return canManage(); }
 
-/* ─── Skeleton UI Factory ─── */
+/* ─── Skeleton UI Factory (5종 확장판) ─── */
 function showSkeleton(container, type) {
   const templates = {
     dashboard: `<div style="padding:4px">
@@ -1290,9 +1314,47 @@ function showSkeleton(container, type) {
       <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
       <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
     </div>`,
+    form: `<div style="padding:4px;max-width:520px">
+      <div class="skeleton" style="height:36px;width:160px;margin-bottom:20px"></div>
+      <div class="skeleton" style="height:14px;width:80px;margin-bottom:6px"></div>
+      <div class="skeleton" style="height:38px;margin-bottom:14px"></div>
+      <div class="skeleton" style="height:14px;width:80px;margin-bottom:6px"></div>
+      <div class="skeleton" style="height:38px;margin-bottom:14px"></div>
+      <div class="skeleton" style="height:14px;width:80px;margin-bottom:6px"></div>
+      <div class="skeleton" style="height:38px;margin-bottom:20px"></div>
+      <div class="skeleton" style="height:40px;width:120px"></div>
+    </div>`,
+    grid: `<div style="padding:4px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+      <div class="skeleton skeleton-card" style="height:140px"></div>
+    </div>`,
     default: `<div style="text-align:center;padding:40px"><span class="loading-spinner"></span></div>`,
   };
   if (container) container.innerHTML = templates[type] || templates.default;
+}
+
+/* ─── Empty State Factory (A-2) ─── */
+function emptyState(opts = {}) {
+  const {
+    icon = '📭',
+    title = '아직 데이터가 없습니다',
+    description = '',
+    actionLabel = '',
+    actionId = '',
+    actionStyle = 'primary',
+  } = opts;
+  return `
+    <div class="pfm-empty-state" style="text-align:center;padding:60px 20px;color:var(--text-secondary)">
+      <div style="font-size:56px;margin-bottom:16px;opacity:.7">${icon}</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">${esc(title)}</div>
+      ${description ? `<div style="font-size:13px;line-height:1.6;max-width:380px;margin:0 auto 20px;color:#64748b">${esc(description)}</div>` : ''}
+      ${actionLabel ? `<button class="btn btn-${actionStyle}" id="${esc(actionId)}" style="margin-top:8px">${esc(actionLabel)}</button>` : ''}
+    </div>
+  `;
 }
 
 /* ─── Error Boundary Wrapper ─── */

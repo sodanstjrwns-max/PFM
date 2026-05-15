@@ -212,7 +212,7 @@ async function renderCallsInbound(body, actions) {
             </tr>
           </thead>
           <tbody>
-            ${records.length === 0 ? `<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--text-muted)">등록된 인바운드 콜이 없습니다</td></tr>` : ''}
+            ${records.length === 0 ? `<tr><td colspan="11" style="padding:0">${emptyState({ icon:'📞', title:'아직 인바운드 콜 기록이 없습니다', description:'환자가 처음 병원에 문의한 콜을 등록하면 여기에 쌓입니다. 신환 유입의 시작점입니다.', actionLabel:'+ 인바운드 콜 등록', actionId:'emptyAddInboundBtn' })}</td></tr>` : ''}
             ${records.map(r => {
               const treat = getTreatment(r.treatment_interest);
               const res = getResStatus(r.reservation_status);
@@ -260,6 +260,9 @@ async function renderCallsInbound(body, actions) {
   
   await loadRecords(currentMonth);
   
+  document.getElementById('emptyAddInboundBtn')?.addEventListener('click', () => {
+    openCallForm('inbound', null, () => loadRecords(currentMonth));
+  });
   document.getElementById('addCallInBtn')?.addEventListener('click', () => {
     openCallForm('inbound', null, () => loadRecords(currentMonth));
   });
