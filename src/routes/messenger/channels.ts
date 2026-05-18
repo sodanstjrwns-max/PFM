@@ -33,7 +33,7 @@ const typingState: Record<string, { userId: string; userName: string; expires: n
 /* ═══ GET /messenger/channels ═══
  *  현재 사용자가 멤버인 모든 채널 + 미읽음 수 + 카테고리 라벨
  */
-channels.get('/', async (c) => {
+channels.get('/channels', async (c) => {
   const user = c.get('user')!
   const userId = user.id
   const hospitalId = user.hospitalId
@@ -76,7 +76,7 @@ channels.get('/', async (c) => {
  *
  *  권한: messengerRole 이 'channel.create' 권한 보유 (owner/admin/manager/team_lead)
  */
-channels.post('/', async (c) => {
+channels.post('/channels', async (c) => {
   const user = c.get('user')!
   const userId = user.id
   const hospitalId = user.hospitalId
@@ -160,7 +160,7 @@ channels.post('/', async (c) => {
 /* ═══ GET /messenger/channels/:id ═══
  *  채널 상세 + 멤버 + 핀 메시지
  */
-channels.get('/:id', async (c) => {
+channels.get('/channels/:id', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
 
@@ -208,7 +208,7 @@ channels.get('/:id', async (c) => {
  *  채널 정보 수정 (이름/설명/카테고리/view_mode/write_restricted)
  *  권한: channel.edit + 본인이 채널 admin 이거나 messenger admin/owner 이상
  */
-channels.patch('/:id', async (c) => {
+channels.patch('/channels/:id', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
   const messengerRole = user.messengerRole || pfmRoleToMessengerRole(user.role)
@@ -274,7 +274,7 @@ channels.patch('/:id', async (c) => {
  *  is_default 채널은 보호.
  *  권한: channel.delete (보통 owner/admin)
  */
-channels.delete('/:id', async (c) => {
+channels.delete('/channels/:id', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
   const messengerRole = user.messengerRole || pfmRoleToMessengerRole(user.role)
@@ -310,7 +310,7 @@ channels.delete('/:id', async (c) => {
 /* ═══ POST /messenger/channels/:id/members ═══
  *  멤버 추가. body: { userId, role? } 또는 { userIds: [], role? }
  */
-channels.post('/:id/members', async (c) => {
+channels.post('/channels/:id/members', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
   const messengerRole = user.messengerRole || pfmRoleToMessengerRole(user.role)
@@ -370,7 +370,7 @@ channels.post('/:id/members', async (c) => {
 /* ═══ DELETE /messenger/channels/:id/members/:userId ═══
  *  멤버 제거 (본인이면 채널 나가기 = leave).
  */
-channels.delete('/:id/members/:userId', async (c) => {
+channels.delete('/channels/:id/members/:userId', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
   const targetUserId = c.req.param('userId')
@@ -408,7 +408,7 @@ channels.delete('/:id/members/:userId', async (c) => {
 /* ═══ POST /messenger/channels/:id/read ═══
  *  채널의 last_read_at 을 현재 시각으로 갱신 (Slack 의 "모두 읽음" 효과).
  */
-channels.post('/:id/read', async (c) => {
+channels.post('/channels/:id/read', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
 
@@ -427,7 +427,7 @@ channels.post('/:id/read', async (c) => {
 /* ═══ POST /messenger/channels/:id/typing ═══
  *  타이핑 표시 (in-memory, 4초 TTL). 발신 후 즉시 만료/갱신.
  */
-channels.post('/:id/typing', async (c) => {
+channels.post('/channels/:id/typing', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
 
@@ -456,7 +456,7 @@ channels.post('/:id/typing', async (c) => {
 })
 
 /* ═══ GET /messenger/channels/:id/typing ═══ */
-channels.get('/:id/typing', async (c) => {
+channels.get('/channels/:id/typing', async (c) => {
   const user = c.get('user')!
   const channelId = c.req.param('id')
 
@@ -473,7 +473,7 @@ channels.get('/:id/typing', async (c) => {
  *  DM 채널 시작 (기존 DM 있으면 재사용).
  *  body: { targetUserId }
  */
-channels.post('/dm', async (c) => {
+channels.post('/channels/dm', async (c) => {
   const user = c.get('user')!
   let body: any
   try { body = await c.req.json() } catch { return c.json({ error: 'JSON 필요' }, 400) }
@@ -544,7 +544,7 @@ channels.post('/dm', async (c) => {
  *  DM 대상 검색용 — 같은 병원 사용자 목록 (간단 디렉토리)
  *  쿼리: ?q=검색어 (이름/이메일/부서)
  */
-channels.get('/users/directory', async (c) => {
+channels.get('/channels/users/directory', async (c) => {
   const user = c.get('user')!
   const q = String(c.req.query('q') || '').trim().slice(0, 50)
   const like = `%${q}%`

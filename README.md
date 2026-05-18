@@ -3,7 +3,7 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🔀 v5.5.0 (in progress) — Patient Chat 통합 (Phase A 완료)
+## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B 완료)
 
 PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
 "환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
@@ -12,13 +12,25 @@ PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경
 - 마이그레이션 **0035**: 메신저 코어 13개 테이블 (channels / messages / message_reads / message_escalations / urgent_calls / quick_replies / scheduled_messages / messenger_audit_logs / messenger_notification_preferences / hospital_messenger_settings / user_sessions / trusted_devices / channel_members)
 - 마이그레이션 **0036**: users 테이블에 TOTP(2FA) + messenger_role + presence 컬럼 추가, PFM role → 메신저 role 자동 매핑
 - 신규 라이브러리: `src/lib/messenger-audit.ts` (의료 컴플라이언스 감사 로그), `src/lib/totp.ts` (Web Crypto 기반 2FA)
-- KV 바인딩 설계 (Phase B 활성화 예약)
 
-### Phase B — 메신저 코어 (다음)
-- 채널/메시지/읽음/리액션 라우트 + 사이드바 메뉴 + 폴링 기반 실시간
+### Phase B — 메신저 코어 (✅ 완료)
+**백엔드 (4개 라우트 + 1개 헬퍼):**
+- `src/lib/messenger-helpers.ts` — ID 생성 (`msg_/ch_/esc_/...`), 채널 접근 검증, mention 파싱, 권한 매트릭스 (`hasMessengerPermission`)
+- `src/routes/messenger/channels.ts` — 채널 CRUD + 멤버 관리 + 타이핑 인디케이터 + DM + 사용자 디렉토리
+- `src/routes/messenger/messages.ts` — 메시지 CRUD + 핀/리액션/읽음/Confirm/스레드/전달/리마인더/검색
+- `src/routes/messenger/poll.ts` — 1~2초 폴링 (newMessages/unreadCounts/urgentCalls/userStatuses/pendingConfirms/typing) + 사이드바 배지 + presence 변경
+- `src/routes/messenger/init.ts` — 부트스트랩 (📢공지/💼경영/🦷진료/💬상담·데스크/☕휴게실 5개 default 채널 자동 생성, 전 직원 자동 가입) + 병원 설정 CRUD + 알림 설정
 
-### Phase C — 환자 통합 (그 다음)
-- patient_threads ↔ PFM `patients` 테이블 연결, 5단계 온도 ↔ 10단계 퍼널 양방향 sync
+**프론트엔드:**
+- `public/static/modules/messenger.js` (1,014 줄) — 슬랙 스타일 UI, 사이드바 채널 트리, 메시지 패널, 폴링 기반 실시간, DM, 리액션, Confirm-required, Pin
+- 사이드바 메뉴 `💬 메신저` 정식 등록 (`bundle-frontend.cjs` chunk 매핑)
+
+**검증:**
+- 로컬: 8개 mutation E2E (메시지 발송→리액션→핀→Confirm→read bar→검색) 전부 성공
+- 프로덕션: 5개 default 채널 자동 부트스트랩, 박원장 → 💼경영 채널에 confirm-required + urgent 메시지 발송 ✅
+
+### Phase C — 환자 통합 (🔄 다음)
+- patient_threads ↔ PFM `patients` 테이블 연결, 5단계 온도(❄️🌤🔥🦷🌟) ↔ 10단계 퍼널 양방향 sync
 
 ## 🤖 v5.4.0 — AI Insights (배치 1+2 완료)
 

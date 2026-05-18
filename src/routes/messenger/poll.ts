@@ -28,7 +28,7 @@ function sqliteNow(offsetMs = 0): string {
   return new Date(Date.now() + offsetMs).toISOString().replace('T', ' ').substring(0, 19)
 }
 
-poll.get('/', async (c) => {
+poll.get('/poll', async (c) => {
   const user = c.get('user')!
   const userId = user.id
   const hospitalId = user.hospitalId
@@ -197,7 +197,7 @@ poll.get('/', async (c) => {
  *  사이드바 메뉴 옆 빨간 점 / 숫자 배지용 경량 응답.
  *  다른 페이지 (대시보드/환자/상담 등) 에서도 백그라운드로 호출 가능.
  */
-poll.get('/badge', async (c) => {
+poll.get('/poll/badge', async (c) => {
   const user = c.get('user')!
   const userId = user.id
   const hospitalId = user.hospitalId
@@ -257,7 +257,7 @@ poll.get('/badge', async (c) => {
  *  presence 수동 변경 (사용자가 메뉴에서 "자리 비움" / "방해금지" 선택 시).
  *  body: { status: 'online' | 'away' | 'dnd' | 'offline', location? }
  */
-poll.post('/presence', async (c) => {
+poll.post('/poll/presence', async (c) => {
   const user = c.get('user')!
   let body: any
   try { body = await c.req.json() } catch { return c.json({ error: 'JSON 필요' }, 400) }

@@ -171,22 +171,22 @@ app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스�
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
 
 // ─── Patient Chat 통합 v5.5.0 Phase B — Messenger Core ───
-// 경로 정리:
-//   GET    /messenger/init                              → 초기화 + 기본 채널 자동 생성
-//   GET    /messenger/poll[?since=&channelId=]          → 1-2s 폴링 (newMessages/unread/urgent/confirms)
-//   GET    /messenger/poll/badge                        → 사이드바 배지용 경량 카운트
-//   POST   /messenger/poll/presence                     → presence 수동 변경
-//   GET/POST/PATCH/DELETE /messenger/channels/...       → 채널 CRUD + 멤버 + 타이핑 + DM
-//   GET    /messenger/channels/users/directory          → DM 대상 검색
-//   GET/POST/PUT/DELETE   /messenger/messages/...       → 메시지 CRUD + 핀/리액션/읽음/확인/스레드
-//   GET    /messenger/messages/channels/:id/messages    → 채널의 메시지 목록 (messagesRoute 내부)
-// 순서: 가장 specific 한 sub-prefix 먼저 → /init, /poll → /channels → messages (가장 큰 베이스)
-app.route('/api/protected/messenger/init', messengerInitRoute)
-app.route('/api/protected/messenger/poll', messengerPollRoute)
-app.route('/api/protected/messenger/channels', messengerChannelsRoute)
-// messages 라우트는 자체에 /channels/:id/messages, /messages/:id, /search 가 정의돼 있어서
-// /api/protected/messenger 베이스에 마운트. Hono 의 트리 라우터는 더 specific 한 패턴부터
-// 매칭하므로 위의 /channels (채널 CRUD) 와 /channels/:id/messages (메시지 목록) 가 공존 가능.
+// 모든 메신저 라우트는 `/api/protected/messenger` 한 베이스 아래에 마운트.
+// 각 라우트 파일이 자체적으로 sub-path 를 정의 (/init, /me, /poll, /channels/... 등).
+//
+//   init.ts     → /init, /me, /settings, /me/notifications
+//   poll.ts     → /poll, /poll/badge, /poll/presence  (※ 라우트 내부에서 /poll prefix 명시)
+//   channels.ts → /channels, /channels/:id, /channels/:id/members,
+//                  /channels/:id/typing, /channels/:id/read, /channels/dm,
+//                  /channels/users/directory
+//   messages.ts → /channels/:id/messages, /messages/:id, /messages/:id/{pin,read,confirm,
+//                  reaction,thread,forward,remind,reads}, /search
+//
+// 등록 순서가 곧 매칭 우선순위 (Hono 는 first-match-wins).
+// init/poll/channels 를 messages 보다 먼저 마운트해서 specific path 가 우선되게 함.
+app.route('/api/protected/messenger', messengerInitRoute)
+app.route('/api/protected/messenger', messengerPollRoute)
+app.route('/api/protected/messenger', messengerChannelsRoute)
 app.route('/api/protected/messenger', messengerMessagesRoute)
 
 /* ═══ API Version Alias (#20) ═══ */
