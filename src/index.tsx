@@ -41,6 +41,11 @@ import pfIndexRoute from './routes/pf-index'
 import knowledgeRoute from './routes/knowledge'
 import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
+// ─── Patient Chat 통합 v5.5.0 Phase B ───
+import messengerChannelsRoute from './routes/messenger/channels'
+import messengerMessagesRoute from './routes/messenger/messages'
+import messengerPollRoute from './routes/messenger/poll'
+import messengerInitRoute from './routes/messenger/init'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -164,6 +169,25 @@ app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스
 app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (원장님 6권 노하우 카드)
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
+
+// ─── Patient Chat 통합 v5.5.0 Phase B — Messenger Core ───
+// 경로 정리:
+//   GET    /messenger/init                              → 초기화 + 기본 채널 자동 생성
+//   GET    /messenger/poll[?since=&channelId=]          → 1-2s 폴링 (newMessages/unread/urgent/confirms)
+//   GET    /messenger/poll/badge                        → 사이드바 배지용 경량 카운트
+//   POST   /messenger/poll/presence                     → presence 수동 변경
+//   GET/POST/PATCH/DELETE /messenger/channels/...       → 채널 CRUD + 멤버 + 타이핑 + DM
+//   GET    /messenger/channels/users/directory          → DM 대상 검색
+//   GET/POST/PUT/DELETE   /messenger/messages/...       → 메시지 CRUD + 핀/리액션/읽음/확인/스레드
+//   GET    /messenger/messages/channels/:id/messages    → 채널의 메시지 목록 (messagesRoute 내부)
+// 순서: 가장 specific 한 sub-prefix 먼저 → /init, /poll → /channels → messages (가장 큰 베이스)
+app.route('/api/protected/messenger/init', messengerInitRoute)
+app.route('/api/protected/messenger/poll', messengerPollRoute)
+app.route('/api/protected/messenger/channels', messengerChannelsRoute)
+// messages 라우트는 자체에 /channels/:id/messages, /messages/:id, /search 가 정의돼 있어서
+// /api/protected/messenger 베이스에 마운트. Hono 의 트리 라우터는 더 specific 한 패턴부터
+// 매칭하므로 위의 /channels (채널 CRUD) 와 /channels/:id/messages (메시지 목록) 가 공존 가능.
+app.route('/api/protected/messenger', messengerMessagesRoute)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness

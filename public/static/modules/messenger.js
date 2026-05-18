@@ -1,0 +1,1014 @@
+/* ═══════════════════════════════════════════════════════════
+ * Patient Funnel OS — Messenger Module v5.5.0 Phase B
+ * Patient Chat 통합 — PFM 안에서 동작하는 슬랙 스타일 메신저
+ *
+ * 백엔드 라우트 매핑:
+ *   GET    /api/protected/messenger/init                       — 초기화 + 부트스트랩
+ *   GET    /api/protected/messenger/poll[?since=&channelId=]   — 1-2s 폴링
+ *   GET    /api/protected/messenger/poll/badge                 — 배지용 카운트
+ *   POST   /api/protected/messenger/poll/presence              — presence 변경
+ *   GET    /api/protected/messenger/channels                   — 채널 목록
+ *   POST   /api/protected/messenger/channels                   — 채널 생성
+ *   GET    /api/protected/messenger/channels/:id               — 채널 상세
+ *   POST   /api/protected/messenger/channels/dm                — DM 시작
+ *   GET    /api/protected/messenger/channels/users/directory   — 사용자 검색
+ *   GET    /api/protected/messenger/channels/:id/messages      — 메시지 목록
+ *   POST   /api/protected/messenger/channels/:id/messages      — 메시지 발송
+ *   POST   /api/protected/messenger/channels/:id/typing        — 타이핑 신호
+ *   POST   /api/protected/messenger/channels/:id/read          — 모두 읽음
+ *   POST   /api/protected/messenger/messages/:id/reaction      — 리액션 토글
+ *   POST   /api/protected/messenger/messages/:id/confirm       — 확인 표시
+ *   DELETE /api/protected/messenger/messages/:id               — 메시지 삭제
+ *   GET    /api/protected/messenger/search?q=                  — 검색
+ * ═══════════════════════════════════════════════════════════ */
+
+(function(PFM) {
+'use strict';
+const { api, ICONS, esc, toast, state, navigate } = PFM;
+
+/* ─── 모듈 상태 ─── */
+let mState = {
+  initialized: false,
+  channels: [],
+  currentChannel: null,
+  messages: [],
+  users: [],
+  myProfile: null,
+  settings: null,
+  pollTimer: null,
+  lastPollAt: null,
+  unreadByChannel: {},
+  typing: [],
+  pendingConfirms: [],
+  searchOpen: false,
+};
+
+/* ─── 카테고리 정렬 ─── */
+const CATEGORY_ORDER = ['경영', '진료', '상담/데스크', 'DM', '기타'];
+
+/* ─── 시각 포맷 ─── */
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) {
+    return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  const diffDays = Math.floor((now - d) / 86400000);
+  if (diffDays < 7) {
+    return ['일','월','화','수','목','금','토'][d.getDay()] + ' ' +
+           d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  return d.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
+}
+
+function roleLabel(role, mrole, pos) {
+  if (mrole === 'owner') return '원장';
+  if (mrole === 'admin') return '관리자';
+  if (mrole === 'manager' || role === 'manager') return '실장';
+  if (mrole === 'team_lead') return '팀장';
+  if (pos) return pos;
+  return '직원';
+}
+
+function roleBadgeColor(mrole, role) {
+  if (mrole === 'owner' || role === 'admin') return '#0f766e';
+  if (mrole === 'manager' || role === 'manager') return '#7c3aed';
+  if (mrole === 'team_lead') return '#0369a1';
+  return '#64748b';
+}
+
+function presenceDot(status) {
+  const map = { online: '#10b981', away: '#f59e0b', dnd: '#ef4444', offline: '#94a3b8' };
+  const color = map[status] || '#94a3b8';
+  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:4px;vertical-align:middle"></span>`;
+}
+
+/* ─── 안전 textContent 렌더 (XSS 방어) ─── */
+function safeContent(text) {
+  // 백엔드가 이미 HTML-escape 한 문자열을 보냄 — 그대로 출력
+  // 줄바꿈만 <br> 로 변환
+  return String(text || '').replace(/\n/g, '<br>');
+}
+
+/* ═══════════════════════════════════════════════
+ * 메인 렌더링
+ * ═══════════════════════════════════════════════ */
+async function renderMessenger(body, actions) {
+  if (actions) actions.innerHTML = '';
+
+  body.innerHTML = `
+    <style>
+      .msg-app {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        height: calc(100vh - 80px);
+        max-height: calc(100vh - 80px);
+        background: #f8fafc;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      }
+      .msg-sidebar {
+        background: #1f2937;
+        color: #e5e7eb;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      .msg-side-header {
+        padding: 16px;
+        border-bottom: 1px solid #374151;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .msg-side-title { font-weight: 700; font-size: 15px; }
+      .msg-side-actions { display: flex; gap: 8px; }
+      .msg-side-btn {
+        background: rgba(255,255,255,0.08);
+        border: none; color: #fff; cursor: pointer;
+        width: 28px; height: 28px; border-radius: 6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: background .15s;
+      }
+      .msg-side-btn:hover { background: rgba(255,255,255,0.18); }
+      .msg-side-btn svg { width: 14px; height: 14px; stroke: #fff; }
+      .msg-cat-group { margin: 12px 0 4px; padding: 0 12px; }
+      .msg-cat-label {
+        font-size: 11px; text-transform: uppercase; color: #9ca3af;
+        font-weight: 700; letter-spacing: .04em; padding: 4px 4px; margin-bottom: 2px;
+      }
+      .msg-ch-item {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 10px; border-radius: 6px; cursor: pointer;
+        font-size: 13.5px; color: #d1d5db;
+        transition: background .15s;
+      }
+      .msg-ch-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+      .msg-ch-item.active { background: #2563eb; color: #fff; font-weight: 600; }
+      .msg-ch-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .msg-ch-unread {
+        background: #ef4444; color: #fff; border-radius: 10px;
+        padding: 1px 7px; font-size: 11px; font-weight: 700; min-width: 18px; text-align: center;
+      }
+      .msg-ch-urgent { color: #fca5a5; }
+      .msg-presence {
+        margin-top: auto; padding: 12px 16px; border-top: 1px solid #374151;
+        font-size: 12px; color: #9ca3af;
+      }
+      .msg-presence-select {
+        margin-top: 6px; width: 100%;
+        background: rgba(255,255,255,0.08); border: 1px solid #374151;
+        color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 12px;
+      }
+
+      .msg-main {
+        display: flex; flex-direction: column;
+        background: #fff;
+        min-width: 0;
+      }
+      .msg-main-header {
+        padding: 14px 20px; border-bottom: 1px solid #e5e7eb;
+        display: flex; align-items: center; justify-content: space-between;
+        background: #fff;
+      }
+      .msg-main-title { font-weight: 700; font-size: 17px; color: #1f2937; }
+      .msg-main-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+      .msg-main-actions { display: flex; gap: 8px; align-items: center; }
+      .msg-main-btn {
+        background: #f3f4f6; border: none; padding: 6px 12px; font-size: 12px;
+        border-radius: 6px; cursor: pointer; font-weight: 600; color: #374151;
+        transition: background .15s;
+      }
+      .msg-main-btn:hover { background: #e5e7eb; }
+
+      .msg-list {
+        flex: 1; overflow-y: auto; padding: 16px 20px;
+        background: #fafbfc;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .msg-empty {
+        text-align: center; color: #9ca3af; padding: 60px 20px;
+        font-size: 14px;
+      }
+      .msg-item {
+        display: flex; gap: 12px; padding: 8px 0;
+      }
+      .msg-avatar {
+        width: 36px; height: 36px; border-radius: 8px;
+        background: #e0e7ff; color: #4338ca;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 14px; flex-shrink: 0;
+      }
+      .msg-body { flex: 1; min-width: 0; }
+      .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+      .msg-author { font-weight: 700; font-size: 13.5px; color: #111827; }
+      .msg-role-badge {
+        font-size: 10px; padding: 1px 6px; border-radius: 4px;
+        color: #fff; font-weight: 600;
+      }
+      .msg-time { font-size: 11px; color: #9ca3af; }
+      .msg-content {
+        font-size: 13.5px; color: #1f2937; line-height: 1.5;
+        word-break: break-word;
+      }
+      .msg-tags { display: flex; gap: 6px; margin-top: 4px; }
+      .msg-tag {
+        font-size: 10.5px; padding: 1px 7px; border-radius: 10px;
+        font-weight: 600;
+      }
+      .msg-tag.urgent { background: #fee2e2; color: #b91c1c; }
+      .msg-tag.confirm { background: #fef3c7; color: #92400e; }
+      .msg-tag.pinned { background: #dbeafe; color: #1e40af; }
+      .msg-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+      .msg-reaction {
+        background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 12px;
+        padding: 1px 8px; font-size: 12px; cursor: pointer;
+        transition: background .15s;
+      }
+      .msg-reaction:hover { background: #e5e7eb; }
+      .msg-reaction.mine { background: #dbeafe; border-color: #93c5fd; }
+      .msg-readinfo {
+        font-size: 10.5px; color: #9ca3af; margin-top: 2px;
+      }
+      .msg-confirm-btn {
+        background: #f59e0b; color: #fff; border: none;
+        padding: 3px 10px; border-radius: 4px; font-size: 11px;
+        font-weight: 600; cursor: pointer; margin-left: 6px;
+      }
+      .msg-confirm-btn:hover { background: #d97706; }
+      .msg-confirm-btn:disabled { background: #d1d5db; cursor: default; }
+      .msg-actions-row {
+        opacity: 0; transition: opacity .15s;
+        display: flex; gap: 6px; margin-top: 4px;
+      }
+      .msg-item:hover .msg-actions-row { opacity: 1; }
+      .msg-action-btn {
+        background: transparent; border: none; color: #6b7280;
+        font-size: 12px; cursor: pointer; padding: 2px 6px;
+      }
+      .msg-action-btn:hover { color: #1f2937; }
+
+      .msg-typing { font-size: 11.5px; color: #9ca3af; padding: 4px 20px 0; height: 18px; font-style: italic; }
+
+      .msg-composer {
+        border-top: 1px solid #e5e7eb; padding: 12px 20px;
+        background: #fff;
+      }
+      .msg-composer-row {
+        display: flex; gap: 8px; align-items: flex-end;
+      }
+      .msg-input {
+        flex: 1; min-height: 38px; max-height: 160px;
+        padding: 9px 12px; font-size: 14px; line-height: 1.4;
+        border: 1px solid #d1d5db; border-radius: 8px;
+        resize: none; outline: none;
+        font-family: inherit;
+      }
+      .msg-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+      .msg-send {
+        padding: 9px 16px; background: #2563eb; color: #fff;
+        border: none; border-radius: 8px; font-weight: 700; font-size: 13px;
+        cursor: pointer; transition: background .15s;
+      }
+      .msg-send:hover { background: #1d4ed8; }
+      .msg-send:disabled { background: #d1d5db; cursor: default; }
+      .msg-composer-tools {
+        display: flex; gap: 12px; padding: 6px 0 0;
+        font-size: 12px; color: #6b7280;
+      }
+      .msg-composer-tools label {
+        display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+      }
+
+      .msg-pending-panel {
+        background: #fef3c7; border-bottom: 1px solid #fcd34d;
+        padding: 10px 20px; font-size: 13px;
+      }
+      .msg-pending-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 6px 0;
+      }
+      .msg-pending-link {
+        color: #b91c1c; text-decoration: underline; cursor: pointer; font-weight: 600;
+      }
+
+      @media (max-width: 900px) {
+        .msg-app { grid-template-columns: 1fr; }
+        .msg-sidebar.has-current { display: none; }
+      }
+    </style>
+
+    <div class="msg-app" id="msgApp">
+      <aside class="msg-sidebar" id="msgSidebar">
+        <div class="msg-side-header">
+          <div class="msg-side-title">💬 메신저</div>
+          <div class="msg-side-actions">
+            <button class="msg-side-btn" id="msgBtnSearch" title="검색">${ICONS.search}</button>
+            <button class="msg-side-btn" id="msgBtnNewChannel" title="채널 만들기">${ICONS.plus}</button>
+            <button class="msg-side-btn" id="msgBtnNewDm" title="DM 시작">${ICONS.users}</button>
+          </div>
+        </div>
+        <div id="msgChannelList" style="flex:1; overflow-y:auto; padding:8px;">
+          <div style="padding:40px 16px; text-align:center; color:#9ca3af; font-size:12px;">로딩 중...</div>
+        </div>
+        <div class="msg-presence">
+          <div>내 상태</div>
+          <select class="msg-presence-select" id="msgPresenceSelect">
+            <option value="online">🟢 온라인</option>
+            <option value="away">🟡 자리 비움</option>
+            <option value="dnd">🔴 방해 금지</option>
+            <option value="offline">⚪ 오프라인</option>
+          </select>
+        </div>
+      </aside>
+
+      <section class="msg-main">
+        <div class="msg-main-header" id="msgHeader">
+          <div>
+            <div class="msg-main-title">채널을 선택하세요</div>
+            <div class="msg-main-sub">왼쪽에서 채널을 선택하면 대화를 시작할 수 있습니다.</div>
+          </div>
+        </div>
+        <div id="msgPendingPanel"></div>
+        <div class="msg-list" id="msgList">
+          <div class="msg-empty">💬 좌측에서 채널을 선택해주세요</div>
+        </div>
+        <div class="msg-typing" id="msgTypingArea"></div>
+        <div class="msg-composer" id="msgComposer" style="display:none">
+          <div class="msg-composer-row">
+            <textarea class="msg-input" id="msgInput" placeholder="메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
+            <button class="msg-send" id="msgSendBtn">전송</button>
+          </div>
+          <div class="msg-composer-tools">
+            <label><input type="checkbox" id="msgChkUrgent"> 🚨 긴급</label>
+            <label><input type="checkbox" id="msgChkConfirm"> ✅ 확인 필수</label>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  // 초기화 호출
+  try {
+    const init = await api('/api/protected/messenger/init');
+    mState.myProfile = init.profile;
+    mState.settings = init.settings;
+    mState.initialized = true;
+    if (init.bootstrap && init.bootstrap.ranBootstrap) {
+      toast(`✨ 기본 채널 ${init.bootstrap.createdChannels}개 생성됨`, 'success');
+    }
+    // presence select 동기화
+    const pSel = document.getElementById('msgPresenceSelect');
+    if (pSel && init.profile?.presence_status) pSel.value = init.profile.presence_status;
+  } catch (e) {
+    toast('메신저 초기화 실패: ' + e.message, 'error');
+    return;
+  }
+
+  await loadChannels();
+  bindMessengerEvents();
+  startPolling();
+
+  // 페이지 떠날 때 폴링 정리
+  window._pfmStopPolling = stopPolling;
+}
+
+/* ═══════════════════════════════════════════════
+ * 채널 목록
+ * ═══════════════════════════════════════════════ */
+async function loadChannels() {
+  try {
+    const res = await api('/api/protected/messenger/channels');
+    mState.channels = res.channels || [];
+    renderChannelList();
+  } catch (e) {
+    toast('채널 로드 실패: ' + e.message, 'error');
+  }
+}
+
+function renderChannelList() {
+  const el = document.getElementById('msgChannelList');
+  if (!el) return;
+  if (mState.channels.length === 0) {
+    el.innerHTML = '<div style="padding:30px 16px; text-align:center; color:#9ca3af; font-size:12px;">채널이 없습니다.</div>';
+    return;
+  }
+
+  // 카테고리별 그룹핑
+  const groups = {};
+  for (const c of mState.channels) {
+    const cat = c.category || '기타';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(c);
+  }
+  const sortedCats = Object.keys(groups).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a);
+    const ib = CATEGORY_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  let html = '';
+  for (const cat of sortedCats) {
+    html += `<div class="msg-cat-group">
+      <div class="msg-cat-label">${esc(cat)}</div>`;
+    for (const ch of groups[cat]) {
+      const active = mState.currentChannel?.id === ch.id;
+      const unread = ch.unread_count || 0;
+      html += `
+        <div class="msg-ch-item ${active ? 'active' : ''}" data-ch="${esc(ch.id)}">
+          <span class="msg-ch-name">${esc(ch.name)}</span>
+          ${unread > 0 ? `<span class="msg-ch-unread">${unread > 99 ? '99+' : unread}</span>` : ''}
+        </div>`;
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+
+  el.querySelectorAll('.msg-ch-item').forEach(node => {
+    node.addEventListener('click', () => {
+      const chId = node.getAttribute('data-ch');
+      const ch = mState.channels.find(c => c.id === chId);
+      if (ch) openChannel(ch);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════
+ * 채널 열기
+ * ═══════════════════════════════════════════════ */
+async function openChannel(channel) {
+  mState.currentChannel = channel;
+
+  // 헤더 갱신
+  const header = document.getElementById('msgHeader');
+  if (header) {
+    header.innerHTML = `
+      <div>
+        <div class="msg-main-title">${esc(channel.name)}</div>
+        <div class="msg-main-sub">
+          ${esc(channel.description || channel.category || '')} · 멤버 ${channel.member_count || 0}명
+        </div>
+      </div>
+      <div class="msg-main-actions">
+        <button class="msg-main-btn" id="msgBtnMembers">멤버</button>
+        <button class="msg-main-btn" id="msgBtnReload">새로고침</button>
+      </div>`;
+    header.querySelector('#msgBtnReload')?.addEventListener('click', () => loadMessages(true));
+    header.querySelector('#msgBtnMembers')?.addEventListener('click', () => showMembersModal(channel));
+  }
+
+  // composer 표시
+  const composer = document.getElementById('msgComposer');
+  if (composer) {
+    composer.style.display = '';
+    // 공지 채널 + write_restricted + 본인 admin/manager 아니면 비활성화
+    const restricted = channel.write_restricted && channel.channel_role !== 'admin' &&
+                       state.user?.role !== 'admin' && state.user?.role !== 'manager';
+    const inp = document.getElementById('msgInput');
+    const sbtn = document.getElementById('msgSendBtn');
+    if (inp && sbtn) {
+      inp.disabled = !!restricted;
+      sbtn.disabled = !!restricted;
+      inp.placeholder = restricted ? '관리자만 작성할 수 있는 채널입니다' : '메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)';
+    }
+  }
+
+  renderChannelList();  // active 표시 갱신
+  await loadMessages();
+
+  // 모두 읽음
+  api(`/api/protected/messenger/channels/${channel.id}/read`, { method: 'POST' }).catch(() => {});
+}
+
+/* ═══════════════════════════════════════════════
+ * 메시지 목록
+ * ═══════════════════════════════════════════════ */
+async function loadMessages(scroll = true) {
+  if (!mState.currentChannel) return;
+  const list = document.getElementById('msgList');
+  if (!list) return;
+
+  try {
+    const res = await api(`/api/protected/messenger/channels/${mState.currentChannel.id}/messages?limit=100`);
+    mState.messages = res.messages || [];
+    renderMessages();
+    if (scroll) scrollToBottom();
+  } catch (e) {
+    list.innerHTML = `<div class="msg-empty">메시지 로드 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderMessages() {
+  const list = document.getElementById('msgList');
+  if (!list) return;
+  if (mState.messages.length === 0) {
+    list.innerHTML = '<div class="msg-empty">아직 메시지가 없어요. 첫 메시지를 보내보세요! 💬</div>';
+    return;
+  }
+  list.innerHTML = mState.messages.map(m => renderMessageItem(m)).join('');
+
+  // 리액션 클릭
+  list.querySelectorAll('[data-react-msg]').forEach(node => {
+    node.addEventListener('click', () => {
+      const msgId = node.getAttribute('data-react-msg');
+      const emoji = node.getAttribute('data-react-emoji');
+      toggleReaction(msgId, emoji);
+    });
+  });
+
+  // 확인 버튼
+  list.querySelectorAll('[data-confirm-msg]').forEach(node => {
+    node.addEventListener('click', () => confirmMessage(node.getAttribute('data-confirm-msg')));
+  });
+
+  // + 리액션 추가 버튼
+  list.querySelectorAll('[data-react-add]').forEach(node => {
+    node.addEventListener('click', () => {
+      const msgId = node.getAttribute('data-react-add');
+      const e = prompt('이모지 입력 (예: 👍 ❤️ 🎉)');
+      if (e) toggleReaction(msgId, e.trim());
+    });
+  });
+
+  // 삭제 버튼
+  list.querySelectorAll('[data-delete-msg]').forEach(node => {
+    node.addEventListener('click', () => {
+      const msgId = node.getAttribute('data-delete-msg');
+      if (confirm('이 메시지를 삭제할까요?')) deleteMessage(msgId);
+    });
+  });
+}
+
+function renderMessageItem(m) {
+  const me = state.user?.id;
+  const isMe = m.user_id === me;
+  const initial = (m.user_name || '?')[0];
+  const badgeColor = roleBadgeColor(m.user_messenger_role, m.user_role);
+  const roleTxt = roleLabel(m.user_role, m.user_messenger_role);
+  const reactions = m.reactions || {};
+  const reactionHtml = Object.keys(reactions).map(emoji => {
+    const users = reactions[emoji] || [];
+    const mine = users.includes(me);
+    return `<span class="msg-reaction ${mine?'mine':''}" data-react-msg="${esc(m.id)}" data-react-emoji="${esc(emoji)}">${esc(emoji)} ${users.length}</span>`;
+  }).join('');
+
+  const tags = [];
+  if (m.is_urgent) tags.push('<span class="msg-tag urgent">🚨 긴급</span>');
+  if (m.confirm_required) tags.push('<span class="msg-tag confirm">✅ 확인 필수</span>');
+  if (m.is_pinned) tags.push('<span class="msg-tag pinned">📌 고정</span>');
+
+  // 확인 버튼: confirm_required + 본인 아닌 메시지
+  const showConfirmBtn = m.confirm_required && !isMe;
+
+  // 읽음 정보
+  const readInfo = (m.read_count != null && m.total_members != null && m.read_count > 0)
+    ? `<div class="msg-readinfo">읽음 ${m.read_count}/${m.total_members}${m.confirm_required && m.confirm_count != null ? ` · 확인 ${m.confirm_count}/${m.total_members - (isMe ? 0 : 1)}` : ''}</div>`
+    : '';
+
+  return `
+    <div class="msg-item" data-msg-id="${esc(m.id)}">
+      <div class="msg-avatar" style="background:${badgeColor}22;color:${badgeColor}">${esc(initial)}</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author">${esc(m.user_name || '?')}</span>
+          <span class="msg-role-badge" style="background:${badgeColor}">${esc(roleTxt)}</span>
+          <span class="msg-time">${fmtTime(m.created_at)}</span>
+          ${m.updated_at && m.updated_at !== m.created_at ? '<span class="msg-time">(수정됨)</span>' : ''}
+        </div>
+        <div class="msg-content">${safeContent(m.content)}</div>
+        ${tags.length ? `<div class="msg-tags">${tags.join('')}${showConfirmBtn ? `<button class="msg-confirm-btn" data-confirm-msg="${esc(m.id)}">확인</button>` : ''}</div>` : ''}
+        ${reactionHtml ? `<div class="msg-reactions">${reactionHtml}<span class="msg-reaction" data-react-add="${esc(m.id)}" title="리액션 추가">+</span></div>` : ''}
+        ${readInfo}
+        <div class="msg-actions-row">
+          <button class="msg-action-btn" data-react-add="${esc(m.id)}">😀 리액션</button>
+          ${isMe ? `<button class="msg-action-btn" data-delete-msg="${esc(m.id)}">🗑 삭제</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function scrollToBottom() {
+  const list = document.getElementById('msgList');
+  if (list) list.scrollTop = list.scrollHeight;
+}
+
+/* ═══════════════════════════════════════════════
+ * 메시지 발송
+ * ═══════════════════════════════════════════════ */
+async function sendMessage() {
+  if (!mState.currentChannel) return;
+  const inp = document.getElementById('msgInput');
+  const sbtn = document.getElementById('msgSendBtn');
+  const urgent = document.getElementById('msgChkUrgent')?.checked;
+  const confirm = document.getElementById('msgChkConfirm')?.checked;
+  const content = (inp?.value || '').trim();
+  if (!content) return;
+
+  sbtn.disabled = true;
+  try {
+    await api(`/api/protected/messenger/channels/${mState.currentChannel.id}/messages`, {
+      method: 'POST', json: {
+        content, is_urgent: !!urgent, confirm_required: !!confirm,
+      }
+    });
+    inp.value = '';
+    if (urgent) document.getElementById('msgChkUrgent').checked = false;
+    if (confirm) document.getElementById('msgChkConfirm').checked = false;
+    autoResize(inp);
+    await loadMessages(true);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    sbtn.disabled = false;
+    inp?.focus();
+  }
+}
+
+async function toggleReaction(msgId, emoji) {
+  try {
+    const res = await api(`/api/protected/messenger/messages/${msgId}/reaction`, {
+      method: 'POST', json: { emoji }
+    });
+    const m = mState.messages.find(x => x.id === msgId);
+    if (m) m.reactions = res.reactions;
+    renderMessages();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function confirmMessage(msgId) {
+  try {
+    await api(`/api/protected/messenger/messages/${msgId}/confirm`, { method: 'POST' });
+    toast('확인 완료 ✓', 'success');
+    // 해당 메시지에서 confirm 표시 제거
+    const m = mState.messages.find(x => x.id === msgId);
+    if (m) m.confirm_count = (m.confirm_count || 0) + 1;
+    // pendingConfirms 에서 제거
+    mState.pendingConfirms = mState.pendingConfirms.filter(p => p.id !== msgId);
+    renderPendingPanel();
+    renderMessages();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteMessage(msgId) {
+  try {
+    await api(`/api/protected/messenger/messages/${msgId}`, { method: 'DELETE' });
+    await loadMessages(false);
+    toast('삭제됨', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════
+ * 폴링
+ * ═══════════════════════════════════════════════ */
+function startPolling() {
+  stopPolling();
+  mState.lastPollAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  mState.pollTimer = setInterval(pollOnce, 3000);
+}
+function stopPolling() {
+  if (mState.pollTimer) clearInterval(mState.pollTimer);
+  mState.pollTimer = null;
+}
+async function pollOnce() {
+  if (!mState.initialized) return;
+  try {
+    const q = new URLSearchParams();
+    if (mState.lastPollAt) q.set('since', mState.lastPollAt);
+    if (mState.currentChannel) q.set('channelId', mState.currentChannel.id);
+    const res = await api(`/api/protected/messenger/poll?${q.toString()}`);
+    mState.lastPollAt = res.serverTime || mState.lastPollAt;
+
+    // 새 메시지가 있으면 현재 채널 갱신
+    if (res.newMessages && res.newMessages.length > 0 && mState.currentChannel) {
+      // 중복 제거하면서 append
+      const existing = new Set(mState.messages.map(m => m.id));
+      const fresh = res.newMessages.filter(m => !existing.has(m.id));
+      if (fresh.length > 0) {
+        mState.messages.push(...fresh);
+        const list = document.getElementById('msgList');
+        const atBottom = list && (list.scrollHeight - list.scrollTop - list.clientHeight < 80);
+        renderMessages();
+        if (atBottom) scrollToBottom();
+      }
+    }
+
+    // unread 갱신 (사이드바)
+    if (res.unreadCounts) {
+      const map = {};
+      for (const u of res.unreadCounts) map[u.channel_id] = u.unread_count;
+      for (const ch of mState.channels) {
+        ch.unread_count = map[ch.id] || 0;
+      }
+      renderChannelList();
+    }
+
+    // pendingConfirms 갱신
+    mState.pendingConfirms = res.pendingConfirms || [];
+    renderPendingPanel();
+
+    // 긴급 호출
+    if (res.urgentCalls && res.urgentCalls.length > 0) {
+      for (const uc of res.urgentCalls) {
+        toast(`🚨 긴급: ${uc.caller_name} — ${uc.message?.substring(0, 60)}`, 'error');
+      }
+    }
+
+    // 타이핑
+    mState.typing = res.typing || [];
+    renderTyping();
+  } catch (e) {
+    // 폴링 에러는 조용히 무시 (다음 사이클에 재시도)
+  }
+}
+
+function renderPendingPanel() {
+  const panel = document.getElementById('msgPendingPanel');
+  if (!panel) return;
+  if (!mState.pendingConfirms || mState.pendingConfirms.length === 0) {
+    panel.innerHTML = '';
+    return;
+  }
+  panel.innerHTML = `
+    <div class="msg-pending-panel">
+      <div style="font-weight:700; margin-bottom:6px;">⚠️ 확인이 필요한 메시지 ${mState.pendingConfirms.length}건</div>
+      ${mState.pendingConfirms.slice(0, 5).map(p => `
+        <div class="msg-pending-item">
+          <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <span class="msg-pending-link" data-go-ch="${esc(p.channel_id)}">[${esc(p.channel_name)}]</span>
+            ${esc(p.sender_name)}: ${esc((p.content || '').substring(0, 80))}
+          </div>
+          <button class="msg-confirm-btn" data-pending-confirm="${esc(p.id)}">확인</button>
+        </div>
+      `).join('')}
+    </div>`;
+  panel.querySelectorAll('[data-go-ch]').forEach(n => {
+    n.addEventListener('click', () => {
+      const chId = n.getAttribute('data-go-ch');
+      const ch = mState.channels.find(c => c.id === chId);
+      if (ch) openChannel(ch);
+    });
+  });
+  panel.querySelectorAll('[data-pending-confirm]').forEach(n => {
+    n.addEventListener('click', () => confirmMessage(n.getAttribute('data-pending-confirm')));
+  });
+}
+
+function renderTyping() {
+  const area = document.getElementById('msgTypingArea');
+  if (!area) return;
+  if (!mState.typing || mState.typing.length === 0) {
+    area.textContent = '';
+    return;
+  }
+  const names = mState.typing.map(t => t.userName).join(', ');
+  area.textContent = `✏️ ${names}님이 입력 중...`;
+}
+
+/* ═══════════════════════════════════════════════
+ * 이벤트 바인딩
+ * ═══════════════════════════════════════════════ */
+function bindMessengerEvents() {
+  // 메시지 입력
+  const inp = document.getElementById('msgInput');
+  if (inp) {
+    inp.addEventListener('input', () => {
+      autoResize(inp);
+      // 타이핑 신호 (debounce 1초)
+      if (mState.currentChannel) {
+        clearTimeout(inp._typingTimer);
+        inp._typingTimer = setTimeout(() => {
+          api(`/api/protected/messenger/channels/${mState.currentChannel.id}/typing`,
+            { method: 'POST' }).catch(() => {});
+        }, 800);
+      }
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+  document.getElementById('msgSendBtn')?.addEventListener('click', sendMessage);
+
+  // presence 변경
+  document.getElementById('msgPresenceSelect')?.addEventListener('change', async (e) => {
+    try {
+      await api('/api/protected/messenger/poll/presence', {
+        method: 'POST', json: { status: e.target.value }
+      });
+      toast('상태 변경됨', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  // 새 채널
+  document.getElementById('msgBtnNewChannel')?.addEventListener('click', showNewChannelModal);
+
+  // 새 DM
+  document.getElementById('msgBtnNewDm')?.addEventListener('click', showNewDmModal);
+
+  // 검색
+  document.getElementById('msgBtnSearch')?.addEventListener('click', showSearchModal);
+}
+
+function autoResize(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+}
+
+/* ═══════════════════════════════════════════════
+ * 모달들
+ * ═══════════════════════════════════════════════ */
+function showNewChannelModal() {
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgModal">
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;">
+        <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;">📢 새 채널 만들기</h3>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">채널 이름 *</label>
+          <input id="newChName" class="form-input" placeholder="예: 진료실A" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">카테고리</label>
+          <select id="newChCat" class="form-input" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;">
+            <option value="경영">경영</option>
+            <option value="진료">진료</option>
+            <option value="상담/데스크">상담/데스크</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">설명 (선택)</label>
+          <textarea id="newChDesc" class="form-input" rows="2" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">취소</button>
+          <button class="msg-send" id="newChSubmit">만들기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('newChSubmit').addEventListener('click', async () => {
+    const name = document.getElementById('newChName').value.trim();
+    const category = document.getElementById('newChCat').value;
+    const description = document.getElementById('newChDesc').value.trim();
+    if (!name) { toast('채널 이름을 입력하세요', 'error'); return; }
+    try {
+      const res = await api('/api/protected/messenger/channels', {
+        method: 'POST', json: { name, category, description }
+      });
+      document.getElementById('msgModal').remove();
+      toast('채널 생성됨', 'success');
+      await loadChannels();
+      if (res.channel) openChannel({
+        ...res.channel,
+        channel_role: 'admin', member_count: 1, unread_count: 0,
+      });
+    } catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+async function showNewDmModal() {
+  let users = [];
+  try {
+    const res = await api('/api/protected/messenger/channels/users/directory');
+    users = res.users || [];
+  } catch (e) { toast(e.message, 'error'); return; }
+
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgModal">
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
+        <h3 style="margin:0 0 12px;font-size:16px;font-weight:700;">💬 DM 시작</h3>
+        <input id="dmSearch" placeholder="이름/부서로 검색..." style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:12px;">
+        <div id="dmUserList" style="overflow-y:auto;flex:1;max-height:360px;border-top:1px solid #e5e7eb;padding-top:8px;">
+          ${users.map(u => `
+            <div class="dm-user" data-uid="${esc(u.id)}" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;">
+              ${presenceDot(u.presence_status)}
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13.5px;">${esc(u.name)}</div>
+                <div style="font-size:11.5px;color:#6b7280;">${esc(u.department || '')} · ${esc(roleLabel(u.pfm_role, u.messenger_role))}</div>
+              </div>
+            </div>`).join('') || '<div style="padding:30px;text-align:center;color:#9ca3af;">사용자가 없습니다</div>'}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('dmSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.dm-user').forEach(n => {
+      const txt = n.textContent.toLowerCase();
+      n.style.display = txt.includes(q) ? '' : 'none';
+    });
+  });
+  document.querySelectorAll('.dm-user').forEach(n => {
+    n.addEventListener('click', async () => {
+      const uid = n.getAttribute('data-uid');
+      try {
+        const res = await api('/api/protected/messenger/channels/dm', {
+          method: 'POST', json: { targetUserId: uid }
+        });
+        document.getElementById('msgModal').remove();
+        toast(res.existing ? 'DM 채널 열기' : 'DM 채널 생성', 'success');
+        await loadChannels();
+        if (res.channel) openChannel({
+          ...res.channel,
+          channel_role: 'admin', member_count: 2, unread_count: 0,
+        });
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+}
+
+function showSearchModal() {
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgModal">
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
+        <h3 style="margin:0 0 12px;font-size:16px;font-weight:700;">🔍 메시지 검색</h3>
+        <input id="msgSrcQ" placeholder="검색어 (2자 이상)..." style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:12px;" autofocus>
+        <div id="msgSrcResults" style="overflow-y:auto;flex:1;max-height:400px;font-size:13px;">
+          <div style="padding:20px;text-align:center;color:#9ca3af;">검색어를 입력하세요</div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  let searchTimer;
+  document.getElementById('msgSrcQ').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const q = e.target.value.trim();
+    if (q.length < 2) {
+      document.getElementById('msgSrcResults').innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;">2자 이상 입력해주세요</div>';
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      try {
+        const res = await api(`/api/protected/messenger/search?q=${encodeURIComponent(q)}&limit=50`);
+        const results = res.messages || [];
+        const html = results.length === 0
+          ? '<div style="padding:20px;text-align:center;color:#9ca3af;">검색 결과가 없습니다</div>'
+          : results.map(m => `
+              <div style="padding:8px 10px;border-bottom:1px solid #f3f4f6;cursor:pointer;" data-go-ch="${esc(m.channel_id)}">
+                <div style="font-size:11px;color:#6b7280;">[${esc(m.channel_name)}] ${esc(m.user_name)} · ${fmtTime(m.created_at)}</div>
+                <div style="margin-top:2px;">${esc(m.content || '').substring(0, 120)}${m.content && m.content.length > 120 ? '...' : ''}</div>
+              </div>`).join('');
+        document.getElementById('msgSrcResults').innerHTML = html;
+        document.querySelectorAll('[data-go-ch]').forEach(n => {
+          n.addEventListener('click', () => {
+            const chId = n.getAttribute('data-go-ch');
+            const ch = mState.channels.find(c => c.id === chId);
+            if (ch) {
+              document.getElementById('msgModal').remove();
+              openChannel(ch);
+            }
+          });
+        });
+      } catch (err) { toast(err.message, 'error'); }
+    }, 300);
+  });
+}
+
+async function showMembersModal(channel) {
+  let detail;
+  try {
+    detail = await api(`/api/protected/messenger/channels/${channel.id}`);
+  } catch (e) { toast(e.message, 'error'); return; }
+  const members = detail.members || [];
+
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgModal">
+      <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:75vh;display:flex;flex-direction:column;">
+        <h3 style="margin:0 0 12px;font-size:16px;font-weight:700;">👥 ${esc(channel.name)} 멤버 (${members.length})</h3>
+        <div style="overflow-y:auto;flex:1;max-height:400px;">
+          ${members.map(u => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #f3f4f6;">
+              ${presenceDot(u.presence_status)}
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13.5px;">${esc(u.name)}${u.channel_role === 'admin' ? ' <span style="color:#7c3aed;font-size:11px;">★ admin</span>' : ''}</div>
+                <div style="font-size:11.5px;color:#6b7280;">${esc(u.department || '')} · ${esc(roleLabel(u.pfm_role, u.messenger_role))}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+/* ─── 모듈 export ─── */
+PFM.modules = PFM.modules || {};
+PFM.modules.messenger = {
+  renderMessenger,
+};
+
+})(window.PFM = window.PFM || {});

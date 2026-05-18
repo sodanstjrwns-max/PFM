@@ -778,7 +778,7 @@ function getNavConfig() {
         { id: 'feedback_notes', label: '피드백 노트 (학습자산)', icon: ICONS.edit || ICONS.message },
       ]
     },
-    { id: 'messenger', label: '💌 메신저', icon: ICONS.message, hidden: true },
+    { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
     { id: 'pf_index', label: '📊 페이션트 인덱스', icon: ICONS.chart || ICONS.dashboard },
     { id: 'knowledge', label: '📚 PF 지식베이스', icon: ICONS.materials || ICONS.folder },
     { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users || ICONS.chart },
@@ -1248,6 +1248,7 @@ async function renderPage() {
     case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
     case 'knowledge': M.knowledge && M.knowledge.renderKnowledge && M.knowledge.renderKnowledge(body, actions); break;
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
+    case 'messenger': M.messenger && M.messenger.renderMessenger && M.messenger.renderMessenger(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'ltv_ranking': M.patientsStats.renderLtvRanking(body, actions); break;
