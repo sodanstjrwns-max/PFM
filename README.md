@@ -46,8 +46,8 @@ PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
-- **Latest Build**: https://7a4c52d6.patient-funnel-manager.pages.dev
-- **Demo Login**: fin2@test.com / test1234
+- **Latest Build**: https://2a7823a5.patient-funnel-manager.pages.dev (v5.5.0 Phase A — Messenger Foundation)
+- **Demo Login**: admin@demo.pf / demo1234
 
 ## 📊 시스템 현황 (서울비디치과 데모 데이터)
 - 환자 200명, 소개 관계 139건, 누적 소개 매출 5.76억원
