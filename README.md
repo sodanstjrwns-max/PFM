@@ -1,6 +1,24 @@
-# Patient Funnel Manager (PFM)
+# Patient Funnel OS
 
-서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
+> 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
+> 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
+
+## 🔀 v5.5.0 (in progress) — Patient Chat 통합 (Phase A 완료)
+
+PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
+"환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
+
+### Phase A — 토대 (✅ 완료)
+- 마이그레이션 **0035**: 메신저 코어 13개 테이블 (channels / messages / message_reads / message_escalations / urgent_calls / quick_replies / scheduled_messages / messenger_audit_logs / messenger_notification_preferences / hospital_messenger_settings / user_sessions / trusted_devices / channel_members)
+- 마이그레이션 **0036**: users 테이블에 TOTP(2FA) + messenger_role + presence 컬럼 추가, PFM role → 메신저 role 자동 매핑
+- 신규 라이브러리: `src/lib/messenger-audit.ts` (의료 컴플라이언스 감사 로그), `src/lib/totp.ts` (Web Crypto 기반 2FA)
+- KV 바인딩 설계 (Phase B 활성화 예약)
+
+### Phase B — 메신저 코어 (다음)
+- 채널/메시지/읽음/리액션 라우트 + 사이드바 메뉴 + 폴링 기반 실시간
+
+### Phase C — 환자 통합 (그 다음)
+- patient_threads ↔ PFM `patients` 테이블 연결, 5단계 온도 ↔ 10단계 퍼널 양방향 sync
 
 ## 🤖 v5.4.0 — AI Insights (배치 1+2 완료)
 

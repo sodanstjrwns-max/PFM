@@ -17,4 +17,15 @@
       "bucket_name": "pfm-assets"
     }
   ]
+  // ─── Patient Chat 통합 Phase A ───
+  // KV 바인딩 (rate limit 캐시) 은 Phase B 에서 메신저 라우트가 실제로 사용할 때
+  // wrangler kv:namespace create pfm-rate-limit 으로 생성 후 아래 블록 활성화:
+  //
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "RATE_LIMIT_KV",
+  //     "id": "<<발급된 id>>",
+  //     "preview_id": "<<발급된 preview_id>>"
+  //   }
+  // ]
 }
