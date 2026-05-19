@@ -3,7 +3,7 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B 완료)
+## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C 완료)
 
 PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
 "환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
@@ -29,8 +29,35 @@ PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경
 - 로컬: 8개 mutation E2E (메시지 발송→리액션→핀→Confirm→read bar→검색) 전부 성공
 - 프로덕션: 5개 default 채널 자동 부트스트랩, 박원장 → 💼경영 채널에 confirm-required + urgent 메시지 발송 ✅
 
-### Phase C — 환자 통합 (🔄 다음)
-- patient_threads ↔ PFM `patients` 테이블 연결, 5단계 온도(❄️🌤🔥🦷🌟) ↔ 10단계 퍼널 양방향 sync
+### Phase C — 환자 통합 (✅ 완료)
+PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라인" 이 한 줄에서 흐름.
+
+**마이그레이션:**
+- **0037**: `patient_threads` (환자당 1줄, 담당자 4명 + 우선순위 + 태그) + `patient_thread_events` (퍼널 변경/온도 변경/치료/결제/메모 등 시스템 이벤트)
+- **0038**: `patients` 에 `temperature`, `funnel_stage`, `*_updated_at` 컬럼 추가
+
+**백엔드 (1개 라우트 + 1개 동기화 헬퍼):**
+- `src/lib/patient-funnel-sync.ts` — 환자 온도(5단계) ↔ PFM 퍼널(10단계) 결정적 매핑. `cold↔1-2 / warm↔3-5 / hot↔6-7 / patient↔8 / advocate↔9-10`. `syncPatientFunnel()` 한 호출로 `patient_threads` + `patients` 양쪽 D1 batch 동시 갱신.
+- `src/routes/messenger/patient-threads.ts` — 환자 스레드 CRUD + 타임라인 + 온도 변경 + 이벤트 추가 + 통계
+  - `GET /patient-threads?temperature=&stage=&owner=&priority=&q=` 목록
+  - `POST /patient-threads` 생성 (멱등 — 같은 환자면 기존 스레드 반환)
+  - `GET /patient-threads/:id` 상세 + 환자 카드 + 최근 이벤트 + 최근 메시지
+  - `PATCH /patient-threads/:id` 담당자/우선순위/태그/요약 변경
+  - `POST /patient-threads/:id/temperature` **온도 변경 (퍼널 자동 동기화) — 시그니처 API**
+  - `POST /patient-threads/:id/events` 수동 이벤트 추가 (치료/결제/메모)
+  - `GET /patient-threads/:id/events` **통합 타임라인** (이벤트 + 메시지 한 응답)
+  - `POST /patient-threads/:id/archive` / `unarchive`
+  - `GET /patient-threads/stats/summary` 병원 단위 퍼널 분포 (온도별/단계별 환자 수)
+  - `GET /patients/:patientId/thread` 편의 라우트 (환자 ID → 스레드)
+
+**검증 (로컬 16개 E2E + 프로덕션 라우트 등록 확인):**
+- ✅ 스레드 생성 멱등성 (같은 환자 2번 → `created:false`)
+- ✅ 온도 cold → warm 시 퍼널 자동 1 → 3 (warm 범위 기본값)
+- ✅ 퍼널 6 직접 지정 시 온도 자동 hot (반대 방향 동기화)
+- ✅ **`patients` 테이블도 동시에 hot/6 으로 갱신됨** (D1 batch 원자성)
+- ✅ 통합 타임라인에 이벤트(thread_created, temperature_change, funnel_change, treatment) + 메시지 인터리브
+- ✅ `messages.patient_thread_id` 첫 사용 — 채널 메시지가 환자 스레드와 연결됨
+- ✅ 잘못된 온도(`lukewarm`) → 400, 변경 없음 → `updated:false`
 
 ## 🤖 v5.4.0 — AI Insights (배치 1+2 완료)
 
@@ -58,7 +85,7 @@ PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
-- **Latest Build**: https://2a7823a5.patient-funnel-manager.pages.dev (v5.5.0 Phase A — Messenger Foundation)
+- **Latest Build**: https://ebbd5c14.patient-funnel-manager.pages.dev (v5.5.0 Phase C — 환자 통합)
 - **Demo Login**: admin@demo.pf / demo1234
 
 ## 📊 시스템 현황 (서울비디치과 데모 데이터)

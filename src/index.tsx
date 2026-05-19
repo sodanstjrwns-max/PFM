@@ -46,6 +46,7 @@ import messengerChannelsRoute from './routes/messenger/channels'
 import messengerMessagesRoute from './routes/messenger/messages'
 import messengerPollRoute from './routes/messenger/poll'
 import messengerInitRoute from './routes/messenger/init'
+import messengerPatientThreadsRoute from './routes/messenger/patient-threads'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -188,6 +189,7 @@ app.route('/api/protected/messenger', messengerInitRoute)
 app.route('/api/protected/messenger', messengerPollRoute)
 app.route('/api/protected/messenger', messengerChannelsRoute)
 app.route('/api/protected/messenger', messengerMessagesRoute)
+app.route('/api/protected/messenger', messengerPatientThreadsRoute)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness
