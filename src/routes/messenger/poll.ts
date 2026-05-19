@@ -20,6 +20,7 @@ import { Hono } from 'hono'
 import type { Bindings, Variables } from '../../lib/types'
 import { parseMentionsField, parseReactions, touchUserPresence } from '../../lib/messenger-helpers'
 import { typingState } from './channels'
+import { scanAndEscalate, getUserEscalations } from '../../lib/escalation-engine'
 
 const poll = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -182,6 +183,19 @@ poll.get('/poll', async (c) => {
   // presence 갱신 (fire-and-forget) — 폴링 호출 자체가 "online" 신호
   touchUserPresence(c.env.DB, userId, 'online')
 
+  // ─── 6) 에스컬레이션 엔진 (1분 throttle, 내부에서 알아서) ───
+  // poll 호출 시마다 시도 → 1분 안에 재호출이면 즉시 no-op.
+  // 워커가 idle 이라도 다음 poll 이 보장된 트리거.
+  // 결과는 폴링 응답에 같이 실어 화면을 빨갛게.
+  let escalations: any[] = []
+  let newEscalations: any[] = []
+  try {
+    newEscalations = await scanAndEscalate(c.env.DB, hospitalId)
+    escalations = await getUserEscalations(c.env.DB, hospitalId, userId, since)
+  } catch (e) {
+    console.error('[poll] escalation scan failed:', (e as Error).message)
+  }
+
   return c.json({
     newMessages,
     unreadCounts: unreadRes.results || [],
@@ -189,6 +203,8 @@ poll.get('/poll', async (c) => {
     userStatuses: statusRes.results || [],
     pendingConfirms: pendingRes.results || [],
     typing,
+    escalations,                  // 본인이 알림 대상인 미해결 에스컬레이션
+    newEscalations,               // 이번 스캔에서 새로 트리거된 것 (전체)
     serverTime: sqliteNow(),
   })
 })

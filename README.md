@@ -3,7 +3,7 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C 완료)
+## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D 완료)
 
 PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
 "환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
@@ -59,6 +59,41 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 - ✅ `messages.patient_thread_id` 첫 사용 — 채널 메시지가 환자 스레드와 연결됨
 - ✅ 잘못된 온도(`lukewarm`) → 400, 변경 없음 → `updated:false`
 
+### Phase D — 실시간 + 긴급콜 + 에스컬레이션 엔진 (✅ 완료)
+메신저가 "수동 채팅" 에서 "미확인 메시지가 알아서 위로 올라가는 신경계" 로 진화. Durable Object 없이 폴링 + in-memory throttle 만으로 운영급 에스컬레이션 구현.
+
+**백엔드 (3개 신규 파일 + 2개 hook):**
+- `src/lib/escalation-engine.ts` — confirm-required 메시지 자동 승격 엔진
+  - **1분 in-memory throttle** (`Map<hospitalId, lastScanAt>`) — 폴링 트래픽에도 DB 부하 차단, `force:true` 로 우회
+  - **L1 (기본 10분)**: 미확인 시 채널 멤버 + 발송자 전원 알림
+  - **L2 (기본 20분)**: 추가로 `messenger_role IN (owner/admin/manager/team_lead)` 알림
+  - **L3 (기본 40분)**: 병원 owner + admin 전원 알림
+  - **Idempotency**: `(message_id, level)` UNIQUE — 재스캔해도 중복 발사 없음
+  - 모든 트리거를 `messenger_audit_logs` 에 `escalation.l1/l2/l3` 로 기록
+- `src/routes/messenger/urgent.ts` — 긴급콜 6개 라우트
+  - `POST /urgent` 발송 (call_type: urgent/emergency/code_blue, target: user/channel/all, 멀티테넌트 검증)
+  - `GET /urgent?status=&limit=` 목록 / `GET /urgent/:id` 상세
+  - `POST /urgent/:id/ack` (acknowledged_by JSON 배열에 추가, active→acknowledged)
+  - `POST /urgent/:id/resolve` (발송자 본인은 항상, 외엔 `urgent.resolve` 권한)
+  - `GET /urgent/stats/summary` (active/acknowledged/resolved_today/total_today)
+- `src/routes/messenger/escalations.ts` — 에스컬레이션 조회 4개 라우트
+  - `GET /escalations` 전체 (audit.read 권한, level 필터, 메시지+발송자+채널 조인)
+  - `GET /escalations/me` 내 것만 (notified_user_ids 포함 — 배지용)
+  - `GET /escalations/stats/summary` (l1/l2/l3/today/total)
+  - `POST /escalations/scan` (`force:true` 로 throttle 우회, settings.update 권한)
+- `src/routes/messenger/poll.ts` (modified) — 폴링 응답마다 `scanAndEscalate` + `getUserEscalations` 자동 실행 (try/catch 안전), 응답에 `escalations` + `newEscalations` 두 필드 추가
+
+**검증 (로컬 11+5개 E2E + 프로덕션 라우트 등록 확인):**
+- ✅ 긴급콜 6 시나리오 모두 통과 (Code Blue 생성 → 다중 ack → resolve → 권한 검증 → 통계 → 폴링 인입)
+- ✅ **L1+L2+L3 동시 트리거**: 메시지 `created_at` 을 45분 전으로 조작 → `force` 스캔 → `triggered_count:3` (L1/L2/L3 각각 1건)
+- ✅ 통계 정확: `{l1:1, l2:1, l3:1, today:3, total:3}`
+- ✅ **Idempotency**: 즉시 재스캔 → `triggered_count:0`
+- ✅ 폴링 응답에 escalations 3건 자동 인입
+- ✅ 프로덕션 5개 라우트 모두 HTTP 401 반환 (등록 확인 — 비인증 차단)
+
+**Phase D 의 한 줄 약속:**
+> 원장님이 "수액 빠짐" 같은 confirm-required 메시지를 보내고 10분 동안 아무도 확인 안 하면, **시스템이 알아서 데스크 매니저(L1)에게 알리고, 20분 지나면 진료실장(L2)에게, 40분 지나면 원장님(L3)에게 자동으로 올라갑니다.** 동시에 긴급콜로 화면이 빨갛게 됩니다. 🚨
+
 ## 🤖 v5.4.0 — AI Insights (배치 1+2 완료)
 
 ### 신규 기능 (Batch 2 — AI 차별화)
@@ -85,7 +120,7 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
-- **Latest Build**: https://ebbd5c14.patient-funnel-manager.pages.dev (v5.5.0 Phase C — 환자 통합)
+- **Latest Build**: https://8963895c.patient-funnel-manager.pages.dev (v5.5.0 Phase D — 실시간 + 긴급콜 + 에스컬레이션)
 - **Demo Login**: admin@demo.pf / demo1234
 
 ## 📊 시스템 현황 (서울비디치과 데모 데이터)
