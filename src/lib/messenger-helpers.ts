@@ -21,6 +21,7 @@ import type { MessengerRole } from './types'
 export type MessengerIdPrefix =
   | 'msg' | 'ch' | 'esc' | 'uc' | 'qr' | 'sm' | 'mal' | 'us' | 'td'
   | 'pt'  | 'pte'   // patient_thread / patient_thread_event (Phase C)
+  | 'att' | 'tai'   // attachment / thread_ai_insight (Phase E)
 
 /**
  * 메신저용 ID 생성기.
