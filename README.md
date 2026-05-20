@@ -141,6 +141,59 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 > 시간 없는 원장님이 환자 스레드를 열면, **AI가 해당 환자의 임플란트 상담부터 수술 후 통증까지의 전 과정을 5초 안에 요약해 주고, "지금 더 중요한 건 이다" + "이게 이일이면 이런 위험" 까지 구체적으로 제시**합니다. X-ray 파일은 메시지에 드래그로 올리면 R2에 안전하게 저장되어 스레드 타임라인에 바로 표시됩니다. 📎🧠
 
 ### Phase F.1 — 직원 디렉토리 + Presence (✅ 완료)
+누가 지금 진료실에 있는지, 누가 자리 비웠는지, 누가 방해금지인지 사이드바에서 한눈에. 30초마다 자동 갱신, 클릭하면 바로 DM.
+
+**백엔드 (`src/routes/messenger/directory.ts` — 6 routes):**
+- `effectivePresence(stored, last_seen_at)` 계산: 5분 → away 자동, 15분 → offline 자동, DND 는 무조건 유지
+- `GET /directory?q=&department=&role=&online=1` 검색/부서/role/온라인 필터
+- `GET /directory/me` 본인 카드 + presence
+- `GET /directory/departments` 부서별 인원 수
+- `GET /directory/stats` online/away/dnd/offline 카운트
+- `POST /directory/presence` 수동 presence + location (예: "수술실 3", "원장실")
+- `POST /directory/heartbeat` 30초마다 — DND 존중하면서 last_seen 갱신
+
+**UI (`public/static/modules/messenger.js`):**
+- 사이드바 좌측 하단에 "동료 · N명" 섹션 추가 — 검색 인풋 + 온라인만 토글 + 새로고침 버튼
+- presence dot 색상: 🟢 online / 🟡 away / 🔴 dnd / ⚪ offline
+- 동료 클릭 → 1:1 DM 즉시 시작
+- 30초 디렉토리 폴링 + 30초 heartbeat (mState.dirInterval, mState.heartbeatInterval)
+
+**검증 (로컬 10/10 + 프로덕션 6개 라우트 401):**
+- ✅ /directory/me 본인 카드, /presence dnd 설정, heartbeat (DND 유지), 11명 디렉토리, 부서별 통계, role 필터, online 필터, 검색
+
+### Phase F.2 — 알림 설정 + Quiet Hours (✅ 완료)
+22시 이후엔 메신저가 조용해지지만, 긴급콜과 L3 에스컬레이션은 항상 통과. 채널마다 mute/멘션만 따로 설정 가능.
+
+**백엔드 (`src/routes/messenger/notifications.ts` — 5 routes):**
+- `GET /notifications/preferences` global + per_channel 분리 응답 (없으면 defaults)
+- `PUT /notifications/preferences` 전역 upsert (`__global__` sentinel channel_id)
+- `PUT /notifications/preferences/:channelId` 채널별 mute/mentions_only upsert (DND 컬럼은 채널 단위에서는 잠금)
+- `DELETE /notifications/preferences/:channelId` 채널 오버라이드 제거 → global 로 fallback
+- `POST /notifications/quiet-check` body `{channel_id?, is_mention?, is_urgent?, is_l3_escalation?}` → quiet/override 판정
+
+**Quiet Hours 우회 규칙 (UX 약속):**
+1. `is_urgent=true` → **quiet:false, override:true, override_reasons:['urgent_call']** (항상 통과)
+2. `is_l3_escalation=true` → **quiet:false, override:true, override_reasons:['l3_escalation']** (항상 통과)
+3. 그 외 판정 순서: global mute → DND 윈도우 (자정 넘김 22:00→07:00 지원) → mentions_only → channel mute → channel mentions_only
+4. DND 윈도우 안에서도 `is_mention=true && notify_mentions_only` 면 통과
+
+**UI (`public/static/modules/messenger.js`):**
+- 사이드바 헤더에 🔔 알림 설정 버튼 추가
+- 알림 설정 모달:
+  - **전역**: 전체 음소거 / @멘션만 / 🌙 방해금지 시간대 (start/end time picker, 자정 넘김 OK) / 🔊 사운드 / 🖥️ 데스크탑
+  - **채널별**: 채널 목록 + 음소거/멘션만 토글 + 초기화 버튼 (즉시 반영)
+
+**검증 (로컬 11/11 통과):**
+- ✅ defaults 응답 → 전역 PUT → GET 재확인
+- ✅ urgent override / L3 override (override_reasons 정확)
+- ✅ 현재 06:20 UTC, DND 22:00~07:00 윈도우 안 → `quiet:true, reason:dnd_window`
+- ✅ 채널별 PUT → per_channel 응답에 포함 → DELETE → 정리
+- ✅ 프로덕션 4개 라우트 401 (마운트 확인)
+
+**Phase F.1 + F.2 의 한 줄 약속:**
+> **사이드바 하단**에서 데스크 매니저가 지금 자리에 있는지, 진료실장이 DND 중인지 한눈에 확인하고 클릭 한 번으로 DM. **🔔 버튼**으로 "22시 이후엔 안 울리되, 환자 응급 콜과 L3 에스컬레이션은 무조건 알림" 같은 인사 정책을 직원 본인이 직접 설정. 🟢🌙
+
+### Phase F.1 — 직원 디렉토리 + Presence (✅ 완료)
 "누가 지금 진료실에 있는지" 한눈에 보고 바로 DM 시작.
 
 **백엔드 (`src/routes/messenger/directory.ts`, 6 routes):**
