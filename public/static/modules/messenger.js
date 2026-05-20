@@ -365,13 +365,17 @@ async function renderMessenger(body, actions) {
         </div>
         <div class="msg-typing" id="msgTypingArea"></div>
         <div class="msg-composer" id="msgComposer" style="display:none">
-          <div class="msg-composer-row">
-            <textarea class="msg-input" id="msgInput" placeholder="메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
+          <!-- 단축어 자동완성 팝업 (Phase F.3) -->
+          <div id="msgQrPopup" style="display:none; position:absolute; bottom:100%; left:12px; right:80px; max-height:240px; overflow-y:auto; background:#1f2937; border:1px solid #374151; border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); z-index:50; margin-bottom:6px;"></div>
+          <div class="msg-composer-row" style="position:relative;">
+            <textarea class="msg-input" id="msgInput" placeholder="메시지를 입력하세요 (Enter 전송, / 입력 시 단축어, Shift+Enter 줄바꿈)" rows="1"></textarea>
             <button class="msg-send" id="msgSendBtn">전송</button>
           </div>
           <div class="msg-composer-tools">
             <label><input type="checkbox" id="msgChkUrgent"> 🚨 긴급</label>
             <label><input type="checkbox" id="msgChkConfirm"> ✅ 확인 필수</label>
+            <button id="msgBtnSchedule" title="예약 발송" style="margin-left:auto; background:transparent; border:1px solid #d1d5db; border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; color:#6b7280;">📅 예약</button>
+            <button id="msgBtnQrManage" title="단축어 관리" style="background:transparent; border:1px solid #d1d5db; border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; color:#6b7280;">⚡ 단축어</button>
           </div>
         </div>
       </section>
@@ -396,6 +400,7 @@ async function renderMessenger(body, actions) {
   }
 
   await loadChannels();
+  await loadQuickReplies(); // Phase F.3 — 단축어 캐시
   bindMessengerEvents();
   startPolling();
 
@@ -803,6 +808,8 @@ function bindMessengerEvents() {
   if (inp) {
     inp.addEventListener('input', () => {
       autoResize(inp);
+      // 단축어 자동완성 (Phase F.3)
+      handleQrAutocomplete(inp);
       // 타이핑 신호 (debounce 1초)
       if (mState.currentChannel) {
         clearTimeout(inp._typingTimer);
@@ -813,6 +820,18 @@ function bindMessengerEvents() {
       }
     });
     inp.addEventListener('keydown', (e) => {
+      // 단축어 팝업 열려있으면 ↑↓ Enter Esc 처리
+      const popup = document.getElementById('msgQrPopup');
+      if (popup && popup.style.display !== 'none') {
+        if (e.key === 'Escape') { e.preventDefault(); popup.style.display = 'none'; return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault(); moveQrSelection(e.key === 'ArrowDown' ? 1 : -1); return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          const sel = popup.querySelector('.qr-popup-item.selected');
+          if (sel) { e.preventDefault(); applyQrItem(sel.dataset.qrId); return; }
+        }
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
@@ -820,6 +839,10 @@ function bindMessengerEvents() {
     });
   }
   document.getElementById('msgSendBtn')?.addEventListener('click', sendMessage);
+
+  // Phase F.3 — 예약 발송 + 단축어 관리
+  document.getElementById('msgBtnSchedule')?.addEventListener('click', showScheduleModal);
+  document.getElementById('msgBtnQrManage')?.addEventListener('click', showQrManageModal);
 
   // presence 변경 (기존 poll 라우트 + 새 directory 라우트 둘 다)
   document.getElementById('msgPresenceSelect')?.addEventListener('change', async (e) => {
@@ -1116,6 +1139,309 @@ async function showNotifSettingsModal() {
 function autoResize(textarea) {
   textarea.style.height = 'auto';
   textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+}
+
+/* ═══════════════════════════════════════════════
+ * Phase F.3 — Quick Reply 자동완성 + Scheduled Messages
+ * ═══════════════════════════════════════════════ */
+
+// 단축어 캐시 (mState.quickReplies)
+async function loadQuickReplies() {
+  try {
+    const res = await api('/api/protected/messenger/quick-replies');
+    mState.quickReplies = res.replies || [];
+  } catch (_) { mState.quickReplies = []; }
+}
+
+// input 이벤트 → / 로 시작하면 매칭되는 단축어 팝업 표시
+function handleQrAutocomplete(inp) {
+  const popup = document.getElementById('msgQrPopup');
+  if (!popup) return;
+  const val = inp.value;
+  // 첫 토큰이 / 로 시작할 때만 (입력 시작 부근)
+  const m = val.match(/^(\/[a-zA-Z0-9_\-가-힣]*)$/);
+  if (!m) { popup.style.display = 'none'; return; }
+  const query = m[1].toLowerCase();
+  const list = (mState.quickReplies || [])
+    .filter(q => q.shortcut.toLowerCase().startsWith(query))
+    .slice(0, 8);
+  if (!list.length) { popup.style.display = 'none'; return; }
+  popup.innerHTML = list.map((q, i) => `
+    <div class="qr-popup-item ${i === 0 ? 'selected' : ''}" data-qr-id="${q.id}"
+         style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #374151; ${i === 0 ? 'background:#374151;' : ''}">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <code style="background:#111827; color:#60a5fa; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600;">${escapeHtml(q.shortcut)}</code>
+        <span style="font-size:12px; color:#e5e7eb; font-weight:500;">${escapeHtml(q.title)}</span>
+        ${q.is_shared ? '<span style="font-size:9px; color:#fbbf24; background:#451a03; padding:1px 5px; border-radius:3px;">공유</span>' : ''}
+      </div>
+      <div style="font-size:11px; color:#9ca3af; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(q.body.slice(0, 80))}</div>
+    </div>
+  `).join('');
+  popup.style.display = 'block';
+  // 클릭 이벤트
+  popup.querySelectorAll('.qr-popup-item').forEach(el => {
+    el.addEventListener('click', () => applyQrItem(el.dataset.qrId));
+    el.addEventListener('mouseenter', () => {
+      popup.querySelectorAll('.qr-popup-item').forEach(x => {
+        x.classList.remove('selected');
+        x.style.background = 'transparent';
+      });
+      el.classList.add('selected');
+      el.style.background = '#374151';
+    });
+  });
+}
+
+function moveQrSelection(delta) {
+  const popup = document.getElementById('msgQrPopup');
+  const items = [...popup.querySelectorAll('.qr-popup-item')];
+  const idx = items.findIndex(x => x.classList.contains('selected'));
+  if (idx < 0) return;
+  const next = (idx + delta + items.length) % items.length;
+  items.forEach((x, i) => {
+    x.classList.toggle('selected', i === next);
+    x.style.background = i === next ? '#374151' : 'transparent';
+  });
+  items[next]?.scrollIntoView({ block: 'nearest' });
+}
+
+async function applyQrItem(qrId) {
+  const popup = document.getElementById('msgQrPopup');
+  const inp = document.getElementById('msgInput');
+  if (!inp) return;
+  try {
+    // 현재 채널/스레드 컨텍스트 전달
+    const ctx = {
+      patient_name: mState.currentPatientThread?.patient_name || '',
+      channel_name: mState.currentChannel?.name || '',
+      user_name: mState.myProfile?.name || ''
+    };
+    const res = await api(`/api/protected/messenger/quick-replies/${qrId}/use`, {
+      method: 'POST', json: { context: ctx }
+    });
+    inp.value = res.body;
+    autoResize(inp);
+    inp.focus();
+    if (popup) popup.style.display = 'none';
+  } catch (e) {
+    toast('단축어 적용 실패: ' + e.message, 'error');
+  }
+}
+
+// 예약 발송 모달
+function showScheduleModal() {
+  if (!mState.currentChannel) {
+    toast('먼저 채널을 선택하세요', 'warning');
+    return;
+  }
+  const inp = document.getElementById('msgInput');
+  const draftContent = inp?.value?.trim() || '';
+  const ch = mState.currentChannel;
+
+  // 기본값: 1시간 후
+  const future = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const localStr = `${future.getFullYear()}-${pad(future.getMonth()+1)}-${pad(future.getDate())}T${pad(future.getHours())}:${pad(future.getMinutes())}`;
+
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgSchedModal">
+      <div style="background:#fff;border-radius:12px;max-width:520px;width:92%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+          <h3 style="margin:0;font-size:16px;font-weight:700;">📅 예약 발송 — <span style="color:#6b7280;">${escapeHtml(ch.name)}</span></h3>
+          <button id="schedClose" style="background:transparent;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+        </div>
+        <div style="padding:18px 22px;overflow-y:auto;flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">메시지</label>
+          <textarea id="schedContent" rows="4" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="발송할 메시지 내용">${escapeHtml(draftContent)}</textarea>
+
+          <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin:14px 0 6px;">발송 시각</label>
+          <input id="schedAt" type="datetime-local" value="${localStr}" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+          <div style="font-size:11px;color:#6b7280;margin-top:4px;">최대 90일 이내 · 1분 후부터 예약 가능</div>
+
+          <div style="display:flex;gap:14px;margin-top:14px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;cursor:pointer;">
+              <input type="checkbox" id="schedUrgent"> 🚨 긴급
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;cursor:pointer;">
+              <input type="checkbox" id="schedConfirm"> ✅ 확인 필수
+            </label>
+          </div>
+
+          <!-- 내 예약 목록 -->
+          <div style="margin-top:18px;border-top:1px solid #e5e7eb;padding-top:14px;">
+            <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">⏳ 대기 중인 내 예약</div>
+            <div id="schedPendingList" style="max-height:160px;overflow-y:auto;font-size:12px;">
+              <div style="color:#9ca3af;text-align:center;padding:10px;">로딩...</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 22px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;background:#fafafa;border-radius:0 0 12px 12px;">
+          <button id="schedCancel" style="padding:8px 16px;background:#f3f4f6;border:none;border-radius:6px;font-size:13px;color:#374151;cursor:pointer;">취소</button>
+          <button id="schedSave" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">📅 예약 발송</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const modal = document.getElementById('msgSchedModal');
+  const close = () => modal?.remove();
+  modal.querySelector('#schedClose').addEventListener('click', close);
+  modal.querySelector('#schedCancel').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  // 대기 중인 예약 로딩
+  const loadPending = async () => {
+    try {
+      const res = await api('/api/protected/messenger/scheduled?status=pending');
+      const list = res.scheduled || [];
+      const el = modal.querySelector('#schedPendingList');
+      if (!list.length) {
+        el.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:10px;">예약된 메시지 없음</div>';
+        return;
+      }
+      el.innerHTML = list.map(s => `
+        <div data-sm-id="${s.id}" style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #f3f4f6;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:#6b7280;">📅 ${escapeHtml(s.scheduled_at)} · ${escapeHtml(s.channel_name || s.channel_id)}</div>
+            <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.content)}</div>
+          </div>
+          <button class="sched-cancel-btn" data-sm-id="${s.id}" style="background:transparent;border:1px solid #fca5a5;color:#dc2626;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;">취소</button>
+        </div>
+      `).join('');
+      el.querySelectorAll('.sched-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('이 예약을 취소하시겠습니까?')) return;
+          try {
+            await api(`/api/protected/messenger/scheduled/${btn.dataset.smId}`, { method: 'DELETE' });
+            toast('예약 취소됨', 'success');
+            loadPending();
+          } catch (e) { toast('취소 실패: ' + e.message, 'error'); }
+        });
+      });
+    } catch (e) {
+      modal.querySelector('#schedPendingList').innerHTML = `<div style="color:#dc2626;padding:10px;">오류: ${escapeHtml(e.message)}</div>`;
+    }
+  };
+  loadPending();
+
+  // 저장
+  modal.querySelector('#schedSave').addEventListener('click', async () => {
+    const content = modal.querySelector('#schedContent').value.trim();
+    const at = modal.querySelector('#schedAt').value;
+    const urgent = modal.querySelector('#schedUrgent').checked;
+    const confirmReq = modal.querySelector('#schedConfirm').checked;
+    if (!content) { toast('메시지 내용을 입력하세요', 'warning'); return; }
+    if (!at) { toast('발송 시각을 선택하세요', 'warning'); return; }
+    try {
+      const res = await api('/api/protected/messenger/scheduled', {
+        method: 'POST',
+        json: {
+          channel_id: ch.id,
+          content,
+          scheduled_at: at.replace('T', ' ') + ':00',
+          is_urgent: urgent,
+          confirm_required: confirmReq
+        }
+      });
+      toast(`📅 예약 완료 (${Math.floor(res.seconds_until/60)}분 후 발송)`, 'success');
+      // 본문 비우기
+      const inp = document.getElementById('msgInput');
+      if (inp && inp.value === draftContent) { inp.value = ''; autoResize(inp); }
+      loadPending();
+    } catch (e) {
+      toast('예약 실패: ' + e.message, 'error');
+    }
+  });
+}
+
+// 단축어 관리 모달
+async function showQrManageModal() {
+  let replies = [];
+  try {
+    const res = await api('/api/protected/messenger/quick-replies');
+    replies = res.replies || [];
+  } catch (e) {
+    toast('단축어 로드 실패: ' + e.message, 'error');
+    return;
+  }
+
+  const rowsHtml = replies.length ? replies.map(q => `
+    <div data-qr-id="${q.id}" style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #f3f4f6;">
+      <code style="background:#eff6ff;color:#1e40af;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;">${escapeHtml(q.shortcut)}</code>
+      <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${escapeHtml(q.title)} ${q.is_shared ? '<span style="font-size:9px;color:#92400e;background:#fef3c7;padding:1px 5px;border-radius:3px;margin-left:4px;">공유</span>' : ''}</div>
+        <div style="font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(q.body)}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:2px;">${q.use_count}회 사용</div>
+      </div>
+      <button class="qr-del-btn" data-qr-id="${q.id}" style="background:transparent;border:1px solid #fca5a5;color:#dc2626;padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;">삭제</button>
+    </div>
+  `).join('') : '<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">아직 단축어가 없습니다</div>';
+
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgQrModal">
+      <div style="background:#fff;border-radius:12px;max-width:600px;width:92%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+          <h3 style="margin:0;font-size:16px;font-weight:700;">⚡ 단축어 관리</h3>
+          <button id="qrClose" style="background:transparent;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+        </div>
+        <div style="padding:16px 22px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">➕ 새 단축어 추가</div>
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;margin-bottom:8px;">
+            <input id="qrShortcut" type="text" placeholder="/call" maxlength="32" style="padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:monospace;">
+            <input id="qrTitle" type="text" placeholder="제목 (예: 전화 부탁)" maxlength="100" style="padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">
+          </div>
+          <textarea id="qrBody" rows="3" placeholder="본문 — {patient_name} {date} {time} {my_name} 사용 가능" maxlength="2000" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;cursor:pointer;">
+              <input type="checkbox" id="qrShared"> 🏥 병원 전체 공유 (관리자)
+            </label>
+            <button id="qrAdd" style="padding:7px 14px;background:#10b981;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">추가</button>
+          </div>
+        </div>
+        <div id="qrList" style="overflow-y:auto;flex:1;">
+          ${rowsHtml}
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const modal = document.getElementById('msgQrModal');
+  const close = () => modal?.remove();
+  modal.querySelector('#qrClose').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  // 삭제
+  modal.querySelectorAll('.qr-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
+      try {
+        await api(`/api/protected/messenger/quick-replies/${btn.dataset.qrId}`, { method: 'DELETE' });
+        toast('삭제됨', 'success');
+        close();
+        await loadQuickReplies();
+        showQrManageModal();
+      } catch (e) { toast('삭제 실패: ' + e.message, 'error'); }
+    });
+  });
+
+  // 추가
+  modal.querySelector('#qrAdd').addEventListener('click', async () => {
+    const shortcut = modal.querySelector('#qrShortcut').value.trim();
+    const title = modal.querySelector('#qrTitle').value.trim();
+    const body = modal.querySelector('#qrBody').value.trim();
+    const shared = modal.querySelector('#qrShared').checked;
+    if (!shortcut || !title || !body) { toast('shortcut/title/body 모두 입력하세요', 'warning'); return; }
+    try {
+      await api('/api/protected/messenger/quick-replies', {
+        method: 'POST',
+        json: { shortcut, title, body, shared }
+      });
+      toast('⚡ 단축어 추가됨', 'success');
+      close();
+      await loadQuickReplies();
+      showQrManageModal();
+    } catch (e) { toast('추가 실패: ' + e.message, 'error'); }
+  });
 }
 
 /* ═══════════════════════════════════════════════
