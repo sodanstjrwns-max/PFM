@@ -80,6 +80,15 @@ function roleBadgeColor(mrole, role) {
   return '#64748b';
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function presenceDot(status) {
   const map = { online: '#10b981', away: '#f59e0b', dnd: '#ef4444', offline: '#94a3b8' };
   const color = map[status] || '#94a3b8';
@@ -312,9 +321,25 @@ async function renderMessenger(body, actions) {
             <button class="msg-side-btn" id="msgBtnNewDm" title="DM 시작">${ICONS.users}</button>
           </div>
         </div>
-        <div id="msgChannelList" style="flex:1; overflow-y:auto; padding:8px;">
+        <div id="msgChannelList" style="flex:1 1 50%; overflow-y:auto; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="padding:40px 16px; text-align:center; color:#9ca3af; font-size:12px;">로딩 중...</div>
         </div>
+
+        <!-- 동료 (Directory) — Phase F.1 -->
+        <div class="msg-directory" style="flex:1 1 50%; display:flex; flex-direction:column; min-height:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px 6px; font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">
+            <span id="msgDirHeader">동료 · <span id="msgDirOnlineCount">0</span></span>
+            <div style="display:flex; gap:4px;">
+              <button id="msgDirToggleOnline" title="온라인만" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:11px; padding:2px 4px; border-radius:3px;">🟢</button>
+              <button id="msgDirRefresh" title="새로고침" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:11px; padding:2px 4px;">↻</button>
+            </div>
+          </div>
+          <input id="msgDirSearch" type="text" placeholder="이름/부서 검색" style="margin:0 12px 8px; padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#e5e7eb; font-size:12px; outline:none;" />
+          <div id="msgDirList" style="flex:1; overflow-y:auto; padding:0 6px 8px;">
+            <div style="padding:20px 12px; text-align:center; color:#9ca3af; font-size:11px;">로딩...</div>
+          </div>
+        </div>
+
         <div class="msg-presence">
           <div>내 상태</div>
           <select class="msg-presence-select" id="msgPresenceSelect">
@@ -795,15 +820,107 @@ function bindMessengerEvents() {
   }
   document.getElementById('msgSendBtn')?.addEventListener('click', sendMessage);
 
-  // presence 변경
+  // presence 변경 (기존 poll 라우트 + 새 directory 라우트 둘 다)
   document.getElementById('msgPresenceSelect')?.addEventListener('change', async (e) => {
     try {
-      await api('/api/protected/messenger/poll/presence', {
+      await api('/api/protected/messenger/directory/presence', {
         method: 'POST', json: { status: e.target.value }
       });
       toast('상태 변경됨', 'success');
+      loadDirectory(); // 본인 상태 변경 후 디렉토리 갱신
     } catch (err) { toast(err.message, 'error'); }
   });
+
+  // ─── F.1 동료 디렉토리 ───
+  let dirOnlineOnly = false;
+  const dirSearchEl = document.getElementById('msgDirSearch');
+  const dirListEl = document.getElementById('msgDirList');
+  const dirOnlineCountEl = document.getElementById('msgDirOnlineCount');
+  const dirToggleBtn = document.getElementById('msgDirToggleOnline');
+  const dirRefreshBtn = document.getElementById('msgDirRefresh');
+
+  let dirSearchTimer = null;
+  async function loadDirectory() {
+    if (!dirListEl) return;
+    const q = (dirSearchEl?.value || '').trim();
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (dirOnlineOnly) params.set('online', '1');
+    params.set('limit', '100');
+    try {
+      const res = await api('/api/protected/messenger/directory?' + params.toString());
+      dirOnlineCountEl.textContent = res.online_count || 0;
+      if (!res.users || res.users.length === 0) {
+        dirListEl.innerHTML = '<div style="padding:16px 12px; text-align:center; color:#9ca3af; font-size:11px;">' + (q ? '검색 결과 없음' : '동료가 없습니다') + '</div>';
+        return;
+      }
+      const html = res.users.map(u => {
+        const eff = u.presence?.effective || 'offline';
+        const loc = u.presence?.location ? ' · ' + escapeHtml(u.presence.location) : '';
+        const dept = u.department ? ' · ' + escapeHtml(u.department) : '';
+        return `
+          <div class="msg-dir-user" data-user-id="${u.id}" data-user-name="${escapeHtml(u.name)}"
+               style="display:flex; align-items:center; padding:6px 10px; border-radius:6px; cursor:pointer; color:#e5e7eb; font-size:12px;"
+               onmouseover="this.style.background='rgba(255,255,255,0.06)'"
+               onmouseout="this.style.background='transparent'">
+            ${presenceDot(eff)}
+            <div style="flex:1; min-width:0;">
+              <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml(u.name)}${u.is_doctor ? ' <span style="color:#fbbf24">·원장</span>' : ''}
+              </div>
+              <div style="font-size:10px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml(u.position || u.messenger_role || '')}${dept}${loc}
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+      dirListEl.innerHTML = html;
+      // DM 시작 핸들러
+      dirListEl.querySelectorAll('.msg-dir-user').forEach(el => {
+        el.addEventListener('click', async () => {
+          const uid = el.dataset.userId;
+          const uname = el.dataset.userName;
+          try {
+            const r = await api('/api/protected/messenger/channels/dm', {
+              method: 'POST', json: { target_user_id: uid }
+            });
+            toast('DM ' + (r.existing ? '열기' : '시작'), 'success');
+            // 채널 리스트 갱신 + 해당 채널 열기
+            await loadChannels?.();
+            if (r.channel && typeof openChannel === 'function') openChannel(r.channel);
+          } catch (err) { toast(err.message, 'error'); }
+        });
+      });
+    } catch (err) {
+      dirListEl.innerHTML = '<div style="padding:16px 12px; text-align:center; color:#ef4444; font-size:11px;">오류: ' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  dirSearchEl?.addEventListener('input', () => {
+    clearTimeout(dirSearchTimer);
+    dirSearchTimer = setTimeout(loadDirectory, 250);
+  });
+  dirToggleBtn?.addEventListener('click', () => {
+    dirOnlineOnly = !dirOnlineOnly;
+    dirToggleBtn.style.background = dirOnlineOnly ? 'rgba(16,185,129,0.2)' : 'transparent';
+    loadDirectory();
+  });
+  dirRefreshBtn?.addEventListener('click', loadDirectory);
+
+  // 최초 로드
+  loadDirectory();
+
+  // 30초마다 디렉토리 갱신 (presence 반영)
+  if (mState.dirInterval) clearInterval(mState.dirInterval);
+  mState.dirInterval = setInterval(loadDirectory, 30000);
+
+  // 30초마다 heartbeat — 본인 활성 유지
+  if (mState.heartbeatInterval) clearInterval(mState.heartbeatInterval);
+  mState.heartbeatInterval = setInterval(async () => {
+    try {
+      await api('/api/protected/messenger/directory/heartbeat', { method: 'POST', json: {} });
+    } catch (_) { /* 조용히 무시 */ }
+  }, 30000);
 
   // 새 채널
   document.getElementById('msgBtnNewChannel')?.addEventListener('click', showNewChannelModal);
