@@ -3,7 +3,10 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D + E + F.1 + F.2 완료)
+## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D + E + F 완료)
+
+> **Latest deploy**: https://df2bd1e9.patient-funnel-manager.pages.dev · main https://patient-funnel-manager.pages.dev
+> **Build**: 578.11 kB · 87 modules · D1: 0039 적용
 
 PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
 "환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
@@ -192,6 +195,63 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 **Phase F.1 + F.2 의 한 줄 약속:**
 > **사이드바 하단**에서 데스크 매니저가 지금 자리에 있는지, 진료실장이 DND 중인지 한눈에 확인하고 클릭 한 번으로 DM. **🔔 버튼**으로 "22시 이후엔 안 울리되, 환자 응급 콜과 L3 에스컬레이션은 무조건 알림" 같은 인사 정책을 직원 본인이 직접 설정. 🟢🌙
+
+### Phase F.3 — Quick Reply 단축어 + Scheduled Messages 예약 발송 (✅ 완료)
+자주 쓰는 멘트를 `/call`, `/done` 같은 단축어로 1초 만에 입력. "내일 아침 9시에 자동 발송" 같은 예약 메시지로 직원 인지 부담 제거.
+
+**백엔드 (`src/routes/messenger/quick-replies.ts` — 6 routes, `src/routes/messenger/scheduled.ts` — 6 routes):**
+- Quick Reply: 본인 + 공유(공유는 admin/manager/owner만) — `UNIQUE(hospital_id, COALESCE(user_id,''), shortcut)`
+- 6종 placeholder 치환: `{patient_name} {channel_name} {user_name} {my_name} {date} {time}`
+- Scheduled Messages: ISO 8601 또는 `YYYY-MM-DD HH:MM`, **1분 후 ~ 90일 한도**, 과거 시각 거부
+- **인라인 best-effort dispatcher**: `GET /scheduled` 호출 시마다 호출자의 due 메시지 최대 20건을 `messages` 테이블로 자동 INSERT (별도 cron 없음)
+- 모든 mutation은 `messenger_audit_logs` 에 `quick_reply.*`, `scheduled.*` 액션으로 기록
+
+**UI (`public/static/modules/messenger.js`):**
+- 입력창에서 `/` 입력 시 단축어 팝업 (↑↓ 선택, Enter 적용, Esc 닫기)
+- 📅 예약 발송 모달 (datetime-local, 대기중 예약 목록 + 인라인 취소)
+- ⚙️ 단축어 관리 모달 (추가/삭제, 공유 토글)
+
+**검증 (로컬 11/11 통과, QR 8 + Sched 7):**
+- ✅ `/call` 사용 시 `{patient_name}/{my_name}/{date}/{time}` 모두 치환 확인
+- ✅ 공유 단축어 생성: admin OK / staff 403
+- ✅ Scheduled 1분 후 INSERT → `GET /scheduled` 호출로 inline dispatch → `messages` 테이블에서 실제 메시지 확인
+- ✅ 과거 시각 / 90일 초과 거부
+- ✅ 프로덕션 4개 라우트 401
+
+### Phase F.4 — 운영 대시보드 (✅ 완료)
+관리자 한 화면에서 메신저 활성도, 미확인 confirm TOP, 에스컬레이션 이력, presence 분포, 환자 스레드 현황을 한눈에. 감사 로그 필터/페이지네이션도 같은 라우트군 안에서.
+
+**백엔드 (`src/routes/messenger/ops.ts` — 6 routes):**
+- `requireAdmin` 헬퍼로 admin/manager/owner 만 통과 (그 외 403)
+- `GET /ops/audit?action=&actor_id=&target_type=&since=&cursor=&limit=` — 필터 + 시간 커서 페이지네이션, `has_more / next_cursor`
+- `GET /ops/audit/actions` — 지난 30일 사용된 action 종류 + 카운트 (필터 드롭다운용)
+- `GET /ops/dashboard` — **8개 어그리거트 동시 조회**: 활성도(today/yesterday/7d) + 채널 TOP 5 + 미확인 confirm TOP + 최근 에스컬레이션 + 예약 메시지 status 분포 + AI 사용량 30d + presence 분포 + 환자 스레드 open/closed
+- `GET /ops/activity?days=14` — 일자별 메시지/활성유저/urgent/confirm 카운트 (최대 30일)
+- `GET /ops/unconfirmed` — confirm_required 미확인 메시지 (전원 확인 안 된 것만 필터)
+- `GET /ops/escalations?days=30` — message_escalations + level 분포 통계 (최대 90일)
+
+**Confirm 추적 스키마 의사결정:**
+- 별도 `message_confirmations` 테이블 없음 → `message_reads.confirmed_at IS NOT NULL` 로 일관되게 계산
+- 에스컬레이션 테이블은 `message_escalations` (NOT `escalations`)
+
+**UI (`public/static/modules/messenger.js`):**
+- 사이드바 헤더에 🛡️ 운영 대시보드 버튼 (admin 전용 — 비-admin이 누르면 403 메시지 표시)
+- 8개 KPI 카드 + 채널 TOP 5 테이블 + 미확인 confirm 카드 리스트 + 에스컬레이션 타임라인 + 예약 메시지 status 배지
+- 권한 없는 사용자에게는 친절한 안내 (admin/manager/owner 권한이 필요합니다)
+
+**검증 (로컬 6/6 라우트 통과, 프로덕션 6개 401):**
+- ✅ `/ops/dashboard`: today=1, top_ch=5, unconfirmed=1, esc=3, presence_total=12
+- ✅ `/ops/audit?limit=3`: 3건, has_more=True, first_action=scheduled.create
+- ✅ `/ops/audit/actions`: 19종 action 집계
+- ✅ `/ops/activity?days=7`: 2일치 데이터
+- ✅ `/ops/unconfirmed`: 미확인 1건 (confirmed < total members)
+- ✅ `/ops/escalations?days=30`: 3건, `by_level: {1:1, 2:1, 3:1}` (Phase D에서 시드된 L1+L2+L3 그대로 인입)
+- ✅ 프로덕션 6개 라우트 모두 HTTP 401
+
+**Phase F 의 한 줄 약속:**
+> 원장님이 아침에 출근해서 🛡️ 한 번 누르면, **오늘/어제 메시지 수, 누가 자리비움인지, 어제 밤에 누가 못 본 confirm-required 메시지, AI가 30일 동안 쓴 토큰 비용, 환자 스레드 열린 게 몇 개** — 모두 한 화면. 정상이면 닫고, 빨간 거 있으면 거기서 바로 액션. 📊🛡️
+
+---
 
 ### Phase F.1 — 직원 디렉토리 + Presence (✅ 완료)
 "누가 지금 진료실에 있는지" 한눈에 보고 바로 DM 시작.

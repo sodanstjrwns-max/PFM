@@ -320,6 +320,7 @@ async function renderMessenger(body, actions) {
             <button class="msg-side-btn" id="msgBtnNewChannel" title="채널 만들기">${ICONS.plus}</button>
             <button class="msg-side-btn" id="msgBtnNewDm" title="DM 시작">${ICONS.users}</button>
             <button class="msg-side-btn" id="msgBtnNotifSettings" title="알림 설정">🔔</button>
+            <button class="msg-side-btn" id="msgBtnOpsDashboard" title="운영 대시보드 (관리자)">🛡️</button>
           </div>
         </div>
         <div id="msgChannelList" style="flex:1 1 50%; overflow-y:auto; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
@@ -957,6 +958,7 @@ function bindMessengerEvents() {
 
   // 알림 설정 (F.2)
   document.getElementById('msgBtnNotifSettings')?.addEventListener('click', showNotifSettingsModal);
+  document.getElementById('msgBtnOpsDashboard')?.addEventListener('click', showOpsDashboardModal);
 }
 
 /* ═══════════════════════════════════════════════
@@ -1627,6 +1629,126 @@ async function showMembersModal(channel) {
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+}
+
+/* ═══════════════════════════════════════════════════════════
+ *  Phase F.4 — 운영 대시보드 모달
+ * ═══════════════════════════════════════════════════════════*/
+async function showOpsDashboardModal() {
+  // 백드롭 + 모달 (스타일은 알림 모달과 동일 톤)
+  const existing = document.getElementById('opsDashModal');
+  if (existing) existing.remove();
+
+  const html = `
+    <div id="opsDashModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:12px;width:100%;max-width:900px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;">
+          <h3 style="margin:0;font-size:17px;font-weight:700;">🛡️ 운영 대시보드</h3>
+          <button id="opsDashClose" style="background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;">×</button>
+        </div>
+        <div id="opsDashBody" style="padding:24px;">
+          <div style="text-align:center;color:#9ca3af;padding:40px;">불러오는 중...</div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('opsDashClose')?.addEventListener('click', () => document.getElementById('opsDashModal')?.remove());
+
+  try {
+    const r = await fetch('/api/protected/messenger/ops/dashboard', { headers: { Authorization: `Bearer ${PFM.token}` } });
+    if (r.status === 403) {
+      document.getElementById('opsDashBody').innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626;font-size:14px;">관리자 전용 페이지입니다.<br/><span style="color:#9ca3af;font-size:12px;">admin / manager / owner 권한이 필요합니다.</span></div>`;
+      return;
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+
+    const card = (title, value, sub) => `
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;">
+        <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">${title}</div>
+        <div style="font-size:22px;font-weight:700;color:#111;margin-top:4px;">${value}</div>
+        ${sub ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">${sub}</div>` : ''}
+      </div>
+    `;
+
+    const presence = d.presence_distribution || {};
+    const ai = d.ai_usage_30d || {};
+    const pt = d.patient_threads || {};
+
+    const topChannelsHtml = (d.top_channels || []).map(c => `
+      <tr><td style="padding:6px 8px;font-size:13px;">${escHtml(c.name)}</td>
+        <td style="padding:6px 8px;font-size:12px;color:#6b7280;">${escHtml(c.category||'')}</td>
+        <td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:600;">${c.msg_count}</td>
+        <td style="padding:6px 8px;font-size:12px;color:#6b7280;text-align:right;">${c.user_count}명</td></tr>
+    `).join('') || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#9ca3af;font-size:12px;">데이터 없음</td></tr>';
+
+    const unconfirmedHtml = (d.unconfirmed_top || []).map(u => `
+      <div style="padding:8px 10px;border-left:3px solid ${u.is_urgent?'#dc2626':'#f59e0b'};background:#fef3c7;border-radius:4px;margin-bottom:6px;">
+        <div style="font-size:12px;font-weight:600;">${u.is_urgent?'🚨 ':''}${escHtml(u.channel_name||'')} · ${escHtml(u.sender_name||'')}</div>
+        <div style="font-size:12px;color:#374151;margin-top:2px;">${escHtml(u.content_preview||'')}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${u.minutes_ago}분 전 · 확인 ${u.confirmed_count||0}/${u.total_members||0}</div>
+      </div>
+    `).join('') || '<div style="padding:12px;text-align:center;color:#9ca3af;font-size:12px;">미확인 confirm 메시지 없음 ✨</div>';
+
+    const escHtml2 = (d.recent_escalations || []).map(e => {
+      const levelLabel = e.level===3?'🔴 L3 (원장)':e.level===2?'🟠 L2 (매니저)':'🟡 L1 (리마인더)';
+      return `<div style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;">
+        <div><span style="font-weight:600;">${levelLabel}</span> · <span style="color:#6b7280;">${escHtml(e.channel_name||'')}</span></div>
+        <div style="color:#374151;margin-top:2px;">${escHtml(e.message_preview||'')}</div>
+      </div>`;
+    }).join('') || '<div style="padding:12px;text-align:center;color:#9ca3af;font-size:12px;">최근 에스컬레이션 없음</div>';
+
+    const schedBreakdown = (d.scheduled_breakdown || []).reduce((acc,s)=>{ acc[s.status]=s.n; return acc; }, {});
+
+    document.getElementById('opsDashBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+        ${card('오늘 메시지', d.activity?.today||0, `어제 ${d.activity?.yesterday||0}건`)}
+        ${card('지난 7일', d.activity?.last_7d||0, `활성 ${d.activity?.active_users_7d||0}명`)}
+        ${card('미확인 confirm', (d.unconfirmed_top||[]).length, '필독 응답 대기')}
+        ${card('에스컬레이션 7d', (d.recent_escalations||[]).length, 'L1+L2+L3')}
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+        ${card('🟢 온라인', presence.online_ish||0, `/ 총 ${presence.total||0}명`)}
+        ${card('🌙 자리비움/DND', (presence.away||0)+(presence.dnd||0), '')}
+        ${card('🧠 AI 호출 30d', ai.calls||0, `토큰 ${ai.total_tokens||0}`)}
+        ${card('🧬 환자 스레드', pt.open_count||0, `진행중 / 종료 ${pt.closed_count||0}`)}
+      </div>
+
+      <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">📊 채널 활성 TOP 5 (7일)</h4>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:18px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+        <thead style="background:#f9fafb;"><tr>
+          <th style="padding:8px;text-align:left;font-size:11px;color:#6b7280;">채널</th>
+          <th style="padding:8px;text-align:left;font-size:11px;color:#6b7280;">카테고리</th>
+          <th style="padding:8px;text-align:right;font-size:11px;color:#6b7280;">메시지</th>
+          <th style="padding:8px;text-align:right;font-size:11px;color:#6b7280;">사용자</th>
+        </tr></thead>
+        <tbody>${topChannelsHtml}</tbody>
+      </table>
+
+      <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">⚠️ 미확인 Confirm TOP 10</h4>
+      <div style="margin-bottom:18px;">${unconfirmedHtml}</div>
+
+      <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">🚨 최근 에스컬레이션 (7일)</h4>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:18px;">${escHtml2}</div>
+
+      <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">📅 예약 메시지 (30일)</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;">
+        ${['pending','sent','cancelled','failed'].map(s => `<span style="background:#f3f4f6;padding:4px 10px;border-radius:12px;">${s}: <b>${schedBreakdown[s]||0}</b></span>`).join('')}
+      </div>
+
+      <div style="margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:right;">
+        생성: ${new Date(d.generated_at).toLocaleString('ko-KR')}
+      </div>
+    `;
+  } catch (e) {
+    document.getElementById('opsDashBody').innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626;">❌ 불러오기 실패: ${escHtml(String(e))}</div>`;
+  }
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 /* ─── 모듈 export ─── */
