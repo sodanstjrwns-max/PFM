@@ -3,7 +3,7 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D + E 완료)
+## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D + E + F.1 + F.2 완료)
 
 PFM 의 분석/AI 두뇌에 페이션트 챗(v5.5.5) 의 원내 메신저 신경계를 흡수.
 "환자 인지 → 상담 → 진료 → 회수 → 추천" 전 과정이 한 OS 안에서 흐름.
@@ -140,6 +140,56 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 **Phase E 의 한 줄 약속:**
 > 시간 없는 원장님이 환자 스레드를 열면, **AI가 해당 환자의 임플란트 상담부터 수술 후 통증까지의 전 과정을 5초 안에 요약해 주고, "지금 더 중요한 건 이다" + "이게 이일이면 이런 위험" 까지 구체적으로 제시**합니다. X-ray 파일은 메시지에 드래그로 올리면 R2에 안전하게 저장되어 스레드 타임라인에 바로 표시됩니다. 📎🧠
 
+### Phase F.1 — 직원 디렉토리 + Presence (✅ 완료)
+"누가 지금 진료실에 있는지" 한눈에 보고 바로 DM 시작.
+
+**백엔드 (`src/routes/messenger/directory.ts`, 6 routes):**
+- `effectivePresence(stored, last_seen_at)`: DND→DND, offline→offline, 5분 무활동→away, 15분→offline 자동 계산 (수동 dnd는 절대 덮어쓰지 않음)
+- `GET /directory?q=&department=&role=&online=1` — 이름/부서/messenger_role 필터
+- `GET /directory/me` — 본인 카드 + presence
+- `GET /directory/departments` — 부서별 인원 카운트
+- `GET /directory/stats` — online/away/dnd/offline 통계
+- `POST /directory/presence` — 수동 상태 설정 + location
+- `POST /directory/heartbeat` — 30초마다 last_seen 갱신 (offline→online 자동 승격, DND 존중)
+
+**UI (`public/static/modules/messenger.js`):**
+- 사이드바에 동료 섹션 추가 (검색 + 🟢 온라인만 토글 + ↻ 새로고침)
+- presence dot 5단계 (🟢/🟡/🔴/⚪)
+- 동료 클릭 → DM 자동 시작
+- 30초 주기 디렉토리 갱신 + 30초 주기 heartbeat ping
+
+**검증**: 로컬 E2E 10/10 통과, 프로덕션 6개 라우트 401 확인. Build 548 kB.
+
+### Phase F.2 — 알림 설정 + Quiet Hours (✅ 완료)
+"22시 이후엔 조용히, 단 긴급콜만은 통과시킨다" — 직원 휴식과 환자 응급을 동시에 보호.
+
+**백엔드 (`src/routes/messenger/notifications.ts`, 5 routes):**
+- `GET /notifications/preferences` — global + per_channel 분리 응답
+- `PUT /notifications/preferences` — 전역 설정 upsert (`__global__` sentinel)
+- `PUT /notifications/preferences/:channelId` — 채널별 mute/mentions_only 오버라이드
+- `DELETE /notifications/preferences/:channelId` — 오버라이드 제거 (global로 fallback)
+- `POST /notifications/quiet-check` — `{channel_id?, is_mention?, is_urgent?, is_l3_escalation?}` → 우회/quiet 판정
+
+**우회 규칙 (UX 약속):**
+- urgent_call → 항상 통과 (`override_reasons: ["urgent_call"]`)
+- L3 escalation → 항상 통과 (`override_reasons: ["l3_escalation"]`)
+- 그 외 판정 순서: global mute > DND window (자정 넘김 22:00→07:00 지원) > mentions_only > channel mute > channel mentions_only
+
+**UI:**
+- 사이드바 헤더에 🔔 알림 설정 버튼
+- 알림 설정 모달: 전체 음소거 / @멘션만 / 🌙 DND 시간대 (시작/종료 time 입력) / 🔊 사운드 / 🖥️ 데스크탑 / 채널별 오버라이드 (음소거 + 멘션만 + 초기화)
+
+**검증 (로컬 E2E 11/11 통과 + 프로덕션 4개 라우트 401 확인):**
+- ✅ defaults 응답 / global PUT / GET 재확인
+- ✅ urgent override (DND 윈도우 안에서도 quiet=false, override=true)
+- ✅ L3 override
+- ✅ DND 22:00~07:00 윈도우, 현재 06:20 UTC → quiet=true, reason="dnd_window", dnd_end_time="07:00"
+- ✅ 채널별 PUT/per_channel 응답 포함/DELETE → global fallback
+- ✅ Build 555 kB (F.1 548 → F.2 555)
+
+**Phase F.2 의 한 줄 약속:**
+> 직원이 22시 이후 휴대폰을 봐도 일반 채팅은 조용하지만, **환자가 긴급콜을 띄우거나 미확인 메시지가 L3까지 올라가면 무조건 알림이 옵니다.** 채널마다 따로 음소거할 수도 있어서, 휴게실 채널은 끄고 진료실만 켜는 식으로 세팅 가능합니다. 🌙
+
 ## 🤖 v5.4.0 — AI Insights (배치 1+2 완료)
 
 ### 신규 기능 (Batch 2 — AI 차별화)
@@ -166,7 +216,9 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
-- **Latest Build**: https://20976dbb.patient-funnel-manager.pages.dev (v5.5.0 Phase E — R2 파일 + AI 스레드 요약/액션/위험)
+- **Latest Build**: https://535bf6be.patient-funnel-manager.pages.dev (v5.5.0 Phase F.2 — 알림 설정 + Quiet Hours)
+- **Phase F.1 Build**: https://c0a8d2e2.patient-funnel-manager.pages.dev
+- **Phase E Build**: https://20976dbb.patient-funnel-manager.pages.dev
 - **Demo Login**: admin@demo.pf / demo1234
 
 ## 📊 시스템 현황 (서울비디치과 데모 데이터)
