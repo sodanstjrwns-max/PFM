@@ -52,6 +52,7 @@ import messengerEscalationsRoute from './routes/messenger/escalations'
 import messengerAttachmentsRoute from './routes/messenger/attachments'
 import messengerThreadAIRoute from './routes/messenger/thread-ai'
 import messengerDirectoryRoute from './routes/messenger/directory'
+import messengerNotificationsRoute from './routes/messenger/notifications'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -200,6 +201,7 @@ app.route('/api/protected/messenger', messengerEscalationsRoute)
 app.route('/api/protected/messenger', messengerAttachmentsRoute)
 app.route('/api/protected/messenger', messengerThreadAIRoute)
 app.route('/api/protected/messenger', messengerDirectoryRoute)
+app.route('/api/protected/messenger', messengerNotificationsRoute)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness

@@ -319,6 +319,7 @@ async function renderMessenger(body, actions) {
             <button class="msg-side-btn" id="msgBtnSearch" title="검색">${ICONS.search}</button>
             <button class="msg-side-btn" id="msgBtnNewChannel" title="채널 만들기">${ICONS.plus}</button>
             <button class="msg-side-btn" id="msgBtnNewDm" title="DM 시작">${ICONS.users}</button>
+            <button class="msg-side-btn" id="msgBtnNotifSettings" title="알림 설정">🔔</button>
           </div>
         </div>
         <div id="msgChannelList" style="flex:1 1 50%; overflow-y:auto; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
@@ -930,6 +931,186 @@ function bindMessengerEvents() {
 
   // 검색
   document.getElementById('msgBtnSearch')?.addEventListener('click', showSearchModal);
+
+  // 알림 설정 (F.2)
+  document.getElementById('msgBtnNotifSettings')?.addEventListener('click', showNotifSettingsModal);
+}
+
+/* ═══════════════════════════════════════════════
+ * 알림 설정 모달 — Phase F.2
+ * ═══════════════════════════════════════════════ */
+async function showNotifSettingsModal() {
+  // 현재 설정 불러오기
+  let prefs;
+  try {
+    prefs = await api('/api/protected/messenger/notifications/preferences');
+  } catch (e) {
+    toast('알림 설정 로드 실패: ' + e.message, 'error');
+    return;
+  }
+  const g = prefs.global || {};
+  const perCh = prefs.per_channel || [];
+
+  // 채널 목록 (오버라이드용)
+  const channels = (mState.channels || []).filter(c => c.type !== 'dm');
+
+  // 채널별 설정 row HTML
+  const channelRowsHtml = channels.map(c => {
+    const override = perCh.find(p => p.channel_id === c.id);
+    const muted = override?.muted ? 'checked' : '';
+    const mentionsOnly = override?.notify_mentions_only ? 'checked' : '';
+    const hasOverride = !!override;
+    return `
+      <div class="msg-notif-channel-row" data-channel-id="${c.id}" style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid #f3f4f6;font-size:13px;">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.name)}</div>
+        <label style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" class="notif-ch-muted" ${muted}> 음소거
+        </label>
+        <label style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" class="notif-ch-mentions" ${mentionsOnly}> 멘션만
+        </label>
+        <button class="notif-ch-reset" style="background:transparent;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px;font-size:10px;color:${hasOverride ? '#dc2626' : '#d1d5db'};cursor:${hasOverride ? 'pointer' : 'default'};" ${hasOverride ? '' : 'disabled'}>초기화</button>
+      </div>
+    `;
+  }).join('');
+
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;" id="msgNotifModal">
+      <div style="background:#fff;border-radius:12px;padding:0;max-width:560px;width:92%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+          <h3 style="margin:0;font-size:17px;font-weight:700;">🔔 알림 설정</h3>
+          <button id="notifModalClose" style="background:transparent;border:none;font-size:22px;color:#9ca3af;cursor:pointer;line-height:1;">×</button>
+        </div>
+
+        <div style="padding:18px 24px;overflow-y:auto;flex:1;">
+          <!-- 전역 설정 -->
+          <div style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">전역</div>
+
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f9fafb;border-radius:8px;margin-bottom:8px;cursor:pointer;">
+            <input type="checkbox" id="notifGlobalMuted" ${g.muted ? 'checked' : ''}>
+            <div style="flex:1;">
+              <div style="font-weight:500;font-size:13px;">전체 음소거</div>
+              <div style="font-size:11px;color:#6b7280;">긴급콜/L3 에스컬레이션은 우회됩니다</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f9fafb;border-radius:8px;margin-bottom:8px;cursor:pointer;">
+            <input type="checkbox" id="notifGlobalMentionsOnly" ${g.notify_mentions_only ? 'checked' : ''}>
+            <div style="flex:1;">
+              <div style="font-weight:500;font-size:13px;">@멘션만 알림</div>
+              <div style="font-size:11px;color:#6b7280;">나를 직접 멘션한 메시지만 받습니다</div>
+            </div>
+          </label>
+
+          <!-- Quiet Hours -->
+          <div style="padding:12px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="notifGlobalDnd" ${g.dnd_enabled ? 'checked' : ''}>
+              <div style="flex:1;">
+                <div style="font-weight:500;font-size:13px;">🌙 방해 금지 시간대</div>
+                <div style="font-size:11px;color:#6b7280;">지정된 시간 동안 알림 무음 (긴급/L3 우회)</div>
+              </div>
+            </label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-left:28px;">
+              <input type="time" id="notifDndStart" value="${g.dnd_start_time || '22:00'}" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;">
+              <span style="font-size:12px;color:#6b7280;">~</span>
+              <input type="time" id="notifDndEnd" value="${g.dnd_end_time || '07:00'}" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;">
+              <span style="font-size:11px;color:#9ca3af;">(자정 넘김 OK)</span>
+            </div>
+          </div>
+
+          <!-- 사운드/데스크탑 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;">
+            <label style="display:flex;align-items:center;gap:8px;padding:10px;background:#f9fafb;border-radius:8px;cursor:pointer;font-size:13px;">
+              <input type="checkbox" id="notifGlobalSound" ${g.sound_enabled !== false ? 'checked' : ''}>
+              🔊 사운드
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:10px;background:#f9fafb;border-radius:8px;cursor:pointer;font-size:13px;">
+              <input type="checkbox" id="notifGlobalDesktop" ${g.desktop_enabled !== false ? 'checked' : ''}>
+              🖥️ 데스크탑 알림
+            </label>
+          </div>
+
+          <!-- 채널별 -->
+          <div style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <span>채널별 오버라이드</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9ca3af;">${perCh.length}개 설정됨</span>
+          </div>
+          <div id="notifChannelList" style="border:1px solid #e5e7eb;border-radius:8px;max-height:240px;overflow-y:auto;">
+            ${channelRowsHtml || '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:12px;">채널이 없습니다</div>'}
+          </div>
+        </div>
+
+        <div style="padding:14px 24px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;background:#fafafa;border-radius:0 0 12px 12px;">
+          <button id="notifModalCancel" style="padding:8px 16px;background:#f3f4f6;border:none;border-radius:6px;font-size:13px;font-weight:500;color:#374151;cursor:pointer;">취소</button>
+          <button id="notifModalSave" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">저장</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const modal = document.getElementById('msgNotifModal');
+  const close = () => modal?.remove();
+
+  modal.querySelector('#notifModalClose').addEventListener('click', close);
+  modal.querySelector('#notifModalCancel').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  // 채널별 toggle/reset 즉시 반영
+  modal.querySelectorAll('.msg-notif-channel-row').forEach(row => {
+    const chId = row.dataset.channelId;
+    const muted = row.querySelector('.notif-ch-muted');
+    const mentions = row.querySelector('.notif-ch-mentions');
+    const reset = row.querySelector('.notif-ch-reset');
+
+    const apply = async () => {
+      try {
+        await api(`/api/protected/messenger/notifications/preferences/${chId}`, {
+          method: 'PUT',
+          json: { muted: muted.checked, notify_mentions_only: mentions.checked }
+        });
+        reset.disabled = false;
+        reset.style.cursor = 'pointer';
+        reset.style.color = '#dc2626';
+      } catch (e) { toast('채널 알림 저장 실패', 'error'); }
+    };
+    muted.addEventListener('change', apply);
+    mentions.addEventListener('change', apply);
+
+    reset.addEventListener('click', async () => {
+      if (reset.disabled) return;
+      try {
+        await api(`/api/protected/messenger/notifications/preferences/${chId}`, { method: 'DELETE' });
+        muted.checked = false;
+        mentions.checked = false;
+        reset.disabled = true;
+        reset.style.cursor = 'default';
+        reset.style.color = '#d1d5db';
+        toast('채널 알림 초기화', 'success');
+      } catch (e) { toast('초기화 실패', 'error'); }
+    });
+  });
+
+  // 전역 저장
+  modal.querySelector('#notifModalSave').addEventListener('click', async () => {
+    const body = {
+      muted: modal.querySelector('#notifGlobalMuted').checked,
+      notify_mentions_only: modal.querySelector('#notifGlobalMentionsOnly').checked,
+      dnd_enabled: modal.querySelector('#notifGlobalDnd').checked,
+      dnd_start_time: modal.querySelector('#notifDndStart').value || null,
+      dnd_end_time: modal.querySelector('#notifDndEnd').value || null,
+      sound_enabled: modal.querySelector('#notifGlobalSound').checked,
+      desktop_enabled: modal.querySelector('#notifGlobalDesktop').checked
+    };
+    try {
+      await api('/api/protected/messenger/notifications/preferences', { method: 'PUT', json: body });
+      toast('🔔 알림 설정 저장', 'success');
+      close();
+    } catch (e) {
+      toast('저장 실패: ' + e.message, 'error');
+    }
+  });
 }
 
 function autoResize(textarea) {
