@@ -431,11 +431,13 @@ function getHTML(): string {
 <link rel="preload" href="/static/design-system.css" as="style">
 <link rel="preload" href="/static/glassmorphism.css" as="style">
 <link rel="preload" href="/static/bento.css" as="style">
+<link rel="preload" href="/static/polish.css" as="style">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link href="/static/style.css" rel="stylesheet">
 <link href="/static/design-system.css" rel="stylesheet">
 <link href="/static/glassmorphism.css" rel="stylesheet">
 <link href="/static/bento.css" rel="stylesheet">
+<link href="/static/polish.css" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script>

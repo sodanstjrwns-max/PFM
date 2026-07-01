@@ -139,6 +139,7 @@ function toast(msg, type = 'info') {
 /* ─── Router ─── */
 function navigate(page) {
   state.currentPage = page;
+  try { window.PFMPolish?.pushRecent(page); } catch (e) {}
   // Stop any active polling when navigating
   if (window._pfmStopPolling) window._pfmStopPolling();
   // Re-render sidebar to show active state, then load page
@@ -811,6 +812,13 @@ function renderApp() {
           <small>${state.user.hospitalName || '병원명'}</small>
         </div>
       </div>
+      <div class="nav-search-wrap">
+        <button class="nav-search" id="navSearchBtn" title="빠른 이동 (Cmd+K)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span class="nav-search-label">빠른 이동…</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </div>
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-footer" style="position:relative">
         <div class="sidebar-user" id="sidebarUser" style="cursor:pointer">
@@ -861,8 +869,18 @@ function renderApp() {
   <div id="toastContainer" class="toast-container"></div>
   <div id="presentationOverlay"></div>`;
 
+  // v5.6: 사이드바 그룹 열림 상태 복원 (localStorage)
+  try {
+    if (window.PFMPolish) state.openGroups = Object.assign({ management: true }, window.PFMPolish.loadGroups());
+  } catch (e) {}
+
   renderSidebar(nav);
   renderPage(); // async but fire-and-forget is OK here
+
+  // v5.6: Cmd+K 커맨드 팔레트 버튼
+  document.getElementById('navSearchBtn')?.addEventListener('click', () => {
+    if (window.PFMPolish) window.PFMPolish.openPalette();
+  });
 
   // Chat header button
   document.getElementById('chatHeaderBtn')?.addEventListener('click', () => {
@@ -974,6 +992,7 @@ function renderSidebar(nav) {
     btn.addEventListener('click', () => {
       const gid = btn.dataset.group;
       state.openGroups[gid] = !state.openGroups[gid];
+      try { window.PFMPolish?.saveGroups(state.openGroups); } catch (e) {}
       const children = container.querySelector(`[data-group-children="${gid}"]`);
       const toggle = btn.querySelector('.nav-group-toggle');
       if (children) children.classList.toggle('open');

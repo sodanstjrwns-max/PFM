@@ -1,0 +1,334 @@
+/* ═══════════════════════════════════════════════════════════════
+   PF Manager · Polish Layer v5.6 "Super Upgrade"
+   ───────────────────────────────────────────────────────────────
+   마지막에 로드되는 전역 폴리싱 레이어.
+   - 페이지 전환 모션 · 마이크로 인터랙션
+   - 사이드바 검색 + 정돈된 네비게이션
+   - Cmd+K 커맨드 팔레트
+   - 스켈레톤 로딩 · 포커스 링 · 스크롤바
+   기존 41개 모듈 CSS를 깨지 않도록 셸(글로벌) 요소만 다룸.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── 1. 모션 토큰 ─── */
+:root {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 0.15s;
+  --dur-base: 0.25s;
+  --dur-slow: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── 2. 페이지 전환 모션 ─── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.main-body > * { animation: pageEnter var(--dur-base) var(--ease-out-quart) both; }
+
+/* ─── 3. 사이드바 리파인 ─── */
+.sidebar {
+  border-right: 1px solid rgba(148, 163, 184, 0.08);
+}
+.sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,.25) transparent;
+  padding-bottom: 12px;
+}
+.sidebar-nav::-webkit-scrollbar { width: 5px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 99px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+
+.nav-item {
+  position: relative;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--dur-fast) ease;
+  border-radius: 8px;
+}
+.nav-item:active { transform: scale(0.98); }
+/* 활성 페이지: 좌측 인디케이터 바 */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--brand-400, #2dd4bf), var(--brand-600, #0d9488));
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.5);
+}
+.nav-group-children {
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
+  margin-left: 14px;
+  padding-left: 6px;
+}
+.nav-group-children .nav-item.active::before { left: -7px; }
+
+/* ─── 4. 사이드바 메뉴 검색 ─── */
+.nav-search-wrap {
+  padding: 8px 12px 4px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-sidebar, #0f172a);
+}
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text-sidebar, #cbd5e1);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.nav-search:hover { background: rgba(148, 163, 184, 0.14); border-color: rgba(45,212,191,.3); }
+.nav-search svg { width: 14px; height: 14px; opacity: .6; flex-shrink: 0; }
+.nav-search .nav-search-label { flex: 1; text-align: left; opacity: .65; }
+.nav-search kbd {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  opacity: .8;
+}
+
+/* ─── 5. Cmd+K 커맨드 팔레트 ─── */
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14vh 16px 16px;
+}
+.cmdk-overlay.open { display: flex; animation: fadeIn var(--dur-fast) ease both; }
+.cmdk-panel {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-card, #fff);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.45), 0 0 0 1px rgba(148,163,184,.12);
+  overflow: hidden;
+  animation: cmdkPop var(--dur-base) var(--ease-spring) both;
+}
+@keyframes cmdkPop {
+  from { opacity: 0; transform: translateY(-12px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+[data-theme="dark"] .cmdk-panel { background: #101828; box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(148,163,184,.15); }
+
+.cmdk-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+[data-theme="dark"] .cmdk-input-row { border-bottom-color: rgba(148,163,184,.12); }
+.cmdk-input-row svg { width: 18px; height: 18px; color: var(--brand-500, #14b8a6); flex-shrink: 0; }
+.cmdk-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text, #1e293b);
+  font-family: inherit;
+}
+[data-theme="dark"] .cmdk-input { color: #e2e8f0; }
+.cmdk-input::placeholder { color: var(--text-muted, #94a3b8); font-weight: 400; }
+.cmdk-esc {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  background: var(--neutral-100, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+[data-theme="dark"] .cmdk-esc { background: rgba(148,163,184,.1); border-color: rgba(148,163,184,.15); }
+
+.cmdk-list {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: thin;
+}
+.cmdk-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #94a3b8);
+  padding: 8px 10px 4px;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text, #1e293b);
+  text-align: left;
+  font-family: inherit;
+  transition: background var(--dur-fast) ease;
+}
+[data-theme="dark"] .cmdk-item { color: #cbd5e1; }
+.cmdk-item .cmdk-item-emoji { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+.cmdk-item .cmdk-item-group {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.cmdk-item:hover, .cmdk-item.selected {
+  background: var(--brand-50, #f0fdfa);
+}
+[data-theme="dark"] .cmdk-item:hover, [data-theme="dark"] .cmdk-item.selected {
+  background: rgba(20, 184, 166, 0.12);
+}
+.cmdk-item.selected {
+  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.25);
+}
+.cmdk-item mark {
+  background: transparent;
+  color: var(--brand-600, #0d9488);
+  font-weight: 800;
+}
+[data-theme="dark"] .cmdk-item mark { color: var(--brand-400, #2dd4bf); }
+.cmdk-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  font-size: 13px;
+}
+.cmdk-footer {
+  display: flex;
+  gap: 14px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+[data-theme="dark"] .cmdk-footer { border-top-color: rgba(148,163,184,.12); }
+.cmdk-footer kbd {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--neutral-100, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 3px;
+}
+[data-theme="dark"] .cmdk-footer kbd { background: rgba(148,163,184,.1); border-color: rgba(148,163,184,.15); }
+
+/* ─── 6. 스켈레톤 로딩 ─── */
+@keyframes skeletonWave {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    var(--neutral-100, #f1f5f9) 25%,
+    var(--neutral-150, #e9eef4) 50%,
+    var(--neutral-100, #f1f5f9) 75%);
+  background-size: 200% 100%;
+  animation: skeletonWave 1.4s ease-in-out infinite;
+}
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg,
+    rgba(148,163,184,.08) 25%,
+    rgba(148,163,184,.16) 50%,
+    rgba(148,163,184,.08) 75%);
+  background-size: 200% 100%;
+}
+.skeleton-page { display: flex; flex-direction: column; gap: 14px; padding: 4px; }
+.skeleton-row { display: flex; gap: 14px; }
+.skeleton-stat { height: 92px; flex: 1; border-radius: 14px; }
+.skeleton-block { height: 220px; border-radius: 14px; }
+.skeleton-line { height: 14px; }
+
+/* ─── 7. 헤더 리파인 ─── */
+.main-header {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.main-header-title span { letter-spacing: -0.3px; }
+
+/* ─── 8. 전역 포커스 링 (키보드 접근성) ─── */
+:focus-visible {
+  outline: 2px solid var(--brand-400, #2dd4bf);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: none; }
+
+/* ─── 9. 버튼/카드 마이크로 인터랙션 ─── */
+.btn { transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease, background var(--dur-fast) ease, opacity var(--dur-fast) ease; }
+.btn:not(:disabled):active { transform: scale(0.97); }
+.stat-card, .card, .bento-tile {
+  transition: transform var(--dur-base) var(--ease-out-quart), box-shadow var(--dur-base) var(--ease-out-quart);
+}
+
+/* ─── 10. 토스트 리파인 ─── */
+.toast {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.22) !important;
+}
+
+/* ─── 11. 스크롤바 전역 (본문) ─── */
+.main-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,.3) transparent;
+}
+.main-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.main-body::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,.3);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.main-body::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.5); background-clip: content-box; }
+.main-body::-webkit-scrollbar-track { background: transparent; }
+
+/* ─── 12. 모바일 폴리싱 ─── */
+@media (max-width: 768px) {
+  .cmdk-overlay { padding: 8vh 10px 10px; }
+  .cmdk-panel { max-width: 100%; border-radius: 14px; }
+  .cmdk-list { max-height: 56vh; }
+  .cmdk-footer { display: none; }
+  .nav-search kbd { display: none; }
+  /* 터치 타깃 최소 44px */
+  .nav-item { min-height: 42px; }
+}

@@ -14,6 +14,7 @@ const CORE_FILES = [
   'app.js',
   'modules/dashboard.js',
   'modules/pwa.js',   // v3.2 PWA + Service Worker 등록
+  'modules/polish.js', // v5.6 Cmd+K 커맨드 팔레트 + UX 폴리싱 (즉시 로드 필요)
 ];
 
 const CHUNK_FILES = [
