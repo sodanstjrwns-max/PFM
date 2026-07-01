@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { hashPassword, verifyPassword, signJWT } from '../lib/crypto'
-import { checkRateLimit, recordLoginFailure, clearLoginAttempts, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
+import { checkRateLimitD1, recordLoginFailureD1, clearLoginAttemptsD1, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -108,7 +108,7 @@ auth.get('/invite/:code', async (c) => {
 /* ─── Login (with rate limiting) ─── */
 auth.post('/login', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
-  const rateCheck = checkRateLimit(ip)
+  const rateCheck = await checkRateLimitD1(c.env.DB, ip)
   if (!rateCheck.allowed) {
     return c.json({ error: `로그인 시도가 너무 많습니다. ${rateCheck.retryAfter}초 후에 다시 시도해주세요.` }, 429)
   }
@@ -118,17 +118,17 @@ auth.post('/login', async (c) => {
 
   const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name, h.onboarding_completed FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(sanitizeString(email, 200)).first()
   if (!row) {
-    recordLoginFailure(ip)
+    await recordLoginFailureD1(c.env.DB, ip)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
   if (row.work_status === 'resigned') return c.json({ error: '퇴사 처리된 계정입니다' }, 401)
   const valid = await verifyPassword(password, row.password_hash)
   if (!valid) {
-    recordLoginFailure(ip)
+    await recordLoginFailureD1(c.env.DB, ip)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
 
-  clearLoginAttempts(ip)
+  await clearLoginAttemptsD1(c.env.DB, ip)
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
   return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name, onboardingCompleted: !!row.onboarding_completed } })

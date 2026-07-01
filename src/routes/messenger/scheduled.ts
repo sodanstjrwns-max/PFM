@@ -336,4 +336,64 @@ sched.post('/scheduled/send-due', async (c) => {
   return c.json({ success: true, dispatched: sent })
 })
 
+/* ─── 전 병원 due 발송 (외부 크론 전용, v5.5.1) ───────────────
+ * dispatchMyDue 는 "접속한 사용자 본인 것만" 처리 → 새벽/주말에
+ * 아무도 접속 안 하면 예약이 안 나가는 구멍이 있었음.
+ * 이 함수는 hospital/user 구분 없이 전체 due 를 처리 (호출당 최대 50건).
+ */
+export async function dispatchAllDue(db: D1Database): Promise<{ sent: number; failed: number }> {
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const due = await db.prepare(`
+    SELECT * FROM scheduled_messages
+    WHERE status = 'pending' AND scheduled_at <= ?
+    ORDER BY scheduled_at ASC LIMIT 50
+  `).bind(now).all<any>()
+
+  let sent = 0, failed = 0
+  for (const s of due.results || []) {
+    try {
+      const msgId = generateMessengerId('msg')
+      await db.prepare(`
+        INSERT INTO messages
+          (id, channel_id, thread_id, patient_thread_id, user_id, content, message_type,
+           confirm_required, is_urgent, mentions, reactions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+      `).bind(
+        msgId, s.channel_id, s.thread_id, s.patient_thread_id,
+        s.user_id, s.content, s.message_type || 'text',
+        s.confirm_required ? 1 : 0, s.is_urgent ? 1 : 0,
+        s.mentions || '[]'
+      ).run()
+
+      await db.prepare(
+        'INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
+      ).bind(msgId, s.user_id).run()
+
+      await db.prepare(`
+        UPDATE scheduled_messages
+        SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(s.id).run()
+
+      await writeMessengerAudit(db, {
+        hospitalId: s.hospital_id,
+        actorId: s.user_id,
+        action: 'scheduled.send',
+        targetType: 'scheduled_message',
+        targetId: s.id,
+        metadata: { message_id: msgId, channel_id: s.channel_id, via: 'cron' }
+      })
+      sent++
+    } catch (e: any) {
+      failed++
+      await db.prepare(`
+        UPDATE scheduled_messages
+        SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind((e?.message || 'unknown').slice(0, 500), s.id).run()
+    }
+  }
+  return { sent, failed }
+}
+
 export default sched

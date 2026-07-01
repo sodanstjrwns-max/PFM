@@ -181,6 +181,82 @@ export function clearLoginAttempts(ip: string): void {
   loginAttempts.delete(ip)
 }
 
+/* ═══ D1 영속 레이트리밋 계층 (v5.5.1) ═══
+ * Workers isolate 는 콜로마다 별개 + 수시 재생성 → in-memory Map 만으로는
+ * 공격자가 엣지 노드를 옮겨다니며 우회 가능. D1 계층이 cross-isolate 정합성 보장.
+ * in-memory 를 1차 필터로 유지해 정상 트래픽엔 D1 쿼리 0회.
+ */
+export async function checkRateLimitD1(db: D1Database, ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  // 1차: in-memory (같은 isolate 내 즉시 차단, 0 쿼리)
+  const mem = checkRateLimit(ip)
+  if (!mem.allowed) return mem
+
+  // 2차: D1 영속 계층
+  try {
+    const row = await db.prepare(
+      `SELECT attempt_count, first_attempt_at, locked_until,
+              CAST((julianday('now') - julianday(first_attempt_at)) * 86400 AS INTEGER) AS age_sec,
+              CASE WHEN locked_until IS NOT NULL
+                   THEN CAST((julianday(locked_until) - julianday('now')) * 86400 AS INTEGER)
+                   ELSE NULL END AS lock_remaining_sec
+       FROM login_rate_limits WHERE ip = ?`
+    ).bind(ip).first<any>()
+
+    if (!row) return { allowed: true }
+
+    // 잠금 중
+    if (row.lock_remaining_sec !== null && row.lock_remaining_sec > 0) {
+      return { allowed: false, retryAfter: row.lock_remaining_sec }
+    }
+    // 15분 창 만료 → 행 정리 후 통과
+    if (row.age_sec > 900) {
+      await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(ip).run()
+      return { allowed: true }
+    }
+    // 한도 도달 → 잠금 설정
+    if (row.attempt_count >= MAX_ATTEMPTS) {
+      await db.prepare(
+        `UPDATE login_rate_limits SET locked_until = datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds') WHERE ip = ?`
+      ).bind(ip).run()
+      return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION / 1000) }
+    }
+    return { allowed: true }
+  } catch {
+    // 테이블 미존재 등 — in-memory 결과로 폴백
+    return { allowed: true }
+  }
+}
+
+export async function recordLoginFailureD1(db: D1Database, ip: string): Promise<void> {
+  recordLoginFailure(ip) // in-memory 동시 갱신
+  try {
+    // UPSERT: 15분 창 만료 시 카운터 리셋, 아니면 증가
+    await db.prepare(
+      `INSERT INTO login_rate_limits (ip, attempt_count, first_attempt_at)
+       VALUES (?, 1, CURRENT_TIMESTAMP)
+       ON CONFLICT(ip) DO UPDATE SET
+         attempt_count = CASE
+           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN 1
+           ELSE attempt_count + 1 END,
+         first_attempt_at = CASE
+           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN CURRENT_TIMESTAMP
+           ELSE first_attempt_at END,
+         locked_until = CASE
+           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 <= 900
+                AND attempt_count + 1 >= ${MAX_ATTEMPTS}
+           THEN datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds')
+           ELSE locked_until END`
+    ).bind(ip).run()
+  } catch { /* 마이그레이션 전 — 무시 */ }
+}
+
+export async function clearLoginAttemptsD1(db: D1Database, ip: string): Promise<void> {
+  clearLoginAttempts(ip)
+  try {
+    await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(ip).run()
+  } catch { /* 무시 */ }
+}
+
 /* ═══ Input Validation Helpers ═══ */
 export function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)

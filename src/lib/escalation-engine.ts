@@ -16,8 +16,11 @@
 // 멀티테넌트: hospital_id 항상 강제. 한 번에 한 병원만 처리하므로
 // 다른 병원 데이터로 새지 않음.
 //
-// 1분 throttle: 워커 isolate 메모리에 '병원별 마지막 스캔 시각' 보관.
-// 1분 이내 재호출은 즉시 종료 (no-op). 폴링이 1-2초마다 와도 안전.
+// 1분 throttle (v5.5.1 개선): 2계층 구조
+//   L1 — in-memory Map (같은 isolate 내 폴링 버스트 즉시 차단, 0 쿼리)
+//   L2 — D1 system_throttle 테이블 (cross-isolate/cross-colo 게이트)
+// Workers isolate 가 재생성돼도 D1 계층이 1분 게이트를 보장.
+// D1 게이트는 조건부 UPDATE 로 원자적 — 동시 스캔 경쟁 없음.
 // ============================================================
 
 import { generateMessengerId } from './messenger-helpers'
@@ -25,6 +28,34 @@ import { writeMessengerAudit } from './messenger-audit'
 
 const SCAN_THROTTLE_MS = 60_000           // 1 분
 const lastScanByHospital = new Map<string, number>()
+
+/**
+ * D1 기반 cross-isolate 스로틀 게이트.
+ * 원자적 조건부 UPDATE: last_run_at 이 임계보다 오래됐을 때만 갱신 성공.
+ * meta.changes = 1 → 이 워커가 게이트 통과 (스캔 실행권 획득)
+ * meta.changes = 0 → 다른 isolate 가 최근에 이미 스캔함 (no-op)
+ */
+export async function acquireThrottleGate(
+  db: D1Database,
+  key: string,
+  windowSeconds: number,
+): Promise<boolean> {
+  try {
+    // 행이 없으면 INSERT (첫 실행) — PK 충돌 시 무시
+    await db.prepare(
+      `INSERT OR IGNORE INTO system_throttle (key, last_run_at) VALUES (?, datetime('now', ?))`
+    ).bind(key, `-${windowSeconds + 1} seconds`).run()
+    // 원자적 게이트: 오래된 경우에만 UPDATE 성공
+    const res = await db.prepare(
+      `UPDATE system_throttle SET last_run_at = CURRENT_TIMESTAMP
+       WHERE key = ? AND last_run_at <= datetime('now', ?)`
+    ).bind(key, `-${windowSeconds} seconds`).run()
+    return (res.meta?.changes ?? 0) > 0
+  } catch {
+    // 테이블 미존재(마이그레이션 전) 등 — 기존 동작 유지 위해 통과 허용
+    return true
+  }
+}
 
 interface SettingsRow {
   escalation_minutes_l1: number
@@ -61,12 +92,16 @@ export async function scanAndEscalate(
   hospitalId: string,
   opts: { force?: boolean } = {},
 ): Promise<EscalationTriggered[]> {
-  // 1. throttle
+  // 1. throttle — 2계층 (in-memory → D1 게이트)
   if (!opts.force) {
+    // L1: 같은 isolate 내 버스트 차단 (0 쿼리)
     const last = lastScanByHospital.get(hospitalId) ?? 0
     const now = Date.now()
     if (now - last < SCAN_THROTTLE_MS) return []
     lastScanByHospital.set(hospitalId, now)
+    // L2: cross-isolate 게이트 (원자적 조건부 UPDATE)
+    const acquired = await acquireThrottleGate(db, `esc_scan:${hospitalId}`, SCAN_THROTTLE_MS / 1000)
+    if (!acquired) return []
   } else {
     lastScanByHospital.set(hospitalId, Date.now())
   }

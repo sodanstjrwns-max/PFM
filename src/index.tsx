@@ -140,6 +140,57 @@ app.post('/api/protected/admin/reset-pw', async (c) => {
   return c.json({ success: true, message: '비밀번호가 변경되었습니다' })
 })
 
+/* ═══ Cron Endpoint (v5.5.1) ═══
+ * 외부 스케줄러(전용 cron Worker 또는 GitHub Actions 등)가 5분마다 호출.
+ * 접속자가 없어도 예약 발송 + 에스컬레이션 스캔이 보장됨.
+ * 인증: Authorization: Bearer <CRON_SECRET>  (secret 미설정 시 503 — 실수로 열리지 않음)
+ */
+app.post('/api/cron/tick', async (c) => {
+  const secret = c.env.CRON_SECRET
+  if (!secret) return c.json({ error: 'CRON_SECRET 미설정 — wrangler pages secret put CRON_SECRET' }, 503)
+  const auth = c.req.header('Authorization')
+  if (auth !== `Bearer ${secret}`) return c.json({ error: 'unauthorized' }, 401)
+
+  const results: Record<string, any> = {}
+
+  // 1) 예약 메시지 전체 발송 (접속자 무관)
+  try {
+    const { dispatchAllDue } = await import('./routes/messenger/scheduled')
+    results.scheduled = await dispatchAllDue(c.env.DB)
+  } catch (e: any) {
+    results.scheduled = { error: (e?.message || 'unknown').slice(0, 200) }
+  }
+
+  // 2) 전 병원 에스컬레이션 스캔 (활성 병원만 — 최근 24h 내 confirm-required 메시지 존재)
+  try {
+    const { scanAndEscalate } = await import('./lib/escalation-engine')
+    const hospitals = await c.env.DB.prepare(`
+      SELECT DISTINCT ch.hospital_id
+      FROM messages m JOIN channels ch ON ch.id = m.channel_id
+      WHERE m.confirm_required = 1 AND m.is_deleted = 0
+        AND m.created_at > datetime('now', '-24 hours')
+      LIMIT 100
+    `).all<{ hospital_id: string }>()
+    let totalTriggered = 0
+    for (const h of hospitals.results || []) {
+      const t = await scanAndEscalate(c.env.DB, h.hospital_id)
+      totalTriggered += t.length
+    }
+    results.escalations = { hospitals_scanned: (hospitals.results || []).length, triggered: totalTriggered }
+  } catch (e: any) {
+    results.escalations = { error: (e?.message || 'unknown').slice(0, 200) }
+  }
+
+  // 3) 오래된 레이트리밋 행 정리 (하루 1회 수준으로 가볍게)
+  try {
+    await c.env.DB.prepare(
+      `DELETE FROM login_rate_limits WHERE first_attempt_at < datetime('now', '-1 day')`
+    ).run()
+  } catch { /* 테이블 미존재 무시 */ }
+
+  return c.json({ success: true, at: new Date().toISOString(), ...results })
+})
+
 /* ═══ Route Registration ═══ */
 // Auth (public)
 app.route('/api/auth', auth)

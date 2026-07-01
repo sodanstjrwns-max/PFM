@@ -37,6 +37,57 @@ poll.get('/poll', async (c) => {
   // since 기본값: 5초 전
   const since = c.req.query('since') || sqliteNow(-5000)
   const currentChannelId = c.req.query('channelId') || ''
+  const forceFull = c.req.query('full') === '1'
+
+  /* ─── Fast-path (v5.5.1) ───
+   * 13개 쿼리 전에 "변화 있나?" 를 1개 쿼리로 먼저 확인.
+   * 새 메시지/긴급콜/에스컬레이션이 없으면 경량 응답 즉시 반환.
+   * 클라이언트는 ~10회마다 full=1 로 전체 상태를 재동기화 (읽음수/presence 드리프트 보정).
+   * 유휴 상태의 D1 부하를 ~90% 절감.
+   */
+  if (!forceFull) {
+    try {
+      const chg = await c.env.DB.prepare(`
+        SELECT
+          EXISTS(
+            SELECT 1 FROM messages m
+            JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = ?1
+            JOIN channels ch ON ch.id = m.channel_id
+            WHERE ch.hospital_id = ?2 AND m.created_at > ?3
+              AND m.is_deleted = 0 AND m.user_id != ?1
+          ) AS has_msg,
+          EXISTS(
+            SELECT 1 FROM urgent_calls
+            WHERE hospital_id = ?2 AND status = 'active' AND created_at > ?3
+          ) AS has_urgent,
+          EXISTS(
+            SELECT 1 FROM message_escalations
+            WHERE hospital_id = ?2 AND triggered_at > ?3
+          ) AS has_esc
+      `).bind(userId, hospitalId, since).first<any>()
+
+      if (chg && !chg.has_msg && !chg.has_urgent && !chg.has_esc) {
+        // 변화 없음 — 에스컬레이션 스캔만 유지 (1분 throttle, 대부분 no-op)
+        let fastNewEsc: any[] = []
+        try { fastNewEsc = await scanAndEscalate(c.env.DB, hospitalId) } catch {}
+        touchUserPresence(c.env.DB, userId, 'online') // 내부 30초 스로틀
+
+        if (fastNewEsc.length === 0) {
+          const now = Date.now()
+          const typingNow = currentChannelId
+            ? (typingState[currentChannelId] || []).filter(t => t.expires > now && t.userId !== userId)
+            : []
+          return c.json({
+            unchanged: true,
+            typing: typingNow,
+            // 2초 lookback — 체크~응답 사이 레이스 보정 (클라이언트가 id 중복 제거)
+            serverTime: sqliteNow(-2000),
+          })
+        }
+        // 새 에스컬레이션이 방금 트리거됨 → full path 로 계속 진행
+      }
+    } catch { /* fast-path 실패 시 full path 폴백 */ }
+  }
 
   // ─── 1) 현재 채널의 새 메시지 (since 이후, 본인 제외) ───
   let newMessages: any[] = []

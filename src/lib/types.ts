@@ -8,6 +8,7 @@ export type Bindings = {
   RATE_LIMIT_KV?: KVNamespace        // KV 기반 rate limit (없으면 D1 폴백)
   OPENAI_API_KEY?: string             // GPT-4o-mini (v5.4.0 부터 사용)
   ALLOWED_ORIGINS?: string            // CORS 화이트리스트 (production)
+  CRON_SECRET?: string                // 외부 크론 호출 인증 (v5.5.1 — 예약발송/에스컬레이션)
 }
 
 export type Variables = {

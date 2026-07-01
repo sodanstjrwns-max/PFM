@@ -37,6 +37,7 @@ let mState = {
   settings: null,
   pollTimer: null,
   lastPollAt: null,
+  pollCount: 0,          // v5.5.1: fast-path 보정용 카운터 (~10회마다 full sync)
   unreadByChannel: {},
   typing: [],
   pendingConfirms: [],
@@ -696,10 +697,24 @@ async function deleteMessage(msgId) {
 /* ═══════════════════════════════════════════════
  * 폴링
  * ═══════════════════════════════════════════════ */
+/* v5.5.1: 백그라운드 탭은 3초 → 15초로 완화 (D1 부하 절감) */
+const POLL_INTERVAL_ACTIVE = 3000;
+const POLL_INTERVAL_HIDDEN = 15000;
+
 function startPolling() {
   stopPolling();
   mState.lastPollAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  mState.pollTimer = setInterval(pollOnce, 3000);
+  const interval = document.hidden ? POLL_INTERVAL_HIDDEN : POLL_INTERVAL_ACTIVE;
+  mState.pollTimer = setInterval(pollOnce, interval);
+  if (!mState._visListener) {
+    mState._visListener = () => {
+      if (!mState.pollTimer) return;
+      clearInterval(mState.pollTimer);
+      mState.pollTimer = setInterval(pollOnce, document.hidden ? POLL_INTERVAL_HIDDEN : POLL_INTERVAL_ACTIVE);
+      if (!document.hidden) { mState.pollCount = 0; pollOnce(); } // 탭 복귀 즉시 full 동기화
+    };
+    document.addEventListener('visibilitychange', mState._visListener);
+  }
 }
 function stopPolling() {
   if (mState.pollTimer) clearInterval(mState.pollTimer);
@@ -711,8 +726,18 @@ async function pollOnce() {
     const q = new URLSearchParams();
     if (mState.lastPollAt) q.set('since', mState.lastPollAt);
     if (mState.currentChannel) q.set('channelId', mState.currentChannel.id);
+    // ~10회마다 1번 full 동기화 (읽음수/presence/배지 드리프트 보정)
+    mState.pollCount = (mState.pollCount || 0) + 1;
+    if (mState.pollCount % 10 === 1) q.set('full', '1');
     const res = await api(`/api/protected/messenger/poll?${q.toString()}`);
     mState.lastPollAt = res.serverTime || mState.lastPollAt;
+
+    // fast-path: 변화 없음 — 타이핑만 갱신하고 종료
+    if (res.unchanged) {
+      mState.typing = res.typing || [];
+      renderTyping();
+      return;
+    }
 
     // 새 메시지가 있으면 현재 채널 갱신
     if (res.newMessages && res.newMessages.length > 0 && mState.currentChannel) {

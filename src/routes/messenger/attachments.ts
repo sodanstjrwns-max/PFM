@@ -47,10 +47,12 @@ attachments.post('/attachments/upload', async (c) => {
     return c.json({ error: 'multipart/form-data 형식이어야 합니다' }, 400)
   }
 
-  const file = form.get('file')
-  if (!file || typeof file === 'string') {
+  const fileEntry = form.get('file')
+  if (!fileEntry || typeof fileEntry === 'string') {
     return c.json({ error: 'file 필드가 필요합니다' }, 400)
   }
+  // workers-types 의 FormDataEntryValue 타입 한계 우회 — 런타임엔 항상 File
+  const file = fileEntry as unknown as File
 
   const fileName = (file.name || 'unnamed').toString()
   const contentType = (file.type || 'application/octet-stream').toString()

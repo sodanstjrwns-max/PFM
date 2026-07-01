@@ -333,11 +333,22 @@ export async function getChannelUnreadCount(
  * 사용자 last_seen_at 업데이트 (메신저 활동 시 자동 호출).
  * fire-and-forget — 실패해도 무시.
  */
+/* v5.5.1: presence 쓰기 스로틀 — 3초 폴링마다 UPDATE 하던 것을 isolate 당 30초 1회로.
+ * last_seen_at 은 away(5분)/offline(15분) 판정용이라 30초 지연은 무해. */
+const presenceTouchAt = new Map<string, number>()
+const PRESENCE_TOUCH_INTERVAL_MS = 30_000
+
 export async function touchUserPresence(
   db: D1Database,
   userId: string,
   status?: 'online' | 'away' | 'dnd',
 ): Promise<void> {
+  const now = Date.now()
+  const last = presenceTouchAt.get(userId) ?? 0
+  if (now - last < PRESENCE_TOUCH_INTERVAL_MS) return
+  presenceTouchAt.set(userId, now)
+  // 맵 크기 제한 (isolate 장수명 대비)
+  if (presenceTouchAt.size > 2000) presenceTouchAt.clear()
   try {
     if (status) {
       await db.prepare(

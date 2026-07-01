@@ -3,6 +3,34 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🛡️ v5.5.1 — 운영 신뢰성 강화 (기능 동결, 품질 올인)
+
+> **기능 추가 없음.** 분산환경 정합성 · 스케줄링 보장 · D1 비용 절감에 집중한 hardening 릴리즈.
+
+### 1. 분산환경(cross-isolate) 정합성 — 마이그레이션 **0040**
+Workers isolate 는 콜로마다 별개 + 수시 재생성 → in-memory Map 기반 방어가 실제로는 리셋되던 구멍을 D1 영속 계층으로 봉인.
+- **`login_rate_limits` 테이블**: 로그인 브루트포스 방어 2계층화 (in-memory 1차 필터 → D1 영속). 공격자가 엣지 노드를 옮겨도 5회 실패 → 5분 잠금 유지. ✅ E2E: 5회 실패 후 6번째 429 + `locked=1` 확인
+- **`system_throttle` 테이블**: 에스컬레이션 스캔 1분 게이트를 원자적 조건부 UPDATE 로 구현 (`meta.changes` 기반 — 동시 스캔 경쟁 없음). ✅ E2E: tick #1 `triggered:1` → 즉시 tick #2 `triggered:0`
+
+### 2. 크론 보장 — `POST /api/cron/tick`
+예약 발송이 "누군가 접속해야" 나가던 구멍 제거. 외부 스케줄러(cron Worker / GitHub Actions)가 5분마다 호출.
+- 인증: `Authorization: Bearer <CRON_SECRET>` (미설정 시 503 — 실수로 열리지 않음)
+- 처리: ① `dispatchAllDue()` 전 병원 예약 메시지 발송 (호출당 50건) ② 활성 병원 에스컬레이션 스캔 ③ 오래된 레이트리밋 행 정리
+- ✅ E2E: 503(미설정) / 401(오시크릿) / `scheduled:{sent:1}` + DB `status='sent'` 확인
+- **프로덕션 세팅**: `npx wrangler pages secret put CRON_SECRET` 후 외부에서 5분 간격 호출
+
+### 3. 폴링 fast-path — D1 부하 ~90% 절감 (유휴 시)
+- 13개 쿼리 전에 **1쿼리 변화 감지** (`has_msg / has_urgent / has_esc` EXISTS 3종) → 변화 없으면 `{unchanged:true}` 경량 응답
+- 클라이언트 ~10회마다 `full=1` 재동기화 (읽음수/presence 드리프트 보정)
+- 백그라운드 탭 폴링 3초 → 15초 자동 완화, 탭 복귀 시 즉시 full 동기화
+- presence 쓰기 스로틀: 폴링마다 UPDATE → 30초당 1회
+- ✅ E2E: 유휴 시 `unchanged:true` / 새 메시지 발생 시 full 응답 (`newMessages:1`) 전환 확인
+
+### 4. 빌드/타입 안전망
+- `tsc --noEmit` 클린 (attachments.ts FormDataEntryValue 타입 에러 3건 수정)
+- **SW 캐시 버전 자동 주입** (`scripts/stamp-sw.cjs`): 빌드 시 `pfm-v<version>-<git hash>` 자동 치환 — "배포했는데 구버전 캐시" 사고 원천 차단
+- `package.json` version 5.5.1 로 실버전 동기화
+
 ## 🔀 v5.5.0 — Patient Chat 통합 (Phase A + B + C + D + E + F 완료)
 
 > **Latest deploy**: https://df2bd1e9.patient-funnel-manager.pages.dev · main https://patient-funnel-manager.pages.dev
@@ -343,9 +371,9 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 ## 📦 Tech Stack
 - **Backend**: Hono + TypeScript + Cloudflare Workers
-- **Database**: D1 (SQLite, 30 마이그레이션)
+- **Database**: D1 (SQLite, 40 마이그레이션) + R2 (첨부파일)
 - **3D Visualization**: Three.js r149 + 3d-force-graph 1.73 (CDN)
 - **Frontend**: Vanilla JS + Tailwind CSS + Glassmorphism UI
 - **Cache**: Service Worker pfm-v4.8.1
 
-## 🔥 Last Updated: 2026-05-02
+## 🔥 Last Updated: 2026-07-01 (v5.5.1 운영 신뢰성 강화)
