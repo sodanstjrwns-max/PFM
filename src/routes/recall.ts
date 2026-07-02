@@ -341,7 +341,12 @@ recall.patch('/tasks/:id', async (c) => {
   const user = c.get('user')!
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
+  // status enum 검증 (자유 문자열 유입 방지 — 통계 집계 오염 차단)
+  if (body.status !== undefined && !['pending','done','skipped','reserved','failed'].includes(body.status)) {
+    return c.json({ error: '유효하지 않은 상태입니다' }, 400)
+  }
   const allowed = ['status', 'result_note', 'assigned_to', 'reservation_made', 'reservation_date']
+  const maxLens: Record<string, number> = { result_note: 1000, assigned_to: 100, reservation_date: 20 }
   const sets: string[] = []
   const vals: any[] = []
   for (const k of allowed) {
@@ -349,6 +354,7 @@ recall.patch('/tasks/:id', async (c) => {
       sets.push(`${k} = ?`)
       let v = body[k]
       if (k === 'reservation_made') v = v ? 1 : 0
+      else if (maxLens[k] && typeof v === 'string') v = v.slice(0, maxLens[k])
       vals.push(v)
     }
   }

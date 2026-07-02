@@ -218,6 +218,13 @@ patients.put('/:id', async (c) => {
   const user = c.get('user')!
   const raw = await c.req.json()
   const id = c.req.param('id')
+  // status 변경은 DELETE(비활성화)와 동일 정책: enum 검증 + inactive 전환은 관리자/매니저만 (우회 방지)
+  if (raw.status !== undefined) {
+    if (!['active','inactive','lost'].includes(raw.status)) return c.json({ error: '유효하지 않은 환자 상태입니다' }, 400)
+    if (raw.status !== 'active' && user.role !== 'admin' && user.role !== 'manager') {
+      return c.json({ error: '환자 비활성화/이탈 처리는 관리자/매니저만 가능합니다' }, 403)
+    }
+  }
   const fields = ['chart_number','patient_name','phone','birth_date','gender','patient_type',
     'visit_source','visit_source_detail','referrer_name','first_visit_date','last_visit_date',
     'visit_count','treatment_area','primary_doctor','assigned_counselor','desk_staff',

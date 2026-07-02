@@ -346,6 +346,12 @@ funnel.put('/:id', async (c) => {
 /* ── 퍼널 환자 삭제 ── */
 funnel.delete('/:id', async (c) => {
   const user = c.get('user')!
+  // 환자 데이터 삭제는 관리자/매니저만 (patients·consult 삭제 정책과 동일)
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '퍼널 환자 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const exist = await c.env.DB.prepare('SELECT id FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!exist) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
