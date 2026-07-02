@@ -308,26 +308,30 @@ surveys.post('/batches', requireRole('admin', 'manager'), async (c) => {
     'INSERT INTO survey_batches (id, hospital_id, survey_id, schedule_id, batch_date, total_recipients, status, created_by) VALUES (?,?,?,?,?,?,?,?)'
   ).bind(batchId, user.hospitalId, surveyId, scheduleId, batchDate, recipients.length, 'draft', user.id).run()
 
+  // 유효 수신자 필터링 후 D1 batch 로 일괄 INSERT (50건 청크)
+  const validStmts = recipients
+    .map((rcpt: any) => {
+      const name = sanitizeString(rcpt.patient_name || rcpt.name || '', 100)
+      const phone = sanitizeString(rcpt.patient_phone || rcpt.phone || '', 20).replace(/[^0-9]/g, '')
+      if (!phone || phone.length < 10) return null
+      return c.env.DB.prepare(
+        'INSERT INTO survey_sends (id, survey_id, hospital_id, batch_id, patient_name, patient_phone, patient_id, doctor_name, treatment_type, visit_date, token, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+      ).bind(
+        'ss-' + crypto.randomUUID().slice(0, 8), surveyId, user.hospitalId, batchId, name, phone,
+        sanitizeString(rcpt.patient_id || '', 50),
+        sanitizeString(rcpt.doctor_name || rcpt.doctor || '', 100),
+        sanitizeString(rcpt.treatment_type || rcpt.treatment || '', 100),
+        sanitizeString(rcpt.visit_date || batchDate, 10),
+        crypto.randomUUID().replace(/-/g, '').slice(0, 16), 'pending'
+      )
+    })
+    .filter((s): s is D1PreparedStatement => s !== null)
   let inserted = 0
-  for (const rcpt of recipients) {
-    const name = sanitizeString(rcpt.patient_name || rcpt.name || '', 100)
-    const phone = sanitizeString(rcpt.patient_phone || rcpt.phone || '', 20).replace(/[^0-9]/g, '')
-    if (!phone || phone.length < 10) continue
-
-    const token = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-    const sendId = 'ss-' + crypto.randomUUID().slice(0, 8)
-
-    await c.env.DB.prepare(
-      'INSERT INTO survey_sends (id, survey_id, hospital_id, batch_id, patient_name, patient_phone, patient_id, doctor_name, treatment_type, visit_date, token, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).bind(
-      sendId, surveyId, user.hospitalId, batchId, name, phone,
-      sanitizeString(rcpt.patient_id || '', 50),
-      sanitizeString(rcpt.doctor_name || rcpt.doctor || '', 100),
-      sanitizeString(rcpt.treatment_type || rcpt.treatment || '', 100),
-      sanitizeString(rcpt.visit_date || batchDate, 10),
-      token, 'pending'
-    ).run()
-    inserted++
+  const CHUNK = 50
+  for (let ci = 0; ci < validStmts.length; ci += CHUNK) {
+    const chunk = validStmts.slice(ci, ci + CHUNK)
+    await c.env.DB.batch(chunk)
+    inserted += chunk.length
   }
 
   await c.env.DB.prepare('UPDATE survey_batches SET total_recipients=? WHERE id=?').bind(inserted, batchId).run()

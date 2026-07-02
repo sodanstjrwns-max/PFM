@@ -525,7 +525,7 @@ function renderAuth() {
         if (info.position) document.getElementById('joinPosition').value = info.position;
         if (info.team) document.getElementById('joinTeam').value = info.team;
       } catch(err) {
-        document.getElementById('inviteInfo').innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`;
+        document.getElementById('inviteInfo').innerHTML = `<span style="color:var(--danger)">❌ ${esc(err.message)}</span>`;
       }
     }, 300);
   }

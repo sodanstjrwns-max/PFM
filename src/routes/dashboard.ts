@@ -23,6 +23,7 @@ dashboard.get('/dashboard', async (c) => {
     staffAll,          // Q5: Staff list
     attendanceAndChairs, // Q6: Attendance + chairs + busy chairs
     funnelCounts,      // Q7: Funnel stage counts
+    imgCountResult,    // Q8: Case images (JOIN 서브쿼리라 별도)
   ] = await Promise.all([
     // Q1: Content counts (5→1 using UNION ALL)
     c.env.DB.prepare(`
@@ -74,6 +75,9 @@ dashboard.get('/dashboard', async (c) => {
 
     // Q7: Funnel stage counts
     c.env.DB.prepare("SELECT current_stage, COUNT(*) as c FROM patient_funnel WHERE hospital_id=? GROUP BY current_stage").bind(hid).all(),
+
+    // Q8: Case images count (JOIN 서브쿼리 — v5.6.1: 직렬 await 제거, 병렬로 통합)
+    c.env.DB.prepare('SELECT COUNT(*) as c FROM case_images ci JOIN cases cs ON ci.case_id=cs.id WHERE cs.hospital_id=?').bind(hid).first<{ c: number }>(),
   ])
 
   // Parse content counts
@@ -81,12 +85,6 @@ dashboard.get('/dashboard', async (c) => {
   for (const r of (contentCounts?.results || []) as any[]) { cm[r.k] = r.v }
   // Parse hire counts
   for (const r of (hireCounts?.results || []) as any[]) { cm[r.k] = r.v }
-
-  // Case images count (separate because it's a JOIN subquery)
-  // We do this as a derived count to avoid exceeding UNION ALL limits
-  const imgCountResult = await c.env.DB.prepare(
-    'SELECT COUNT(*) as c FROM case_images ci JOIN cases cs ON ci.case_id=cs.id WHERE cs.hospital_id=?'
-  ).bind(hid).first<{ c: number }>()
 
   const tb = (tbResult || {}) as any
   const cs = (csResult || {}) as any

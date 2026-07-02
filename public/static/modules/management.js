@@ -35,7 +35,7 @@ async function renderMaterials(body, actions) {
       container.innerHTML = `<div class="cards-grid">${materials.map(m => `
         <div class="content-card" data-id="${m.id}">
           <div class="content-card-img">${m.file_type === 'image'
-            ? `<img src="${m.file_url}" alt="${h(m.title)}" loading="lazy">`
+            ? `<img src="${esc(m.file_url)}" alt="${esc(m.title)}" loading="lazy">`
             : m.file_type === 'video' ? '🎬' : '📄'}</div>
           <div class="content-card-body">
             <div class="content-card-title">${esc(m.title)}</div>
@@ -411,7 +411,7 @@ async function openCaseDetail(caseId) {
         ${cs.images && cs.images.length ? `
           <div class="case-images-grid">${cs.images.map((img, i) => `
             <div class="case-image-card">
-              <img src="${img.image_url}" alt="${img.caption || ''}" loading="lazy" data-idx="${i}">
+              <img src="${esc(img.image_url)}" alt="${esc(img.caption || '')}" loading="lazy" data-idx="${i}">
               <span class="case-image-type ${img.image_type}">${img.image_type === 'before' ? 'Before' : img.image_type === 'after' ? 'After' : 'During'}</span>
             </div>`).join('')}</div>
         ` : `<div class="empty-state" style="padding:30px">${ICONS.upload}<h3>사진을 추가해주세요</h3></div>`}

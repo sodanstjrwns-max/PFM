@@ -438,7 +438,7 @@ function getHTML(): string {
 <link href="/static/glassmorphism.css" rel="stylesheet">
 <link href="/static/bento.css" rel="stylesheet">
 <link href="/static/polish.css" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
+<link href="/static/tailwind.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script>
   /* Theme init: light/dark/system - 깜빡임 방지 위해 head에서 즉시 실행 */

@@ -438,7 +438,7 @@ async function renderLtvRanking(body, actions) {
       <div style="margin-top:12px;font-size:11px;color:var(--text-muted);text-align:center">💡 환자 행 클릭 → 상세 모달 → AI LTV 분석 가능</div>
     `;
   } catch(e) {
-    body.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">LTV 랭킹을 불러올 수 없습니다: ${e.message || ''}</div>`;
+    body.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">LTV 랭킹을 불러올 수 없습니다: ${esc(e.message || '')}</div>`;
   }
 }
 

@@ -220,13 +220,22 @@ consult.post('/bulk', async (c) => {
   if (records.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
   const errors: Array<{index:number; name:string; error:string}> = []
-  for (const r of records) {
-    const id = 'cr-' + crypto.randomUUID().slice(0,8)
+  const SQL = `INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  const stmtOf = (r: any) => c.env.DB.prepare(SQL)
+    .bind('cr-' + crypto.randomUUID().slice(0,8), user.hospitalId, sanitizeString(r.record_date||'',10), sanitizeString(r.chart_number||'',50), sanitizeString(r.patient_name||'',100), sanitizeString(r.doctor_name||'',100), sanitizeString(r.counselor_name||'',100), sanitizeNumber(r.planned_amount,0,0,999999999), sanitizeNumber(r.agreed_amount,0,0,999999999), sanitizeString(r.discount_note||'',500), sanitizeString(r.patient_type||'new',20), sanitizeString(r.treatment_category||'general',100), sanitizeString(r.treatment_confirmed||'',5), sanitizeString(r.appointment_made||'',5), sanitizeString(r.recall_done||'',5), sanitizeString(r.kakao_registered||'',5), sanitizeString(r.pdf_provided||'',5), sanitizeString(r.visit_source||'',100), sanitizeString(r.notes||'',2000), user.id)
+  // D1 batch: 50건 단위 청크. 청크 실패 시 해당 청크만 개별 재시도해 per-row 에러 리포트 유지
+  const CHUNK = 50
+  for (let ci = 0; ci < records.length; ci += CHUNK) {
+    const chunk = records.slice(ci, ci + CHUNK)
     try {
-      await c.env.DB.prepare(`INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id, user.hospitalId, sanitizeString(r.record_date||'',10), sanitizeString(r.chart_number||'',50), sanitizeString(r.patient_name||'',100), sanitizeString(r.doctor_name||'',100), sanitizeString(r.counselor_name||'',100), sanitizeNumber(r.planned_amount,0,0,999999999), sanitizeNumber(r.agreed_amount,0,0,999999999), sanitizeString(r.discount_note||'',500), sanitizeString(r.patient_type||'new',20), sanitizeString(r.treatment_category||'general',100), sanitizeString(r.treatment_confirmed||'',5), sanitizeString(r.appointment_made||'',5), sanitizeString(r.recall_done||'',5), sanitizeString(r.kakao_registered||'',5), sanitizeString(r.pdf_provided||'',5), sanitizeString(r.visit_source||'',100), sanitizeString(r.notes||'',2000), user.id).run()
-      inserted++
-    } catch(e) { errors.push({ index: records.indexOf(r), name: r.patient_name || '(미입력)', error: (e as Error).message }) }
+      await c.env.DB.batch(chunk.map(stmtOf))
+      inserted += chunk.length
+    } catch {
+      for (let j = 0; j < chunk.length; j++) {
+        try { await stmtOf(chunk[j]).run(); inserted++ }
+        catch(e) { errors.push({ index: ci + j, name: chunk[j].patient_name || '(미입력)', error: (e as Error).message }) }
+      }
+    }
   }
   return c.json({ success: true, inserted, failed: errors.length, total: records.length, ...(errors.length > 0 ? { errors: errors.slice(0, 5) } : {}) })
 })

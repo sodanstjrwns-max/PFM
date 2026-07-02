@@ -40,7 +40,8 @@ export function securityHeaders(app: AppType) {
     // CSP - allow CDN resources used by frontend
     c.header('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+      // v5.6.1: Tailwind CDN(런타임 JIT) → 정적 tailwind.css 전환으로 'unsafe-eval' 제거
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",

@@ -264,13 +264,22 @@ patients.post('/bulk', requireRole('admin'), async (c) => {
   if (patientList.length > 500) return c.json({ error: '한 번에 500건까지 가능합니다' }, 400)
   let inserted = 0
   const errors: Array<{index:number; name:string; error:string}> = []
-  for (const p of patientList) {
-    const id = 'pt-' + crypto.randomUUID().slice(0,8)
+  const SQL = `INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, visit_source_detail, referrer_name, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, visit_reason, address, memo, status, kakao_registered, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  const stmtOf = (p: any) => c.env.DB.prepare(SQL)
+    .bind('pt-' + crypto.randomUUID().slice(0,8), user.hospitalId, sanitizeString(p.chart_number||'',50), sanitizeString(p.patient_name||'',100), sanitizeString(p.phone||'',20), sanitizeString(p.birth_date||'',10), sanitizeString(p.gender||'',10), sanitizeString(p.patient_type||'new',20), sanitizeString(p.visit_source||'',100), sanitizeString(p.visit_source_detail||'',200), sanitizeString(p.referrer_name||'',100), sanitizeString(p.first_visit_date||'',10), sanitizeString(p.last_visit_date||'',10), sanitizeNumber(p.visit_count,1,0,99999), sanitizeString(p.treatment_area||'',100), sanitizeString(p.primary_doctor||'',100), sanitizeString(p.assigned_counselor||'',100), sanitizeString(p.visit_reason||'',500), sanitizeString(p.address||'',500), sanitizeString(p.memo||'',2000), 'active', sanitizeString(p.kakao_registered||'',5), user.id)
+  // D1 batch: 50건 단위 청크. 청크 실패 시 개별 재시도로 per-row 에러 리포트 유지
+  const CHUNK = 50
+  for (let ci = 0; ci < patientList.length; ci += CHUNK) {
+    const chunk = patientList.slice(ci, ci + CHUNK)
     try {
-      await c.env.DB.prepare(`INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, visit_source_detail, referrer_name, first_visit_date, last_visit_date, visit_count, treatment_area, primary_doctor, assigned_counselor, visit_reason, address, memo, status, kakao_registered, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id, user.hospitalId, sanitizeString(p.chart_number||'',50), sanitizeString(p.patient_name||'',100), sanitizeString(p.phone||'',20), sanitizeString(p.birth_date||'',10), sanitizeString(p.gender||'',10), sanitizeString(p.patient_type||'new',20), sanitizeString(p.visit_source||'',100), sanitizeString(p.visit_source_detail||'',200), sanitizeString(p.referrer_name||'',100), sanitizeString(p.first_visit_date||'',10), sanitizeString(p.last_visit_date||'',10), sanitizeNumber(p.visit_count,1,0,99999), sanitizeString(p.treatment_area||'',100), sanitizeString(p.primary_doctor||'',100), sanitizeString(p.assigned_counselor||'',100), sanitizeString(p.visit_reason||'',500), sanitizeString(p.address||'',500), sanitizeString(p.memo||'',2000), 'active', sanitizeString(p.kakao_registered||'',5), user.id).run()
-      inserted++
-    } catch(e) { errors.push({ index: patientList.indexOf(p), name: p.patient_name || '(미입력)', error: (e as Error).message }) }
+      await c.env.DB.batch(chunk.map(stmtOf))
+      inserted += chunk.length
+    } catch {
+      for (let j = 0; j < chunk.length; j++) {
+        try { await stmtOf(chunk[j]).run(); inserted++ }
+        catch(e) { errors.push({ index: ci + j, name: chunk[j].patient_name || '(미입력)', error: (e as Error).message }) }
+      }
+    }
   }
   return c.json({ success: true, inserted, failed: errors.length, total: patientList.length, ...(errors.length > 0 ? { errors: errors.slice(0, 5) } : {}) })
 })

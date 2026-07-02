@@ -51,12 +51,11 @@ meetings.post('/', async (c) => {
   // participants from body
   const participants = Array.isArray(raw.participants) ? raw.participants : []
   if (participants.length > 50) return c.json({ error: '참가자는 50명까지 가능합니다' }, 400)
-  for (const p of participants) {
-    if (!p.user_id || p.user_id === user.id) continue
-    const pId = 'mp-' + crypto.randomUUID().slice(0,8)
-    const pRole = sanitizeString(p.role || 'attendee', 30)
-    await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)').bind(pId, id, sanitizeString(p.user_id, 100), pRole).run()
-  }
+  const participantStmts = participants
+    .filter((p: any) => p.user_id && p.user_id !== user.id)
+    .map((p: any) => c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role) VALUES (?,?,?,?)')
+      .bind('mp-' + crypto.randomUUID().slice(0,8), id, sanitizeString(p.user_id, 100), sanitizeString(p.role || 'attendee', 30)))
+  if (participantStmts.length > 0) await c.env.DB.batch(participantStmts)
   const eventId = 'ev-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare('INSERT INTO events (id, hospital_id, title, description, event_type, start_date, end_date, all_day, color, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(eventId, user.hospitalId, '📝 ' + b.title, ((b.location ? '장소: ' + b.location + '\n' : '') + (b.description || '')).trim(), 'meeting', b.meeting_date, b.meeting_date, 0, '#3b82f6', user.id).run()
   return c.json({ id })

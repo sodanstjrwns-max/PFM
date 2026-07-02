@@ -10,14 +10,17 @@ hr.get('/dashboard', async (c) => {
   const today = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0,10), 10)
   const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
   const dayOfWeek = dayNames[new Date(today + 'T00:00:00').getDay()]
-  const staffRows = await c.env.DB.prepare(
-    `SELECT id, name, role, position, team, work_schedule, is_doctor, hire_date FROM users WHERE hospital_id=? AND is_active=1 AND work_status='active' ORDER BY role DESC, team, name`
-  ).bind(user.hospitalId).all()
+  // v5.6.1: 3개 독립 쿼리 병렬 실행 (직렬 3 RTT → 1 RTT)
+  const [staffRows, attRows, leaveRows] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT id, name, role, position, team, work_schedule, is_doctor, hire_date FROM users WHERE hospital_id=? AND is_active=1 AND work_status='active' ORDER BY role DESC, team, name`
+    ).bind(user.hospitalId).all(),
+    c.env.DB.prepare(`SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`).bind(user.hospitalId, today).all(),
+    c.env.DB.prepare(`SELECT user_id FROM leave_requests WHERE hospital_id=? AND status='approved' AND start_date<=? AND end_date>=?`).bind(user.hospitalId, today, today).all(),
+  ])
   const staff = staffRows.results as any[]
-  const attRows = await c.env.DB.prepare(`SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`).bind(user.hospitalId, today).all()
   const attMap: Record<string, any> = {}
   for (const a of attRows.results as any[]) attMap[a.user_id] = a
-  const leaveRows = await c.env.DB.prepare(`SELECT user_id FROM leave_requests WHERE hospital_id=? AND status='approved' AND start_date<=? AND end_date>=?`).bind(user.hospitalId, today, today).all()
   const onLeaveSet = new Set((leaveRows.results as any[]).map((r: any) => r.user_id))
   const members = staff.map((s: any) => {
     let schedule: any = {}

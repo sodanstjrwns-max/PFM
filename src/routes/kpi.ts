@@ -110,20 +110,21 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
   let targetCount = 0, dailyCount = 0
 
   if (Array.isArray(targets)) {
-    for (const t of targets) {
-      const ym = sanitizeString(t.year_month || '', 10)
-      if (!ym) continue
-      const existing: any = await c.env.DB.prepare('SELECT id FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, ym).first()
-      if (existing) {
-        await c.env.DB.prepare(`UPDATE kpi_targets SET target_revenue=?, insurance_ratio=?, target_new_patients_weekday=?, target_new_patients_weekend=?, total_hours=?, weekdays=?, weekend_days=?, notes=?, updated_at=? WHERE id=?`)
-          .bind(sanitizeNumber(t.target_revenue,0,0,99999999999), sanitizeNumber(t.insurance_ratio,13,0,100), sanitizeNumber(t.target_new_patients_weekday,25,0,9999), sanitizeNumber(t.target_new_patients_weekend,20,0,9999), sanitizeNumber(t.total_hours,260,0,9999), sanitizeNumber(t.weekdays,21,0,31), sanitizeNumber(t.weekend_days,10,0,31), sanitizeString(t.notes||'',2000), new Date().toISOString(), existing.id).run()
-      } else {
-        const id = 'kpi-' + crypto.randomUUID().slice(0,8)
-        await c.env.DB.prepare(`INSERT INTO kpi_targets (id, hospital_id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .bind(id, user.hospitalId, ym, sanitizeNumber(t.target_revenue,0,0,99999999999), sanitizeNumber(t.insurance_ratio,13,0,100), sanitizeNumber(t.target_new_patients_weekday,25,0,9999), sanitizeNumber(t.target_new_patients_weekend,20,0,9999), sanitizeNumber(t.total_hours,260,0,9999), sanitizeNumber(t.weekdays,21,0,31), sanitizeNumber(t.weekend_days,10,0,31), sanitizeString(t.notes||'',2000), user.id).run()
-      }
-      targetCount++
+    // v5.6.1: SELECT+INSERT/UPDATE(행당 2쿼리) → ON CONFLICT upsert 1쿼리, D1 batch 일괄 실행
+    // (idx_kpi_targets_month UNIQUE 인덱스 기반)
+    const stmts = targets
+      .filter((t: any) => sanitizeString(t.year_month || '', 10))
+      .map((t: any) => {
+        const ym = sanitizeString(t.year_month || '', 10)
+        return c.env.DB.prepare(`INSERT INTO kpi_targets (id, hospital_id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(hospital_id, year_month) DO UPDATE SET target_revenue=excluded.target_revenue, insurance_ratio=excluded.insurance_ratio, target_new_patients_weekday=excluded.target_new_patients_weekday, target_new_patients_weekend=excluded.target_new_patients_weekend, total_hours=excluded.total_hours, weekdays=excluded.weekdays, weekend_days=excluded.weekend_days, notes=excluded.notes, updated_at=CURRENT_TIMESTAMP`)
+          .bind('kpi-' + crypto.randomUUID().slice(0,8), user.hospitalId, ym, sanitizeNumber(t.target_revenue,0,0,99999999999), sanitizeNumber(t.insurance_ratio,13,0,100), sanitizeNumber(t.target_new_patients_weekday,25,0,9999), sanitizeNumber(t.target_new_patients_weekend,20,0,9999), sanitizeNumber(t.total_hours,260,0,9999), sanitizeNumber(t.weekdays,21,0,31), sanitizeNumber(t.weekend_days,10,0,31), sanitizeString(t.notes||'',2000), user.id)
+      })
+    const CHUNK = 50
+    for (let ci = 0; ci < stmts.length; ci += CHUNK) {
+      await c.env.DB.batch(stmts.slice(ci, ci + CHUNK))
     }
+    targetCount = stmts.length
   }
 
   const dailyFields = [
@@ -138,26 +139,26 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
     'avg_wait_time','naver_reviews','notes'
   ]
   if (Array.isArray(records)) {
-    for (const r of records) {
-      const rd = sanitizeString(r.record_date || '', 10)
-      if (!rd) continue
-      const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(rd + 'T00:00:00').getDay()]
-      const existing: any = await c.env.DB.prepare('SELECT id FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, rd).first()
-      const getVal = (f: string) => f === 'notes' ? sanitizeString(r[f]||'',2000) : sanitizeNumber(r[f],0,0,999999999)
-      if (existing) {
-        const sets = dailyFields.map(f => `${f}=?`).join(',')
-        const vals = dailyFields.map(getVal)
-        await c.env.DB.prepare(`UPDATE daily_records SET ${sets}, day_of_week=?, updated_at=? WHERE id=?`)
-          .bind(...vals, dow, new Date().toISOString(), existing.id).run()
-      } else {
-        const id = 'dr-' + crypto.randomUUID().slice(0,8)
-        const cols = ['id','hospital_id','record_date','day_of_week', ...dailyFields, 'recorded_by'].join(',')
-        const placeholders = Array(dailyFields.length + 5).fill('?').join(',')
-        const vals = [id, user.hospitalId, rd, dow, ...dailyFields.map(getVal), user.id]
-        await c.env.DB.prepare(`INSERT INTO daily_records (${cols}) VALUES (${placeholders})`).bind(...vals).run()
-      }
-      dailyCount++
+    // v5.6.1: 행당 2쿼리(SELECT+UPSERT) → ON CONFLICT upsert 1쿼리, D1 batch 일괄 실행
+    // (idx_daily_records_date UNIQUE 인덱스 기반)
+    const cols = ['id','hospital_id','record_date','day_of_week', ...dailyFields, 'recorded_by'].join(',')
+    const placeholders = Array(dailyFields.length + 5).fill('?').join(',')
+    const updateSets = dailyFields.map(f => `${f}=excluded.${f}`).join(',')
+    const stmts = records
+      .filter((r: any) => sanitizeString(r.record_date || '', 10))
+      .map((r: any) => {
+        const rd = sanitizeString(r.record_date || '', 10)
+        const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(rd + 'T00:00:00').getDay()]
+        const getVal = (f: string) => f === 'notes' ? sanitizeString(r[f]||'',2000) : sanitizeNumber(r[f],0,0,999999999)
+        return c.env.DB.prepare(`INSERT INTO daily_records (${cols}) VALUES (${placeholders})
+          ON CONFLICT(hospital_id, record_date) DO UPDATE SET ${updateSets}, day_of_week=excluded.day_of_week, updated_at=CURRENT_TIMESTAMP`)
+          .bind('dr-' + crypto.randomUUID().slice(0,8), user.hospitalId, rd, dow, ...dailyFields.map(getVal), user.id)
+      })
+    const CHUNK = 50
+    for (let ci = 0; ci < stmts.length; ci += CHUNK) {
+      await c.env.DB.batch(stmts.slice(ci, ci + CHUNK))
     }
+    dailyCount = stmts.length
   }
 
   return c.json({ success: true, targets_imported: targetCount, daily_records_imported: dailyCount })

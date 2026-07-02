@@ -719,6 +719,9 @@ function startPolling() {
 function stopPolling() {
   if (mState.pollTimer) clearInterval(mState.pollTimer);
   mState.pollTimer = null;
+  // 페이지 이탈 시 디렉토리 폴링 + heartbeat 도 함께 정리 (타이머 누수 방지)
+  if (mState.dirInterval) { clearInterval(mState.dirInterval); mState.dirInterval = null; }
+  if (mState.heartbeatInterval) { clearInterval(mState.heartbeatInterval); mState.heartbeatInterval = null; }
 }
 async function pollOnce() {
   if (!mState.initialized) return;
