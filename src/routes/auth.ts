@@ -51,6 +51,12 @@ auth.post('/register', async (c) => {
 
 /* ─── Staff Join (invite code) - v2: 다인용 코드 + 취소 상태 체크 ─── */
 auth.post('/join', async (c) => {
+  // 초대코드 무차별 대입 방지: 로그인과 동일한 IP 레이트리밋 적용
+  const joinIp = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
+  const joinRate = await checkRateLimitD1(c.env.DB, joinIp)
+  if (!joinRate.allowed) {
+    return c.json({ error: `시도가 너무 많습니다. ${joinRate.retryAfter}초 후에 다시 시도해주세요.` }, 429)
+  }
   const { invite_code, email, password, name, phone, position, team, work_schedule } = await c.req.json()
   const missing = validateRequired({ invite_code, email, password, name }, ['invite_code', 'email', 'password', 'name'])
   if (missing) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
@@ -62,7 +68,10 @@ auth.post('/join', async (c) => {
 
   const codeUpper = sanitizeString(invite_code, 20).toUpperCase()
   const invite: any = await c.env.DB.prepare('SELECT * FROM staff_invites WHERE invite_code=?').bind(codeUpper).first()
-  if (!invite) return c.json({ error: '유효하지 않은 초대코드입니다' }, 400)
+  if (!invite) {
+    await recordLoginFailureD1(c.env.DB, joinIp) // 무효 코드 시도도 실패 카운트 (무차별 대입 차단)
+    return c.json({ error: '유효하지 않은 초대코드입니다' }, 400)
+  }
   if (invite.status === 'revoked') return c.json({ error: '취소된 초대코드입니다' }, 400)
   if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
   const maxUses = invite.max_uses || 1
@@ -104,11 +113,20 @@ auth.post('/join', async (c) => {
 
 /* ─── Validate invite code - v2 ─── */
 auth.get('/invite/:code', async (c) => {
+  // 초대코드 조회도 레이트리밋 (무차별 탐색 방지)
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
+  const rate = await checkRateLimitD1(c.env.DB, ip)
+  if (!rate.allowed) {
+    return c.json({ error: `시도가 너무 많습니다. ${rate.retryAfter}초 후에 다시 시도해주세요.` }, 429)
+  }
   const code = c.req.param('code').toUpperCase()
   const invite: any = await c.env.DB.prepare(
     'SELECT si.*, h.name as hospital_name FROM staff_invites si JOIN hospitals h ON si.hospital_id=h.id WHERE si.invite_code=?'
   ).bind(code).first()
-  if (!invite) return c.json({ error: '유효하지 않은 초대코드입니다' }, 404)
+  if (!invite) {
+    await recordLoginFailureD1(c.env.DB, ip) // 무효 코드 탐색도 카운트
+    return c.json({ error: '유효하지 않은 초대코드입니다' }, 404)
+  }
   if (invite.status === 'revoked') return c.json({ error: '취소된 초대코드입니다' }, 400)
   if (invite.expires_at && new Date(invite.expires_at) < new Date()) return c.json({ error: '만료된 초대코드입니다' }, 400)
   const maxUses = invite.max_uses || 1
@@ -142,12 +160,14 @@ auth.post('/login', async (c) => {
     await recordLoginFailureD1(c.env.DB, ip)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
-  if (row.work_status === 'resigned') return c.json({ error: '퇴사 처리된 계정입니다' }, 401)
   const valid = await verifyPassword(password, row.password_hash)
   if (!valid) {
     await recordLoginFailureD1(c.env.DB, ip)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
+  // 퇴사/비활성 계정 차단 — 비밀번호 검증 이후에 체크 (계정 열거 방지)
+  if (row.work_status === 'resigned') return c.json({ error: '퇴사 처리된 계정입니다' }, 401)
+  if (row.is_active === 0) return c.json({ error: '비활성화된 계정입니다. 관리자에게 문의하세요.' }, 401)
 
   await clearLoginAttemptsD1(c.env.DB, ip)
   const secret = getJwtSecret(c.env.JWT_SECRET)

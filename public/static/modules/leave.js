@@ -191,7 +191,7 @@ async function renderLeaveManagement(body, actions) {
           <button class="btn btn-sm" style="background:#ef4444;color:white;font-size:11px" onclick="rejectLeave('${r.id}')">❌ 반려</button>
         </div>` : ''}
         ${r.status === 'pending' && r.user_id === state.user.id ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px" onclick="cancelLeave('${r.id}')">취소</button></div>` : ''}
-        ${r.status === 'approved' && (r.user_id === state.user.id || state.user.role === 'admin') ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" onclick="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
+        ${r.status === 'approved' && (r.user_id === state.user.id || ['admin','manager'].includes(state.user.role)) ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" onclick="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
       </div>`;
     }).join('');
   }

@@ -516,6 +516,7 @@ async function openDetailModal(noteId) {
   const isTarget = n.target_user_id === uid;
   const isAuthor = n.author_id === uid;
   const isAdmin = state.user.role === 'admin';
+  const isManagerLike = ['admin','manager'].includes(state.user.role); // 백엔드 상태변경 정책과 동일
 
   const cat = CATEGORY_META[n.category] || CATEGORY_META.other;
   const sev = SEVERITY_META[n.severity] || SEVERITY_META.moderate;
@@ -619,8 +620,8 @@ async function openDetailModal(noteId) {
 
         <!-- 액션 버튼 -->
         <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #e5e7eb;padding-top:12px">
-          ${(isAuthor || isAdmin) && n.status !== 'resolved' ? `<button class="btn btn-outline btn-sm" id="fbResolve">✅ 해결로 표시</button>` : ''}
-          ${(isAuthor || isAdmin) && n.status !== 'archived' ? `<button class="btn btn-outline btn-sm" id="fbArchive">📦 보관</button>` : ''}
+          ${(isAuthor || isManagerLike) && n.status !== 'resolved' ? `<button class="btn btn-outline btn-sm" id="fbResolve">✅ 해결로 표시</button>` : ''}
+          ${(isAuthor || isManagerLike) && n.status !== 'archived' ? `<button class="btn btn-outline btn-sm" id="fbArchive">📦 보관</button>` : ''}
           ${(isAuthor || isAdmin) ? `<button class="btn btn-danger btn-sm" id="fbDelete">🗑️ 삭제</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="PFM.closeModal()">닫기</button>
         </div>

@@ -146,7 +146,11 @@ hr.post('/invite', async (c) => {
     return c.json({ error: '실장은 원장(admin) 권한의 초대를 만들 수 없습니다' }, 403)
   }
   const id = 'inv-' + crypto.randomUUID().slice(0,8)
-  const code = Math.random().toString(36).slice(2,8).toUpperCase()
+  // 🔒 CSPRNG 기반 초대코드 (Math.random은 예측 가능 → 무차별 대입에 취약했음)
+  // 혼동 문자(0/O, 1/I/L) 제외 30자 알파벳 × 8자리 = 6.5×10^11 조합
+  const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ2345678'
+  const rand = crypto.getRandomValues(new Uint8Array(8))
+  const code = [...rand].map(b => ALPHABET[b % ALPHABET.length]).join('')
   const days = b.expires_days || 7
   const expiresAt = new Date(Date.now() + days*24*60*60*1000).toISOString()
   const maxUses = b.max_uses || 1

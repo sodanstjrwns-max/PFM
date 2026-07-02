@@ -149,7 +149,8 @@ async function renderMeetings(body, actions) {
     
     const st = statusMap[data.status] || statusMap.scheduled;
     const vis = visibilityMap[data.visibility] || visibilityMap.all;
-    const canEdit = data.created_by === state.user.id || state.user.role === 'admin';
+    // 백엔드 PUT/DELETE 정책과 동일: 작성자 or admin/manager
+    const canEdit = data.created_by === state.user.id || ['admin','manager'].includes(state.user.role);
     const isCompleted = data.status === 'completed';
     const isPast = new Date(data.meeting_date) < new Date(new Date().toISOString().slice(0,10));
     const mins = data.minutes && data.minutes.length > 0 ? data.minutes[0] : null;

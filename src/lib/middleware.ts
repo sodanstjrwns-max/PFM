@@ -73,6 +73,21 @@ export function authMiddleware(app: AppType) {
     const secret = getJwtSecret(c.env.JWT_SECRET)
     const payload = await verifyJWT(token, secret)
     if (!payload) return c.json({ error: '토큰이 만료되었거나 유효하지 않습니다' }, 401)
+    // 🔒 토큰 role 박제 방지: DB에서 현재 상태 실시간 확인
+    //    (퇴사/비활성 직원의 발급済 토큰 7일 유효 문제 + 강등된 관리자가 admin 권한 유지하는 문제 차단)
+    //    PK 단건 조회라 비용 미미 (~1 row read/request)
+    const live: any = await c.env.DB.prepare(
+      'SELECT role, is_active, work_status, hospital_id FROM users WHERE id=?'
+    ).bind((payload as any).id).first()
+    if (!live) return c.json({ error: '존재하지 않는 계정입니다' }, 401)
+    if (live.is_active === 0 || live.work_status === 'resigned') {
+      return c.json({ error: '비활성화되었거나 퇴사 처리된 계정입니다' }, 401)
+    }
+    if (live.hospital_id !== (payload as any).hospitalId) {
+      return c.json({ error: '토큰 정보가 일치하지 않습니다' }, 401)
+    }
+    // role은 항상 DB 최신값 사용 (토큰 발급 후 승격/강등 즉시 반영)
+    ;(payload as any).role = live.role
     c.set('user', payload as any)
     await next()
   })
