@@ -469,10 +469,10 @@ onboarding.get('/insights', async (c) => {
     // 2) 상담 - 동의율 및 미결정 환자(전환 기회)
     const consultStats: any = await c.env.DB.prepare(`
       SELECT COUNT(*) as total,
-             SUM(CASE WHEN treatment_confirmed = 1 THEN 1 ELSE 0 END) as confirmed,
+             SUM(CASE WHEN treatment_confirmed = 'O' THEN 1 ELSE 0 END) as confirmed,
              SUM(CASE WHEN treatment_confirmed = 0 AND recall_done = 0 THEN 1 ELSE 0 END) as undecided,
              COALESCE(SUM(planned_amount), 0) as total_planned,
-             COALESCE(SUM(CASE WHEN treatment_confirmed = 1 THEN agreed_amount ELSE 0 END), 0) as total_agreed
+             COALESCE(SUM(CASE WHEN treatment_confirmed = 'O' THEN agreed_amount ELSE 0 END), 0) as total_agreed
       FROM consult_records WHERE hospital_id=?
     `).bind(hid).first().catch(() => ({ total: 0, confirmed: 0, undecided: 0, total_planned: 0, total_agreed: 0 }))
 

@@ -12,6 +12,7 @@
 
 import { Hono } from 'hono'
 import type { Bindings } from '../lib/types'
+import { requireRole } from '../lib/middleware'
 
 const kakao = new Hono<{ Bindings: Bindings; Variables: { user: any } }>()
 
@@ -34,7 +35,7 @@ async function saveHospitalSettings(db: D1Database, hospitalId: string, settings
 }
 
 /** GET /config - 카카오 설정 조회 (API 키는 masked) */
-kakao.get('/config', async (c) => {
+kakao.get('/config', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   const { settings } = await loadHospitalSettings(c.env.DB, user.hospitalId)
   const cfg = settings.kakao_config || {}
@@ -49,7 +50,7 @@ kakao.get('/config', async (c) => {
 })
 
 /** POST /config - 카카오 설정 저장 (admin/manager only) */
-kakao.post('/config', async (c) => {
+kakao.post('/config', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
@@ -75,7 +76,7 @@ kakao.post('/config', async (c) => {
 // ─────────────────────────────────────────────
 
 /** GET /templates - 알림톡 템플릿 목록 */
-kakao.get('/templates', async (c) => {
+kakao.get('/templates', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   const { settings } = await loadHospitalSettings(c.env.DB, user.hospitalId)
   const templates = settings.kakao_templates || [
@@ -103,7 +104,7 @@ kakao.get('/templates', async (c) => {
 })
 
 /** POST /templates - 템플릿 저장 (전체 덮어쓰기) */
-kakao.post('/templates', async (c) => {
+kakao.post('/templates', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   if (!['admin', 'manager'].includes(user.role)) {
     return c.json({ error: '권한이 없습니다' }, 403)
@@ -132,7 +133,7 @@ kakao.post('/templates', async (c) => {
 // ─────────────────────────────────────────────
 
 /** POST /send - 알림톡 발송 */
-kakao.post('/send', async (c) => {
+kakao.post('/send', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json().catch(() => ({}))
   const { template_code, receiver, variables = {}, fallback_sms = true } = body || {}
@@ -214,7 +215,7 @@ kakao.post('/send', async (c) => {
 })
 
 /** GET /logs - 발송 이력 */
-kakao.get('/logs', async (c) => {
+kakao.get('/logs', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   const { settings } = await loadHospitalSettings(c.env.DB, user.hospitalId)
   const logs = (settings.kakao_send_log || []).slice(0, 100)
@@ -224,7 +225,7 @@ kakao.get('/logs', async (c) => {
 })
 
 /** POST /test - 테스트 발송 (실제 API 호출 안하고 메시지만 생성) */
-kakao.post('/test', async (c) => {
+kakao.post('/test', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json().catch(() => ({}))
   const { template_code, variables = {} } = body || {}

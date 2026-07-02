@@ -511,12 +511,12 @@ export async function recalculateFanLevel(
     FROM patients WHERE id = ?
   `).bind(patientId).first() as any
 
-  // 4) 누적 결제 (consult_records confirmed 합)
+  // 4) 누적 결제 (consult_records 치료확정 'O' 합)
   const paid = await db.prepare(`
     SELECT COALESCE(SUM(agreed_amount), 0) as total
     FROM consult_records
     WHERE patient_name = (SELECT patient_name FROM patients WHERE id = ?)
-      AND hospital_id = ? AND confirmed = 1
+      AND hospital_id = ? AND treatment_confirmed = 'O'
   `).bind(patientId, hospitalId).first() as any
 
   // 5) 점수 계산

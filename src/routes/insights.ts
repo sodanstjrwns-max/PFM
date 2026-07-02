@@ -7,6 +7,7 @@
  */
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
+import { requireRole } from '../lib/middleware'
 
 const insights = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -35,7 +36,7 @@ function pctChange(cur: number, prev: number): number {
 /**
  * 지난 7일 vs 그 전 7일 주요 지표 자동 비교
  */
-insights.get('/weekly', async (c) => {
+insights.get('/weekly', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')!
   const hid = user.hospitalId
 
@@ -66,17 +67,17 @@ insights.get('/weekly', async (c) => {
     /* ─── 2) 상담 (consult_records) ─── */
     const conThis: any = await c.env.DB.prepare(`
       SELECT COUNT(*) as total,
-             SUM(CASE WHEN treatment_confirmed = 1 THEN 1 ELSE 0 END) as confirmed,
+             SUM(CASE WHEN treatment_confirmed = 'O' THEN 1 ELSE 0 END) as confirmed,
              COALESCE(SUM(planned_amount), 0) as planned,
-             COALESCE(SUM(CASE WHEN treatment_confirmed = 1 THEN agreed_amount ELSE 0 END), 0) as agreed
+             COALESCE(SUM(CASE WHEN treatment_confirmed = 'O' THEN agreed_amount ELSE 0 END), 0) as agreed
       FROM consult_records WHERE hospital_id=? AND record_date >= ? AND record_date < ?
     `).bind(hid, wk1Start, todayStr).first().catch(() => ({ total: 0, confirmed: 0, planned: 0, agreed: 0 }))
 
     const conLast: any = await c.env.DB.prepare(`
       SELECT COUNT(*) as total,
-             SUM(CASE WHEN treatment_confirmed = 1 THEN 1 ELSE 0 END) as confirmed,
+             SUM(CASE WHEN treatment_confirmed = 'O' THEN 1 ELSE 0 END) as confirmed,
              COALESCE(SUM(planned_amount), 0) as planned,
-             COALESCE(SUM(CASE WHEN treatment_confirmed = 1 THEN agreed_amount ELSE 0 END), 0) as agreed
+             COALESCE(SUM(CASE WHEN treatment_confirmed = 'O' THEN agreed_amount ELSE 0 END), 0) as agreed
       FROM consult_records WHERE hospital_id=? AND record_date >= ? AND record_date < ?
     `).bind(hid, wk2Start, wk1Start).first().catch(() => ({ total: 0, confirmed: 0, planned: 0, agreed: 0 }))
 
@@ -329,7 +330,7 @@ insights.post('/weekly/dismiss', async (c) => {
 /**
  * 이번주 확인 여부 체크 (대시보드 로드 시 호출)
  */
-insights.get('/weekly/status', async (c) => {
+insights.get('/weekly/status', requireRole('admin','manager'), async (c) => {
   const user = c.get('user')!
   const hid = user.hospitalId
   const week = isoWeek(new Date())

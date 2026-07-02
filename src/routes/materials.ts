@@ -90,7 +90,14 @@ materials.put('/pricing/:id', async (c) => {
     description: { type: 'string', max: 2000 },
     is_active: { type: 'number', min: 0, max: 1 },
   })
-  await c.env.DB.prepare('UPDATE pricing SET procedure_name=?, price_min=?, price_max=?, description=?, is_active=? WHERE id=? AND hospital_id=?').bind(b.procedure_name, b.price_min, b.price_max, b.description || '', b.is_active ?? 1, id, user.hospitalId).run()
+  // 부분 업데이트: 전달된 필드만 변경 (undefined bind → D1_TYPE_ERROR 방지)
+  const sets: string[] = []; const vals: any[] = []
+  for (const key of ['procedure_name', 'price_min', 'price_max', 'description', 'is_active']) {
+    if (b[key] !== undefined && b[key] !== null) { sets.push(`${key}=?`); vals.push(b[key]) }
+  }
+  if (!sets.length) return c.json({ error: '변경 사항 없음' }, 400)
+  vals.push(id, user.hospitalId)
+  await c.env.DB.prepare(`UPDATE pricing SET ${sets.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
   return c.json({ success: true })
 })
 
