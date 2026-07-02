@@ -3,6 +3,20 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🔐 v5.8.0 — 감사 로그(Audit Trail) + CSP 전면 봉인 (2026-07-02)
+
+### 1. 시스템 전역 감사 로그 (마이그레이션 0041 `audit_logs`)
+- `src/lib/audit.ts` — `writeAudit`/`auditFromCtx` (fire-and-forget, 메인 플로우 무중단)
+- **기록 지점 12곳**: 로그인/직원합류 · 권한/재직상태 변경(before/after) · 초대코드 생성/취소 · 환자 비활성화 · 퍼널/소개관계/리뷰 삭제 · 연차 승인/반려/타인취소 · CSV 내보내기
+- `GET /api/protected/admin/audit-logs` (admin 전용, 액션 접두어 필터 + 페이지네이션 + total)
+- 설정 페이지 하단 **감사 로그 뷰어** (필터/새로고침/페이징, 원장 전용)
+
+### 2. CSP `script-src-attr 'none'` — 인라인 핸들러 129곳 전면 제거
+- `modules/actions.js`: **data-act 이벤트 위임 + 미니 인터프리터** (eval/Function 미사용, deny-list + 할당 화이트리스트 → 속성 주입돼도 코드 실행/데이터 유출 불가)
+- codemod(`scripts/codemod-inline-handlers.cjs`)로 onclick/onchange/onkeyup/hover 전량 → `data-act*` 전환
+- `script-src` 폴백에서도 `unsafe-inline` 제거 — **인라인 스크립트 실행 경로 완전 차단**
+- 검증: data-act UI 7/7, 전메뉴 32페이지 스윕 CSP 위반 0건, Vitest 61/61
+
 ## 🌐 프로덕션 배포 (v5.7.2 — 2026-07-02)
 
 - **Production**: https://patient-funnel-manager.pages.dev
