@@ -150,6 +150,10 @@ referrals.put('/:id', async (c) => {
 // DELETE /api/protected/referrals/:id
 referrals.delete('/:id', async (c) => {
   const user = c.get('user')!
+  // 소개 관계는 팬 등급 산정의 근거 데이터 — 삭제는 관리자/매니저만 (환자 데이터 삭제 정책과 동일)
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '소개 관계 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
   const id = c.req.param('id')
 
   const ref = await c.env.DB.prepare(`

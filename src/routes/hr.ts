@@ -93,8 +93,28 @@ hr.put('/me', async (c) => {
 hr.put('/staff/:id', async (c) => {
   const user = c.get('user')!
   const targetId = c.req.param('id')
-  if (user.role !== 'admin' && user.role !== 'manager' && user.id !== targetId) return c.json({ error: '권한이 없습니다' }, 403)
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  if (!isManagerLike && user.id !== targetId) return c.json({ error: '권한이 없습니다' }, 403)
   const body = await c.req.json()
+  // 🔒 권한 상승 방지: 민감 필드(role/is_active/work_status/hire_date)는 관리자/매니저만 수정 가능
+  //    (일반 직원이 본인 계정으로 role=admin 셀프 승격하는 구멍 차단)
+  const SENSITIVE = ['role', 'is_active', 'work_status', 'hire_date']
+  if (!isManagerLike && SENSITIVE.some(k => body[k] !== undefined)) {
+    return c.json({ error: '직급/재직 상태 변경은 관리자/매니저만 가능합니다' }, 403)
+  }
+  if (body.role !== undefined) {
+    if (!['admin','manager','staff'].includes(body.role)) return c.json({ error: '유효하지 않은 역할입니다' }, 400)
+    // 초대 코드 정책과 동일: 매니저는 admin 부여 불가
+    if (user.role === 'manager' && body.role === 'admin') {
+      return c.json({ error: '매니저는 관리자 권한을 부여할 수 없습니다' }, 403)
+    }
+  }
+  // 매니저는 admin 계정을 수정할 수 없음 (하극상 방지)
+  if (user.role === 'manager' && user.id !== targetId) {
+    const target: any = await c.env.DB.prepare('SELECT role FROM users WHERE id=? AND hospital_id=?').bind(targetId, user.hospitalId).first()
+    if (!target) return c.json({ error: '직원을 찾을 수 없습니다' }, 404)
+    if (target.role === 'admin') return c.json({ error: '관리자 계정은 수정할 수 없습니다' }, 403)
+  }
   const fields: string[] = []; const vals: any[] = []
   for (const k of ['position','team','phone','hire_date','work_schedule','work_status','is_active','role','name']) {
     if (body[k] !== undefined) {

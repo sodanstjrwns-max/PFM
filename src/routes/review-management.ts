@@ -72,8 +72,14 @@ reviewMgmt.put('/:id', async (c) => {
   const sets: string[] = []; const vals: any[] = []
 
   if (raw.response_text !== undefined) { sets.push('response_text=?'); vals.push(sanitizeString(raw.response_text, 2000)) }
-  if (raw.response_status !== undefined) { sets.push('response_status=?'); vals.push(sanitizeString(raw.response_status, 20)) }
-  if (raw.sentiment !== undefined) { sets.push('sentiment=?'); vals.push(sanitizeString(raw.sentiment, 20)) }
+  if (raw.response_status !== undefined) {
+    if (!['pending','completed','skipped'].includes(raw.response_status)) return c.json({ error: '유효하지 않은 답변 상태입니다' }, 400)
+    sets.push('response_status=?'); vals.push(raw.response_status)
+  }
+  if (raw.sentiment !== undefined) {
+    if (!['positive','neutral','negative'].includes(raw.sentiment)) return c.json({ error: '유효하지 않은 감성 분류입니다' }, 400)
+    sets.push('sentiment=?'); vals.push(raw.sentiment)
+  }
   if (raw.tags !== undefined) { sets.push('tags=?'); vals.push(sanitizeString(raw.tags, 500)) }
   if (raw.is_pinned !== undefined) { sets.push('is_pinned=?'); vals.push(raw.is_pinned ? 1 : 0) }
 
@@ -89,6 +95,12 @@ reviewMgmt.put('/:id', async (c) => {
 // 리뷰 삭제
 reviewMgmt.delete('/:id', async (c) => {
   const user = c.get('user')!
+  // 리뷰 기록 삭제는 관리자/매니저만 (평판 데이터 무단 삭제 방지)
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '리뷰 삭제는 관리자/매니저만 가능합니다' }, 403)
+  }
+  const exist: any = await c.env.DB.prepare('SELECT id FROM review_management WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  if (!exist) return c.json({ error: '리뷰를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM review_management WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
