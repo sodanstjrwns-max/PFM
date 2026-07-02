@@ -3,13 +3,29 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 🌐 프로덕션 배포 (v5.7.0 — 2026-07-02)
+## 🌐 프로덕션 배포 (v5.7.2 — 2026-07-02)
 
 - **Production**: https://patient-funnel-manager.pages.dev
 - **GitHub**: https://github.com/sodanstjrwns-max/PFM
 - **크론 워커**: https://pfm-cron.sodanstjrwns.workers.dev (`*/5 * * * *` — 5분마다 `/api/cron/tick` 자동 호출)
 - **Secrets(프로덕션)**: `JWT_SECRET`, `CRON_SECRET` (wrangler pages secret)
 - **D1**: `pfm-production` (마이그레이션 0040까지 적용) / **R2**: `pfm-assets`
+
+## 🔐 v5.7.2 — 5차 감사: 인증 계층 강화 (2026-07-02)
+
+### 토큰 role 박제 방지 — authMiddleware 실시간 DB 검증
+- JWT 발급 후 7일간 role이 토큰에 "박제"되던 구멍 봉인 — **매 요청 DB에서 role/is_active/work_status 실시간 확인** (PK 단건 조회, ~1 row read)
+- 퇴사·비활성 직원의 발급済 토큰 **즉시 401** / 강등·승격 **즉시 반영** (토큰 재발급 불필요)
+- hospital_id 토큰↔DB 정합 검증
+- ✅ E2E: staff 토큰 → DB 승격 → 같은 토큰 403→200 / 비활성화 → 즉시 401
+
+### 로그인·초대코드 방어 강화
+- `is_active=0` 계정 로그인 차단 + 퇴사/비활성 체크를 비밀번호 검증 **이후**로 이동 (계정 열거 방지)
+- `POST /join` + `GET /invite/:code`에 IP 레이트리밋 (5회 실패 → 5분 잠금) — 초대코드 무차별 대입 차단 ✅ E2E: 6번째 429
+- 초대코드 생성: `Math.random` → **CSPRNG** (혼동문자 제외 30자 × 8자리 = 6.5×10¹¹ 조합)
+
+### 프론트 UI ↔ 백엔드 권한 정책 동기화 3건
+- feedback 해결/보관, leave 연차취소, meetings 수정 버튼 — manager에게도 노출 (백엔드는 이미 허용이었으나 UI가 숨김)
 
 ## 🔐 v5.7.0 — 보안 강화 3종 + 테스트 기반
 
