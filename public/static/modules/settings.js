@@ -557,7 +557,7 @@ async function renderChairs() {
 
   let chairs = [];
   try {
-    chairs = await api('/api/protected/clinical/chairs') || [];
+    chairs = await api('/api/protected/chairs') || [];
   } catch(e) {
     section.innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
     return;
@@ -644,11 +644,11 @@ async function renderChairs() {
         }
         const btn = document.getElementById('chAddBtn'); btn.disabled = true;
         try {
-          await api('/api/protected/clinical/chairs', {
+          await api('/api/protected/chairs', {
             method: 'POST',
             json: { chair_number: num, room_name: roomEl?.value?.trim() || '', unit_type: unitType }
           });
-          chairs = await api('/api/protected/clinical/chairs') || [];
+          chairs = await api('/api/protected/chairs') || [];
           renderList();
           const meta = getUnitTypeMeta(unitType);
           toast(`✅ ${meta.label} ${num}번 추가됨`, 'success');
@@ -662,7 +662,7 @@ async function renderChairs() {
           const label = btn.dataset.label;
           if (!confirm(`${label}을 삭제하시겠습니까?`)) return;
           try {
-            await api(`/api/protected/clinical/chairs/${id}`, { method: 'DELETE' });
+            await api(`/api/protected/chairs/${id}`, { method: 'DELETE' });
             chairs = chairs.filter(c => c.id !== id);
             renderList();
             toast(`${label} 삭제됨`, 'info');

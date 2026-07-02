@@ -438,11 +438,11 @@ function renderAuth() {
 
         <div class="form-group">
           <label>이메일</label>
-          <input class="form-input" type="email" id="authEmail" placeholder="admin@hospital.com" required>
+          <input class="form-input" type="email" id="authEmail" placeholder="admin@hospital.com" autocomplete="email" required>
         </div>
         <div class="form-group">
           <label>비밀번호</label>
-          <input class="form-input" type="password" id="authPassword" placeholder="••••••••" required>
+          <input class="form-input" type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" required>
         </div>
         <div class="form-group hidden" id="joinPhoneField">
           <label>연락처</label>
@@ -1267,7 +1267,10 @@ async function renderPage() {
     case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
     case 'knowledge': M.knowledge && M.knowledge.renderKnowledge && M.knowledge.renderKnowledge(body, actions); break;
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
-    case 'messenger': M.messenger && M.messenger.renderMessenger && M.messenger.renderMessenger(body, actions); break;
+    case 'messenger': // 신형 메신저(v5.x) 우선, 부재 시 구형 chat 폴백
+      if (M.messenger && M.messenger.renderMessenger) M.messenger.renderMessenger(body, actions);
+      else if (M.chat && M.chat.renderMessenger) M.chat.renderMessenger(body, actions);
+      break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'ltv_ranking': M.patientsStats.renderLtvRanking(body, actions); break;
@@ -1297,7 +1300,6 @@ async function renderPage() {
     case 'briefing': M.briefing.renderBriefing(body, actions); break;
     case 'gamification': M.gamification.renderGamification(body, actions); break;
     case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
-    case 'messenger': M.chat.renderMessenger(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }
