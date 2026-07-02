@@ -92,11 +92,12 @@ function humanizeError(status, serverMsg) {
 
 async function api(path, opts = {}) {
   const headers = {};
+  // v5.7: 인증은 httpOnly 쿠키가 담당 (credentials: same-origin 기본값) — Bearer는 전환기 호환용
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
   if (opts.json) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.json); delete opts.json; }
   let res;
   try {
-    res = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers } });
+    res = await fetch(path, { credentials: 'same-origin', ...opts, headers: { ...headers, ...opts.headers } });
   } catch(e) {
     throw new Error('인터넷 연결을 확인해주세요. 서버에 닿지 못했습니다.');
   }
@@ -113,7 +114,7 @@ async function apiForm(path, formData) {
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
   let res;
   try {
-    res = await fetch(path, { method: 'POST', headers, body: formData });
+    res = await fetch(path, { method: 'POST', headers, body: formData, credentials: 'same-origin' });
   } catch(e) {
     throw new Error('인터넷 연결을 확인해주세요. 서버에 닿지 못했습니다.');
   }
@@ -155,18 +156,44 @@ function navigate(page) {
 /* ─── Auth ─── */
 function getStoredAuth() {
   try {
-    const t = localStorage.getItem('pfm_token');
+    // v5.7: 인증 토큰은 httpOnly 쿠키에 있음 — localStorage엔 표시용 사용자 정보만 저장
     const u = localStorage.getItem('pfm_user');
-    if (t && u) { state.token = t; state.user = JSON.parse(u); return true; }
+    if (u) {
+      state.user = JSON.parse(u);
+      // 레거시 토큰(구버전 저장분)은 메모리에만 올리고 boot()에서 쿠키로 마이그레이션
+      const legacy = localStorage.getItem('pfm_token');
+      if (legacy) state.token = legacy;
+      return true;
+    }
   } catch(e) {}
   return false;
 }
 
 function saveAuth(token, user) {
-  state.token = token;
+  state.token = token; // 메모리 전용 (페이지 생존 동안 폴백용) — localStorage에는 저장하지 않음
   state.user = user;
-  localStorage.setItem('pfm_token', token);
   localStorage.setItem('pfm_user', JSON.stringify(user));
+  localStorage.removeItem('pfm_token'); // 레거시 잔재 제거
+}
+
+/* v5.7: 레거시 localStorage 토큰 → httpOnly 쿠키 1회 마이그레이션 */
+async function migrateLegacyToken() {
+  const legacy = localStorage.getItem('pfm_token');
+  if (!legacy) return;
+  try {
+    const res = await fetch('/api/auth/cookie-sync', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + legacy },
+      credentials: 'same-origin',
+    });
+    if (res.ok) {
+      localStorage.removeItem('pfm_token');
+      console.info('[PFM] 세션이 보안 쿠키로 전환되었습니다');
+    } else if (res.status === 401) {
+      // 만료 토큰 — 정리
+      localStorage.removeItem('pfm_token');
+    }
+  } catch(e) { /* 네트워크 오류 시 다음 부팅에서 재시도 */ }
 }
 
 /* ═══ 3분 환영 투어 (First-time User Tour) ═══ */
@@ -350,6 +377,8 @@ function logout() {
   state.user = null;
   localStorage.removeItem('pfm_token');
   localStorage.removeItem('pfm_user');
+  // v5.7: 서버에 httpOnly 쿠키 제거 요청 (실패해도 UI는 즉시 로그아웃)
+  try { fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {}); } catch(e) {}
   renderApp();
 }
 
@@ -1456,6 +1485,7 @@ window.PFM = {
 // 모듈 로드 완료 후 실행 (DOMContentLoaded에서 호출)
 function boot() {
   getStoredAuth();
+  migrateLegacyToken(); // v5.7: 레거시 토큰 → httpOnly 쿠키 (비동기, 먱춤 없음)
   // 해시 변경 감지 (초대 링크 등)
   window.addEventListener('hashchange', () => {
     if (window.location.hash.startsWith('#join/') && !state.user) {

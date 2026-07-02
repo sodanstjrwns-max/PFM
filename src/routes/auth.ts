@@ -1,9 +1,28 @@
 import { Hono } from 'hono'
+import { setCookie, deleteCookie } from 'hono/cookie'
 import type { Bindings, Variables } from '../lib/types'
-import { hashPassword, verifyPassword, signJWT } from '../lib/crypto'
+import { hashPassword, verifyPassword, signJWT, verifyJWT } from '../lib/crypto'
 import { checkRateLimitD1, recordLoginFailureD1, clearLoginAttemptsD1, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+
+/* ═══ v5.7: httpOnly 쿠키 인증 ═══
+ * 토큰을 localStorage 대신 httpOnly 쿠키에 저장 → XSS로 탈취 불가.
+ * SameSite=Lax로 CSRF 방어 (+ middleware의 Origin 검증).
+ * Secure 플래그는 https 요청일 때만 (로컬 http 개발 호환). */
+export const AUTH_COOKIE = 'pfm_auth'
+const COOKIE_MAX_AGE = 604800 // 7일 — JWT exp와 동일
+
+function setAuthCookie(c: any, token: string) {
+  const isHttps = c.req.url.startsWith('https:') || (c.req.header('X-Forwarded-Proto') || '').includes('https')
+  setCookie(c, AUTH_COOKIE, token, {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: COOKIE_MAX_AGE,
+  })
+}
 
 /* ─── Hospital Registration ─── */
 auth.post('/register', async (c) => {
@@ -26,6 +45,7 @@ auth.post('/register', async (c) => {
   ).bind(uid, hid, sanitizeString(email, 200), hash, sanitizeString(name, 100), 'admin', 1, 'doctor', 'clinical', sanitizeString(phone||'', 20), hireDate, defaultSchedule).run()
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' }, secret)
+  setAuthCookie(c, token)
   return c.json({ token, user: { id: uid, hospitalId: hid, email, name, role: 'admin', position: 'doctor', team: 'clinical', hospitalName, onboardingCompleted: false } })
 })
 
@@ -78,6 +98,7 @@ auth.post('/join', async (c) => {
   const role = invite.role || 'staff'
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: invite.hospital_id, email, name, role }, secret)
+  setAuthCookie(c, token)
   return c.json({ token, user: { id: uid, hospitalId: invite.hospital_id, email, name, role, hospitalName: hospital?.name } })
 })
 
@@ -131,7 +152,25 @@ auth.post('/login', async (c) => {
   await clearLoginAttemptsD1(c.env.DB, ip)
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
+  setAuthCookie(c, token)
   return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name, onboardingCompleted: !!row.onboarding_completed } })
+})
+
+/* ─── Logout — httpOnly 쿠키 제거 (v5.7) ─── */
+auth.post('/logout', (c) => {
+  deleteCookie(c, AUTH_COOKIE, { path: '/' })
+  return c.json({ success: true })
+})
+
+/* ─── Cookie Sync — 레거시 localStorage 토큰 → httpOnly 쿠키 전환 (v5.7 마이그레이션) ─── */
+auth.post('/cookie-sync', async (c) => {
+  const h = c.req.header('Authorization')
+  if (!h?.startsWith('Bearer ')) return c.json({ error: '토큰이 필요합니다' }, 401)
+  const token = h.slice(7)
+  const payload = await verifyJWT(token, getJwtSecret(c.env.JWT_SECRET))
+  if (!payload) return c.json({ error: '유효하지 않은 토큰입니다' }, 401)
+  setAuthCookie(c, token)
+  return c.json({ success: true })
 })
 
 export default auth

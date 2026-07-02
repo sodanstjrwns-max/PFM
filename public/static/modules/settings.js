@@ -945,8 +945,7 @@ async function runBackup(allTables) {
       '복구가 필요한 경우 PFM 관리자에게 문의하세요.\n'
     );
 
-    // 테이블별 CSV 다운로드
-    const token = localStorage.getItem('pfm_token');
+    // 테이블별 CSV 다운로드 (v5.7: httpOnly 쿠키 인증)
     let completed = 0;
     for (const tableKey of selected) {
       const tableInfo = tableMap[tableKey];
@@ -954,7 +953,7 @@ async function runBackup(allTables) {
       progressBar.style.width = (5 + (90 * completed / selected.length)) + '%';
 
       const res = await fetch(`/api/protected/admin/export/${tableKey}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
       });
       if (!res.ok) {
         throw new Error(`${tableInfo?.label || tableKey}: ${res.status} ${res.statusText}`);

@@ -89,8 +89,6 @@ async function renderReports(body, actions) {
 
   document.getElementById('btnViewReport').onclick = () => {
     const m = getMonth();
-    const token = state.token;
-    // Use fetch to get HTML with token, then open in new window
     fetchReport(m, false);
   };
   document.getElementById('btnPrintReport').onclick = () => {
@@ -112,7 +110,7 @@ async function fetchReport(month, autoprint) {
   try {
     toast('보고서 생성 중...', 'info');
     const resp = await fetch(`/api/protected/reports/monthly-report?month=${month}${autoprint ? '&autoprint=1' : ''}`, {
-      headers: { 'Authorization': 'Bearer ' + state.token },
+      credentials: 'same-origin',
     });
     if (!resp.ok) throw new Error('보고서 생성 실패 (' + resp.status + ')');
     const html = await resp.text();
@@ -135,7 +133,7 @@ async function downloadCSV(type, month, btn) {
   btn.style.opacity = '0.6';
   try {
     const resp = await fetch(`/api/protected/reports/csv/${type}?month=${month}`, {
-      headers: { 'Authorization': 'Bearer ' + state.token },
+      credentials: 'same-origin',
     });
     if (!resp.ok) throw new Error('다운로드 실패');
     const blob = await resp.blob();

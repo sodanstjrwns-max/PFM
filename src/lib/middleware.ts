@@ -1,4 +1,5 @@
 import type { AppType } from './types'
+import { getCookie } from 'hono/cookie'
 import { verifyJWT } from './crypto'
 
 /* ═══ Query Constants ═══ */
@@ -40,24 +41,37 @@ export function securityHeaders(app: AppType) {
     // CSP - allow CDN resources used by frontend
     c.header('Content-Security-Policy', [
       "default-src 'self'",
-      // v5.6.1: Tailwind CDN(런타임 JIT) → 정적 tailwind.css 전환으로 'unsafe-eval' 제거
+      // v5.6.1: Tailwind 정적화로 'unsafe-eval' 제거
+      // v5.7: 모든 인라인 <script> 블록 외부화 완료 → script-src-elem 에서 'unsafe-inline' 제거.
+      //   CSP3 분리 지시어: -elem(스크립트 태그) vs -attr(이벤트 핸들러 속성)
+      //   → 주입된 <script>…</script> (핵심 XSS 벡터)는 차단, 기존 onclick= 핸들러는 동작 유지.
+      //   script-src 는 구형 브라우저 폴백 (CSP3 미지원 시 기존 동작과 동일).
       "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+      "script-src-elem 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+      "script-src-attr 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
       "connect-src 'self'",
       "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
     ].join('; '))
   })
 }
 
-/* ═══ Auth Middleware ═══ */
+/* ═══ Auth Middleware (v5.7: httpOnly 쿠키 우선 + Bearer 폴백) ═══ */
 export function authMiddleware(app: AppType) {
   app.use('/api/protected/*', async (c, next) => {
-    const auth = c.req.header('Authorization')
-    if (!auth?.startsWith('Bearer ')) return c.json({ error: '인증이 필요합니다' }, 401)
+    // 1) httpOnly 쿠키 우선 (XSS 안전) → 2) Bearer 헤더 폴백 (전환기 호환 + API 클라이언트)
+    let token = getCookie(c, 'pfm_auth') || ''
+    if (!token) {
+      const auth = c.req.header('Authorization')
+      if (auth?.startsWith('Bearer ')) token = auth.slice(7)
+    }
+    if (!token) return c.json({ error: '인증이 필요합니다' }, 401)
     const secret = getJwtSecret(c.env.JWT_SECRET)
-    const payload = await verifyJWT(auth.slice(7), secret)
+    const payload = await verifyJWT(token, secret)
     if (!payload) return c.json({ error: '토큰이 만료되었거나 유효하지 않습니다' }, 401)
     c.set('user', payload as any)
     await next()

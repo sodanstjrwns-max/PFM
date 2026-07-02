@@ -1684,7 +1684,7 @@ async function showOpsDashboardModal() {
   document.getElementById('opsDashClose')?.addEventListener('click', () => document.getElementById('opsDashModal')?.remove());
 
   try {
-    const r = await fetch('/api/protected/messenger/ops/dashboard', { headers: { Authorization: `Bearer ${PFM.token}` } });
+    const r = await fetch('/api/protected/messenger/ops/dashboard', { credentials: 'same-origin' });
     if (r.status === 403) {
       document.getElementById('opsDashBody').innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626;font-size:14px;">관리자 전용 페이지입니다.<br/><span style="color:#9ca3af;font-size:12px;">admin / manager / owner 권한이 필요합니다.</span></div>`;
       return;

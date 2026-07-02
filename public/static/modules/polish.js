@@ -258,7 +258,7 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       // 로그인 전엔 무시
-      if (!localStorage.getItem('pfm_token')) return;
+      if (!localStorage.getItem('pfm_user')) return;
       toggle();
     }
   });

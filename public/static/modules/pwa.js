@@ -43,9 +43,8 @@
     if (localStorage.getItem('pfm_pwa_skip') === '1') return;
     if (localStorage.getItem('pfm_pwa_installed') === '1') return;
     if (window.matchMedia('(display-mode: standalone)').matches) return;
-    // 로그인 후에만 표시
-    const token = localStorage.getItem('pfm_token');
-    if (!token) return;
+    // 로그인 후에만 표시 (v5.7: 토큰은 httpOnly 쿠키 — pfm_user로 로그인 상태 판단)
+    if (!localStorage.getItem('pfm_user')) return;
 
     if (document.getElementById('pfmInstallBanner')) return;
     const banner = document.createElement('div');
@@ -174,7 +173,7 @@
   async function init() {
     await registerSW();
     setTimeout(() => {
-      if (localStorage.getItem('pfm_token')) showInstallBanner();
+      if (localStorage.getItem('pfm_user')) showInstallBanner();
     }, 3000);
     // 로그인 후 브리핑 리마인더
     setInterval(setupDailyBriefingReminder, 60 * 1000);

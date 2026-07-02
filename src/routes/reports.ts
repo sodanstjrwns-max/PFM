@@ -485,12 +485,7 @@ ${(complaintSummary.results || []).length ? `
   생성 시각 ${new Date().toISOString().slice(0, 19).replace('T', ' ')}
 </div>
 
-<script>
-  // 자동 인쇄 옵션
-  if (window.location.search.includes('autoprint')) {
-    window.addEventListener('load', () => setTimeout(() => window.print(), 500));
-  }
-</script>
+<script src="/static/report-print.js"></script>
 </body>
 </html>`
 
