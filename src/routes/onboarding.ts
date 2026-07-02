@@ -86,23 +86,26 @@ onboarding.post('/step/:step', async (c) => {
       await c.env.DB.prepare('UPDATE hospitals SET settings=? WHERE id=?')
         .bind(JSON.stringify(settings), user.hospitalId).run()
       existingData = { ...existingData, floorMapSet: true }
-      // Auto-create chairs from floor_map
+      // Auto-create chairs from floor_map (v5.7.1: N회 순차 INSERT → D1 batch)
       if (body.floor_map && Array.isArray(body.floor_map)) {
         let sortOrder = 1
+        const chairStmts: D1PreparedStatement[] = []
         for (const floor of body.floor_map) {
           if (floor.spaces && Array.isArray(floor.spaces)) {
             for (const space of floor.spaces) {
               if (space.chairs && space.chairs > 0) {
                 for (let i = 0; i < space.chairs; i++) {
-                  const chairId = crypto.randomUUID()
-                  await c.env.DB.prepare(
+                  chairStmts.push(c.env.DB.prepare(
                     'INSERT OR IGNORE INTO chairs (id, hospital_id, chair_number, floor, room_name, sort_order) VALUES (?,?,?,?,?,?)'
-                  ).bind(chairId, user.hospitalId, sortOrder, floor.name || '', space.name || '', sortOrder).run()
+                  ).bind(crypto.randomUUID(), user.hospitalId, sortOrder, floor.name || '', space.name || '', sortOrder))
                   sortOrder++
                 }
               }
             }
           }
+        }
+        for (let i = 0; i < chairStmts.length; i += 50) {
+          await c.env.DB.batch(chairStmts.slice(i, i + 50))
         }
       }
       break
@@ -191,6 +194,16 @@ onboarding.post('/seed-sample', async (c) => {
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const daysAgo = (n: number) => { const d = new Date(today); d.setDate(d.getDate() - n); return d }
 
+  /* v5.7.1 슈퍼최적화: ~258회 순차 INSERT → D1 batch 50개 청크.
+   * 샘플 데이터는 best-effort(catch 무시)였으므로 청크 단위 catch로 동일 시맨틱 유지. */
+  const stmts: D1PreparedStatement[] = []
+  const flushStmts = async () => {
+    for (let i = 0; i < stmts.length; i += 50) {
+      await c.env.DB.batch(stmts.slice(i, i + 50)).catch(() => {})
+    }
+    stmts.length = 0
+  }
+
   /* ─── 1. 체어 4개 생성 ─── */
   const chairRows: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM chairs WHERE hospital_id=?').bind(hid).first()
   if ((chairRows?.cnt || 0) === 0) {
@@ -201,9 +214,9 @@ onboarding.post('/seed-sample', async (c) => {
       { num: 4, floor: '3F', room: '수술실' },
     ]
     for (const ch of chairs) {
-      await c.env.DB.prepare(
+      stmts.push(c.env.DB.prepare(
         'INSERT INTO chairs (id, hospital_id, chair_number, floor, room_name, sort_order) VALUES (?,?,?,?,?,?)'
-      ).bind(crypto.randomUUID(), hid, ch.num, ch.floor, ch.room, ch.num).run()
+      ).bind(crypto.randomUUID(), hid, ch.num, ch.floor, ch.room, ch.num))
     }
   }
 
@@ -212,7 +225,7 @@ onboarding.post('/seed-sample', async (c) => {
   let catId = feeCat?.id
   if (!catId) {
     catId = crypto.randomUUID()
-    await c.env.DB.prepare('INSERT INTO fee_categories (id, hospital_id, name, sort_order) VALUES (?,?,?,?)').bind(catId, hid, '주요 진료', 1).run()
+    stmts.push(c.env.DB.prepare('INSERT INTO fee_categories (id, hospital_id, name, sort_order) VALUES (?,?,?,?)').bind(catId, hid, '주요 진료', 1))
     const items = [
       { name: '임플란트 (1개)', price: 1300000, unit: '개', dur: 60 },
       { name: '지르코니아 크라운', price: 550000, unit: '개', dur: 40 },
@@ -222,9 +235,9 @@ onboarding.post('/seed-sample', async (c) => {
       { name: '신경치료', price: 280000, unit: '근관', dur: 50 },
     ]
     for (const it of items) {
-      await c.env.DB.prepare(
+      stmts.push(c.env.DB.prepare(
         'INSERT INTO fee_items (id, hospital_id, category_id, name, base_price, unit, duration_min, is_active) VALUES (?,?,?,?,?,?,?,?)'
-      ).bind(crypto.randomUUID(), hid, catId, it.name, it.price, it.unit, it.dur, 1).run()
+      ).bind(crypto.randomUUID(), hid, catId, it.name, it.price, it.unit, it.dur, 1))
     }
   }
 
@@ -259,10 +272,10 @@ onboarding.post('/seed-sample', async (c) => {
       ? iso(daysAgo(200 + Math.floor(Math.random() * 180)))  // 200~380일 전
       : regDate
     patients.push({ pid, name, birthDate, gender, phone, regDate, source, region, specialty, patientType })
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender, patient_type, visit_source, first_visit_date, last_visit_date, visit_count, treatment_area, address)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(pid, hid, chartNum, name, phone, birthDate, gender, patientType, source, regDate, lastVisit, visitCount, specialty, `서울특별시 ${region}`).run().catch(() => {})
+    ).bind(pid, hid, chartNum, name, phone, birthDate, gender, patientType, source, regDate, lastVisit, visitCount, specialty, `서울특별시 ${region}`))
   }
 
   /* ─── 4. 퍼널 단계 분포 (10단계) ─── */
@@ -274,10 +287,10 @@ onboarding.post('/seed-sample', async (c) => {
     const agreedFactor = ['treatment','management','referral'].includes(stage) ? 1 : (['consultation','diagnosis'].includes(stage) ? 0.5 : 0)
     const agreed = Math.floor(estimated * agreedFactor)
     const paid = Math.floor(agreed * (stage === 'referral' ? 1 : stage === 'management' ? 0.8 : stage === 'treatment' ? 0.5 : 0))
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO patient_funnel (id, hospital_id, patient_name, phone, source, current_stage, treatment_type, estimated_amount, agreed_amount, paid_amount)
        VALUES (?,?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, p.name, p.phone, p.source, stage, treatmentTypes[Math.floor(Math.random()*treatmentTypes.length)], estimated, agreed, paid).run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, p.name, p.phone, p.source, stage, treatmentTypes[Math.floor(Math.random()*treatmentTypes.length)], estimated, agreed, paid))
   }
 
   /* ─── 5. 상담 기록 28건 ─── */
@@ -291,10 +304,10 @@ onboarding.post('/seed-sample', async (c) => {
     const confirmed = Math.random() > 0.4 ? 1 : 0
     const agreed = confirmed ? estimated : (Math.random() > 0.6 ? Math.floor(estimated * 0.3) : 0)
     const treatment = treatCategories[Math.floor(Math.random() * treatCategories.length)]
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, planned_amount, agreed_amount, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, d, `DEMO-${String(1000 + i).padStart(4, '0')}`, p.name, '데모 원장', '데모 실장', estimated, agreed, p.patientType, treatment, confirmed, confirmed ? 1 : 0, Math.random() > 0.6 ? 1 : 0).run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, d, `DEMO-${String(1000 + i).padStart(4, '0')}`, p.name, '데모 원장', '데모 실장', estimated, agreed, p.patientType, treatment, confirmed, confirmed ? 1 : 0, Math.random() > 0.6 ? 1 : 0))
   }
 
   /* ─── 6. 콜 기록 60건 (인/아웃바운드 혼합) ─── */
@@ -307,10 +320,10 @@ onboarding.post('/seed-sample', async (c) => {
     const callType = Math.random() > 0.4 ? 'inbound' : 'outbound'
     const purpose = callPurposes[Math.floor(Math.random() * callPurposes.length)]
     const reserved = Math.random() > 0.5 ? 'reserved' : 'not_reserved'
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO call_records (id, hospital_id, call_type, call_date, patient_name, phone, patient_type, staff_name, recognition_path, call_purpose, reservation_status)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, callType, d, p.name, p.phone, p.patientType, '데모 데스크', recogPaths[Math.floor(Math.random()*recogPaths.length)], purpose, reserved).run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, callType, d, p.name, p.phone, p.patientType, '데모 데스크', recogPaths[Math.floor(Math.random()*recogPaths.length)], purpose, reserved))
   }
 
   /* ─── 7. 컴플레인 5건 ─── */
@@ -327,10 +340,10 @@ onboarding.post('/seed-sample', async (c) => {
     const p = patients[i + 10]
     if (!p) continue
     const d = iso(daysAgo(Math.floor(Math.random() * 60)))
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO complaints (id, hospital_id, complaint_date, patient_name, part, category, description, responder, resolver, resolution, status, severity)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, d, p.name, complaintParts[i], complaintCats[i], complaintDesc[i], '데모 실장', i < 3 ? '데모 원장' : null, i < 3 ? '사과 및 재예약 조치' : null, i < 3 ? 'resolved' : 'in_progress', Math.random() > 0.6 ? 'high' : 'medium').run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, d, p.name, complaintParts[i], complaintCats[i], complaintDesc[i], '데모 실장', i < 3 ? '데모 원장' : null, i < 3 ? '사과 및 재예약 조치' : null, i < 3 ? 'resolved' : 'in_progress', Math.random() > 0.6 ? 'high' : 'medium'))
   }
 
   /* ─── 8. KPI 일간 기록 (최근 60일) ─── */
@@ -345,18 +358,18 @@ onboarding.post('/seed-sample', async (c) => {
     const ins = revenue - nonIns
     const newP = Math.floor(Math.random() * 8) + 2
     const existingP = Math.floor(Math.random() * 25) + 10
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT OR IGNORE INTO daily_records (id, hospital_id, record_date, day_of_week, revenue_non_insurance, revenue_insurance, existing_patients, new_patients, region_core_new, referral_new, online_new)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, d, dayOfWeekKo[dowIdx], nonIns, ins, existingP, newP, Math.floor(newP * 0.4), Math.floor(newP * 0.3), Math.floor(newP * 0.3)).run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, d, dayOfWeekKo[dowIdx], nonIns, ins, existingP, newP, Math.floor(newP * 0.4), Math.floor(newP * 0.3), Math.floor(newP * 0.3)))
   }
 
   /* ─── 9. 이번달 KPI 목표 ─── */
   const thisMonth = today.toISOString().slice(0, 7)
-  await c.env.DB.prepare(
+  stmts.push(c.env.DB.prepare(
     `INSERT OR IGNORE INTO kpi_targets (id, hospital_id, year_month, target_revenue, insurance_ratio, target_new_patients_weekday, target_new_patients_weekend, total_hours, weekdays, weekend_days)
      VALUES (?,?,?,?,?,?,?,?,?,?)`
-  ).bind(crypto.randomUUID(), hid, thisMonth, 180000000, 30, 5, 3, 200, 22, 4).run().catch(() => {})
+  ).bind(crypto.randomUUID(), hid, thisMonth, 180000000, 30, 5, 3, 200, 22, 4))
 
   /* ─── 10. 리뷰 데이터 15건 (네이버/구글/카카오) ─── */
   const reviewPlatforms = ['naver', 'google', 'kakao']
@@ -370,10 +383,10 @@ onboarding.post('/seed-sample', async (c) => {
   for (let i = 0; i < 15; i++) {
     const rv = reviewTexts[i % reviewTexts.length]
     const d = iso(daysAgo(Math.floor(Math.random() * 60)))
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO review_management (id, hospital_id, platform, reviewer_name, rating, review_text, sentiment, review_date, response_status)
        VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, reviewPlatforms[i % 3], `데모환자${i+1}`, rv.s === 'positive' ? 5 : rv.s === 'neutral' ? 3 : 2, rv.t, rv.s, d, i > 8 ? 'pending' : 'responded').run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, reviewPlatforms[i % 3], `데모환자${i+1}`, rv.s === 'positive' ? 5 : rv.s === 'neutral' ? 3 : 2, rv.t, rv.s, d, i > 8 ? 'pending' : 'responded'))
   }
 
   /* ─── 11. 커뮤니티 샘플 글 (공지/자유/칭찬) + 회의록 ─── */
@@ -391,29 +404,32 @@ onboarding.post('/seed-sample', async (c) => {
     { board: 'praise', title: '오늘의 칭찬 예시 — 우리 함께 시작해요', content: '오늘 오전 긴급 환자 대응을 빠르게 해주신 팀원께 감사드립니다. 이런 순간순간이 서로의 동기부여가 됩니다.', pin: 0, target: '동료 여러분' },
   ]
   for (const p of samplePosts) {
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO posts (id, hospital_id, board_type, title, content, author_id, is_pinned, target_name, created_at)
        VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(crypto.randomUUID(), hid, p.board, p.title, p.content, authorId, p.pin, (p as any).target || '', iso(daysAgo(Math.floor(Math.random()*5)))).run().catch(() => {})
+    ).bind(crypto.randomUUID(), hid, p.board, p.title, p.content, authorId, p.pin, (p as any).target || '', iso(daysAgo(Math.floor(Math.random()*5)))))
   }
 
   /* ─── 12. 샘플 회의록 2건 ─── */
-  try {
+  {
     const meetingDate1 = iso(daysAgo(7))
     const meetingDate2 = iso(daysAgo(-3)) // 3일 뒤
-    await c.env.DB.prepare(
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, status, visibility, created_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(crypto.randomUUID(), hid, '주간 원장 브리핑',
       '지난주 KPI 리뷰 및 이번주 목표 설정. 신환 수 +12%, 상담 전환율 58% 기록.',
-      meetingDate1, '09:00', '09:30', '원장실', 'completed', 'all', authorId).run().catch(() => {})
-    await c.env.DB.prepare(
+      meetingDate1, '09:00', '09:30', '원장실', 'completed', 'all', authorId))
+    stmts.push(c.env.DB.prepare(
       `INSERT INTO meetings (id, hospital_id, title, description, meeting_date, start_time, end_time, location, status, visibility, created_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(crypto.randomUUID(), hid, '전체 스태프 회의',
       '4월 만족도 설문 결과 공유, 신규 가격표 반영, 컴플레인 케이스 학습.',
-      meetingDate2, '18:30', '19:30', '교육실', 'scheduled', 'all', authorId).run().catch(() => {})
-  } catch {}
+      meetingDate2, '18:30', '19:30', '교육실', 'scheduled', 'all', authorId))
+  }
+
+  /* ─── 🚀 v5.7.1: 누적된 ~258개 INSERT를 50개 청크 batch로 일괄 실행 ─── */
+  await flushStmts()
 
   /* ─── settings에 샘플 생성 플래그 기록 ─── */
   await c.env.DB.prepare('UPDATE hospitals SET settings=? WHERE id=?')

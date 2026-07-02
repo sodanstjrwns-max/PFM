@@ -78,28 +78,30 @@ async function dispatchMyDue(db: D1Database, hospitalId: string, userId: string)
   for (const s of due.results || []) {
     try {
       const msgId = generateMessengerId('msg')
-      await db.prepare(`
-        INSERT INTO messages
-          (id, channel_id, thread_id, patient_thread_id, user_id, content, message_type,
-           confirm_required, is_urgent, mentions, reactions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
-      `).bind(
-        msgId, s.channel_id, s.thread_id, s.patient_thread_id,
-        s.user_id, s.content, s.message_type || 'text',
-        s.confirm_required ? 1 : 0, s.is_urgent ? 1 : 0,
-        s.mentions || '[]'
-      ).run()
-
-      // 발신자 자기 메시지 읽음 처리
-      await db.prepare(
-        'INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
-      ).bind(msgId, s.user_id).run()
-
-      await db.prepare(`
-        UPDATE scheduled_messages
-        SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(s.id).run()
+      /* v5.7.1 슈퍼최적화: 메시지당 3회 순차 라운드트립 → 단일 batch(트랜잭션).
+       * INSERT 실패 시 batch 전체가 롤백되어 status='sent' 오기록도 방지됨. */
+      await db.batch([
+        db.prepare(`
+          INSERT INTO messages
+            (id, channel_id, thread_id, patient_thread_id, user_id, content, message_type,
+             confirm_required, is_urgent, mentions, reactions)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+        `).bind(
+          msgId, s.channel_id, s.thread_id, s.patient_thread_id,
+          s.user_id, s.content, s.message_type || 'text',
+          s.confirm_required ? 1 : 0, s.is_urgent ? 1 : 0,
+          s.mentions || '[]'
+        ),
+        // 발신자 자기 메시지 읽음 처리
+        db.prepare(
+          'INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
+        ).bind(msgId, s.user_id),
+        db.prepare(`
+          UPDATE scheduled_messages
+          SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(s.id)
+      ])
 
       await writeMessengerAudit(db, {
         hospitalId,
@@ -353,27 +355,28 @@ export async function dispatchAllDue(db: D1Database): Promise<{ sent: number; fa
   for (const s of due.results || []) {
     try {
       const msgId = generateMessengerId('msg')
-      await db.prepare(`
-        INSERT INTO messages
-          (id, channel_id, thread_id, patient_thread_id, user_id, content, message_type,
-           confirm_required, is_urgent, mentions, reactions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
-      `).bind(
-        msgId, s.channel_id, s.thread_id, s.patient_thread_id,
-        s.user_id, s.content, s.message_type || 'text',
-        s.confirm_required ? 1 : 0, s.is_urgent ? 1 : 0,
-        s.mentions || '[]'
-      ).run()
-
-      await db.prepare(
-        'INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
-      ).bind(msgId, s.user_id).run()
-
-      await db.prepare(`
-        UPDATE scheduled_messages
-        SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(s.id).run()
+      /* v5.7.1 슈퍼최적화: 메시지당 3회 순차 라운드트립 → 단일 batch(트랜잭션) */
+      await db.batch([
+        db.prepare(`
+          INSERT INTO messages
+            (id, channel_id, thread_id, patient_thread_id, user_id, content, message_type,
+             confirm_required, is_urgent, mentions, reactions)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+        `).bind(
+          msgId, s.channel_id, s.thread_id, s.patient_thread_id,
+          s.user_id, s.content, s.message_type || 'text',
+          s.confirm_required ? 1 : 0, s.is_urgent ? 1 : 0,
+          s.mentions || '[]'
+        ),
+        db.prepare(
+          'INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
+        ).bind(msgId, s.user_id),
+        db.prepare(`
+          UPDATE scheduled_messages
+          SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(s.id)
+      ])
 
       await writeMessengerAudit(db, {
         hospitalId: s.hospital_id,
