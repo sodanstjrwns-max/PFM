@@ -240,15 +240,20 @@ referrals.get('/graph', async (c) => {
     }
   })
 
-  const links = (refsResult.results || []).map((r: any) => ({
-    source: r.referrer_id,
-    target: r.referred_id,
-    referredAt: r.referred_at,
-    channel: r.channel,
-    treatment: r.initial_treatment,
-    revenue: r.generated_revenue,
-    width: Math.max(1, Math.min(8, Math.floor(r.generated_revenue / 1000000)))
-  }))
+  // 노드 집합에 없는 환자(비활성/삭제/필터 제외)를 가리키는 링크는 제거
+  // — 3D 그래프 라이브러리가 "node not found" 예외를 던지는 것을 방지
+  const nodeIds = new Set(nodes.map((n: any) => n.id))
+  const links = (refsResult.results || [])
+    .filter((r: any) => nodeIds.has(r.referrer_id) && nodeIds.has(r.referred_id))
+    .map((r: any) => ({
+      source: r.referrer_id,
+      target: r.referred_id,
+      referredAt: r.referred_at,
+      channel: r.channel,
+      treatment: r.initial_treatment,
+      revenue: r.generated_revenue,
+      width: Math.max(1, Math.min(8, Math.floor(r.generated_revenue / 1000000)))
+    }))
 
   return c.json({
     ok: true,

@@ -382,17 +382,9 @@ async function renderHireInterviews(body, actions) {
     const container = document.getElementById('interviewContent');
     container.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
     try {
-      // 모든 지원자의 인터뷰를 수집
-      const applicants = await api('/api/protected/hire/applicants');
-      let allInterviews = [];
-      for (const a of applicants) {
-        try {
-          const interviews = await api('/api/protected/hire/applicants/'+a.id+'/interviews');
-          interviews.forEach(i => { i._applicant_name = a.name; i._job_title = a.job_title; });
-          allInterviews = allInterviews.concat(interviews);
-        } catch(e) {}
-      }
-      allInterviews.sort((a,b) => (b.scheduled_at||'').localeCompare(a.scheduled_at||''));
+      // 통합 엔드포인트 한 번으로 전체 인터뷰 조회 (N+1 제거)
+      const allInterviews = await api('/api/protected/hire/interviews');
+      allInterviews.forEach(i => { i._applicant_name = i.applicant_name; i._job_title = i.job_title; });
 
       if (!allInterviews.length) {
         container.innerHTML = `<div class="empty-state">${ICONS.message}<h3>등록된 인터뷰가 없습니다</h3><p>"인터뷰 일정" 버튼으로 추가하세요</p></div>`;

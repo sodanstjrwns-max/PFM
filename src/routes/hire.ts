@@ -136,6 +136,21 @@ hire.post('/applicants/:id/resume', async (c) => {
 })
 
 /* ─── PF Hire: Interviews API ─── */
+/* 통합 인터뷰 목록 — N+1 방지: 지원자별 개별 호출 대신 병원 전체 인터뷰를 JOIN 한 번으로 조회 */
+hire.get('/interviews', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(`
+    SELECT i.*, u.name as interviewer_name, a.name as applicant_name, jp.title as job_title
+    FROM interviews i
+    LEFT JOIN users u ON i.interviewer_id = u.id
+    LEFT JOIN applicants a ON i.applicant_id = a.id
+    LEFT JOIN job_postings jp ON a.job_posting_id = jp.id
+    WHERE i.hospital_id = ?
+    ORDER BY i.scheduled_at DESC LIMIT 300
+  `).bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
+
 hire.get('/applicants/:id/interviews', async (c) => {
   const user = c.get('user')!
   // IDOR 방지: 해당 병원의 지원자인지 확인
