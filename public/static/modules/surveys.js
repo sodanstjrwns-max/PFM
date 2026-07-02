@@ -159,7 +159,7 @@ async function renderSurveyList(el) {
       <p style="color:var(--text-muted);margin-top:8px">설문을 만들어 환자 만족도를 측정하세요</p>
     </div>` : `
     <div style="display:flex;flex-direction:column;gap:12px">${surveys.map(s => `
-      <div class="survey-item" data-id="${esc(s.id)}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseleave="this.style.boxShadow=''">
+      <div class="survey-item" data-id="${esc(s.id)}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:box-shadow .15s" data-act-menter="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" data-act-mleave="this.style.boxShadow=''">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:20px">${s.is_active ? '🟢' : '⚪'}</span>
@@ -340,7 +340,7 @@ async function renderBatchesTab(el) {
     </div>` : `
     <div style="display:flex;flex-direction:column;gap:10px">
       ${data.batches.map(b => `
-        <div class="batch-item" data-id="${esc(b.id)}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseleave="this.style.boxShadow=''">
+        <div class="batch-item" data-id="${esc(b.id)}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:box-shadow .15s" data-act-menter="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" data-act-mleave="this.style.boxShadow=''">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-weight:700;font-size:14px">${esc(b.survey_title)}</span>

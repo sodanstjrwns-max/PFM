@@ -74,7 +74,7 @@ async function renderParking(body, actions) {
       else if(r.ticket_count>=20) { level='보통'; levelColor='#f59e0b'; }
       else { level='적음'; levelColor='#22c55e'; }
 
-      html += '<tr class="pk-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">';
+      html += '<tr class="pk-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" data-act-over="this.style.background=\'var(--bg-hover)\'" data-act-out="this.style.background=\'\'">';
       html += '<td style="padding:10px 12px;font-size:11px;white-space:nowrap">'+esc(r.record_date||'-')+'</td>';
       html += '<td style="padding:10px 8px;font-size:11px;font-weight:600">'+esc(dowLabel)+'</td>';
       html += '<td style="padding:10px 8px;text-align:center;font-size:16px;font-weight:900;color:#8b5cf6">'+fmt(r.ticket_count)+'</td>';

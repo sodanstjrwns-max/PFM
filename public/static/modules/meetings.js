@@ -89,7 +89,7 @@ async function renderMeetings(body, actions) {
           : `<span style="font-size:10px;padding:3px 8px;border-radius:6px;background:${st.bg};color:${st.color};font-weight:700">${st.emoji} ${st.label}</span>`);
 
       // 카드 상단 컬러 띠 (상태별)
-      return `<div class="meeting-card" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:all 0.18s;display:flex;flex-direction:column;position:relative;${isPast && m.status !== 'completed' ? 'opacity:0.75;' : ''}" onmouseenter="this.style.boxShadow='0 10px 24px rgba(0,0,0,0.08)';this.style.transform='translateY(-3px)';this.style.borderColor='${st.color}'" onmouseleave="this.style.boxShadow='none';this.style.transform='none';this.style.borderColor='var(--border)'">
+      return `<div class="meeting-card" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:all 0.18s;display:flex;flex-direction:column;position:relative;${isPast && m.status !== 'completed' ? 'opacity:0.75;' : ''}" data-act-menter="this.style.boxShadow='0 10px 24px rgba(0,0,0,0.08)';this.style.transform='translateY(-3px)';this.style.borderColor='${st.color}'" data-act-mleave="this.style.boxShadow='none';this.style.transform='none';this.style.borderColor='var(--border)'">
 
         <!-- 상단 컬러 띠 -->
         <div style="height:5px;background:linear-gradient(90deg,${st.color},${st.color}dd)"></div>
@@ -196,7 +196,7 @@ async function renderMeetings(body, actions) {
               <span style="width:8px;height:8px;border-radius:50%;background:${att.color}"></span>
               <strong>${esc(p.user_name)}</strong>
               <span style="color:var(--text-secondary);font-size:10px">${roleMap[p.role] || ''}</span>
-              ${isCompleted && canEdit ? `<select style="font-size:10px;border:none;background:transparent;cursor:pointer" onchange="updateAttendance('${meetingId}','${p.user_id}',this.value)">
+              ${isCompleted && canEdit ? `<select style="font-size:10px;border:none;background:transparent;cursor:pointer" data-act-change="updateAttendance('${meetingId}','${p.user_id}',this.value)">
                 <option value="attended" ${p.attendance==='attended'?'selected':''}>참석</option>
                 <option value="absent" ${p.attendance==='absent'?'selected':''}>불참</option>
                 <option value="late" ${p.attendance==='late'?'selected':''}>지각</option>
@@ -230,7 +230,7 @@ async function renderMeetings(body, actions) {
 
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
         ${canEdit && data.status === 'scheduled' ? '<button class="btn btn-sm" id="completeMeetingBtn" style="background:#22c55e;color:white">✅ 회의 완료</button>' : ''}
-        <button class="btn" onclick="closeModal()">닫기</button>
+        <button class="btn" data-act="closeModal()">닫기</button>
       </div>
     `;
     showModal();
@@ -285,7 +285,7 @@ async function renderMeetings(body, actions) {
           <textarea name="action_items" rows="3" placeholder="담당자별 할 일을 작성하세요..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;resize:vertical">${existing && existing.action_items ? esc(existing.action_items) : ''}</textarea>
         </div>
         <div style="display:flex;gap:10px">
-          <button type="button" class="btn" onclick="openMeetingDetail('${meetingId}')" style="flex:1;padding:10px;border-radius:10px">← 돌아가기</button>
+          <button type="button" class="btn" data-act="openMeetingDetail('${meetingId}')" style="flex:1;padding:10px;border-radius:10px">← 돌아가기</button>
           <button type="submit" class="btn btn-primary" style="flex:2;padding:10px;border-radius:10px">💾 저장</button>
         </div>
       </form>
@@ -392,7 +392,7 @@ async function renderMeetings(body, actions) {
           </div>
         </div>
         <div style="display:flex;gap:10px">
-          <button type="button" class="btn" onclick="closeModal()" style="flex:1;padding:10px;border-radius:10px">취소</button>
+          <button type="button" class="btn" data-act="closeModal()" style="flex:1;padding:10px;border-radius:10px">취소</button>
           <button type="submit" class="btn btn-primary" style="flex:2;padding:10px;border-radius:10px">📝 등록</button>
         </div>
       </form>

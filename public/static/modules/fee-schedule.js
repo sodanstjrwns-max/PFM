@@ -128,7 +128,7 @@ function renderFeeContent(body, categories, items, isManager) {
             </tr></thead>
             <tbody>
               ${cat.items.map(item => `
-                <tr style="border-bottom:1px solid var(--border-light);transition:background .1s" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''">
+                <tr style="border-bottom:1px solid var(--border-light);transition:background .1s" data-act-menter="this.style.background='var(--bg)'" data-act-mleave="this.style.background=''">
                   <td style="padding:12px 20px">
                     <div style="font-weight:600;font-size:13px">${esc(item.name)}</div>
                     ${item.description ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(item.description)}</div>` : ''}

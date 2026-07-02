@@ -520,7 +520,7 @@ function renderAuth() {
         <strong>✨ 둘러보러 오셨나요?</strong><br>
         아래 데모 계정으로 <u>3개월치 샘플 데이터</u>를 바로 체험할 수 있습니다
         <div class="demo-creds">
-          <span style="cursor:pointer" onclick="(function(){document.getElementById('authEmail').value='fin2@test.com';document.getElementById('authPassword').value='test1234';})()">📧 fin2@test.com  /  🔑 test1234  <span style="color:#d97706;font-weight:700">(클릭해서 입력)</span></span>
+          <span style="cursor:pointer" data-act="document.getElementById('authEmail').value='fin2@test.com';document.getElementById('authPassword').value='test1234'">📧 fin2@test.com  /  🔑 test1234  <span style="color:#d97706;font-weight:700">(클릭해서 입력)</span></span>
         </div>
       </div>
     </div>
@@ -1091,7 +1091,7 @@ function showModal(title, content) {
   if (title || content) {
     const modal = document.getElementById('modalContent');
     modal.innerHTML = `
-      ${title ? `<div class="modal-header"><h3>${title}</h3><button class="modal-close-btn" onclick="PFM.closeModal()">✕</button></div>` : ''}
+      ${title ? `<div class="modal-header"><h3>${title}</h3><button class="modal-close-btn" data-act="PFM.closeModal()">✕</button></div>` : ''}
       <div class="modal-body">${content || ''}</div>`;
   }
   document.getElementById('modalOverlay').classList.add('show');
@@ -1191,7 +1191,7 @@ async function renderPage() {
     try {
       await loadModuleForPage(page);
     } catch(e) {
-      if (body) body.innerHTML = '<div class="error-boundary"><div class="error-boundary-icon">⚠️</div><div class="error-boundary-title">모듈 로드 실패</div><div class="error-boundary-msg">' + esc(e.message) + '</div><button class="error-boundary-btn" onclick="PFM.renderPage()">🔄 다시 시도</button></div>';
+      if (body) body.innerHTML = '<div class="error-boundary"><div class="error-boundary-icon">⚠️</div><div class="error-boundary-title">모듈 로드 실패</div><div class="error-boundary-msg">' + esc(e.message) + '</div><button class="error-boundary-btn" data-act="PFM.renderPage()">🔄 다시 시도</button></div>';
       return;
     }
   }
@@ -1423,7 +1423,7 @@ async function withErrorBoundary(container, asyncFn, skeletonType) {
           <div class="error-boundary-icon">⚠️</div>
           <div class="error-boundary-title">데이터를 불러올 수 없습니다</div>
           <div class="error-boundary-msg">${esc(e.message || '알 수 없는 오류')}</div>
-          <button class="error-boundary-btn" onclick="PFM.renderPage()">🔄 다시 시도</button>
+          <button class="error-boundary-btn" data-act="PFM.renderPage()">🔄 다시 시도</button>
         </div>
       `;
     }

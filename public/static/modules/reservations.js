@@ -83,7 +83,7 @@ async function renderReservations(body, actions) {
     pg.forEach(function(r) {
       var dowLabel = DOW[r.day_of_week]||r.day_of_week||'-';
       var fulfillColor = r.fulfillment_rate>=75?'#22c55e':r.fulfillment_rate>=70?'#f59e0b':'#ef4444';
-      html += '<tr class="res-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">';
+      html += '<tr class="res-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" data-act-over="this.style.background=\'var(--bg-hover)\'" data-act-out="this.style.background=\'\'">';
       html += '<td style="padding:10px 12px;font-size:11px;white-space:nowrap">'+esc(r.record_date||'-')+'</td>';
       html += '<td style="padding:10px 8px;font-size:11px;font-weight:600">'+esc(dowLabel)+'</td>';
       html += '<td style="padding:10px 8px;text-align:center;font-weight:700;color:#ef4444">'+fmt(r.cancel_count)+'</td>';

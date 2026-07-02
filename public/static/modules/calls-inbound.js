@@ -220,7 +220,7 @@ async function renderCallsInbound(body, actions) {
               const purp = getCallPurposeIn(r.call_purpose);
               const ptColor = r.patient_type === 'new' ? '#3b82f6' : '#22c55e';
               const ptLabel = r.patient_type === 'new' ? '신환' : r.patient_type === 'existing' ? '구환' : '-';
-              return `<tr class="ci-row" data-id="${r.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+              return `<tr class="ci-row" data-id="${r.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" data-act-over="this.style.background='var(--bg-hover)'" data-act-out="this.style.background=''">
                 <td style="padding:8px;font-size:11px;white-space:nowrap">${fmtDate(r.call_date)}</td>
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name||'-')}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.phone||'-')}</td>
@@ -430,7 +430,7 @@ function openCallForm(callType, record, onSave) {
             ${isEdit ? '✅ 수정 저장' : (isInbound ? '📞 기록 저장' : '📱 기록 저장')}
           </button>
           ${isEdit ? '<button type="button" id="callDeleteBtn" class="btn" style="padding:14px;color:#ef4444;font-weight:700;border-radius:12px;border:1px solid #fecaca">삭제</button>' : ''}
-          <button type="button" onclick="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
+          <button type="button" data-act="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
         </div>
       </form>
     </div>
@@ -570,7 +570,7 @@ async function openCallStats(callType, month) {
           </div>
         </div>` : ''}
         
-        <button onclick="PFM.closeModal()" class="btn" style="width:100%;padding:12px;border-radius:12px;margin-top:8px">닫기</button>
+        <button data-act="PFM.closeModal()" class="btn" style="width:100%;padding:12px;border-radius:12px;margin-top:8px">닫기</button>
       </div>
     `;
   } catch(e) {

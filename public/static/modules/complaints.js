@@ -208,7 +208,7 @@ async function renderComplaints(body, actions) {
       var resol = c.resolution || '-';
       if (resol.length > 40) resol = resol.substring(0, 40) + '...';
 
-      html += '<tr class="cmp-row" data-id="'+esc(c.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">';
+      html += '<tr class="cmp-row" data-id="'+esc(c.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" data-act-over="this.style.background=\'var(--bg-hover)\'" data-act-out="this.style.background=\'\'">';
       html += '<td style="padding:10px 12px;font-size:11px;color:var(--text-muted);white-space:nowrap">'+esc(c.complaint_date||'-')+'</td>';
       html += '<td style="padding:10px 8px;font-weight:700">'+esc(c.patient_name||'-')+'</td>';
       html += '<td style="padding:10px 8px"><span style="background:'+partColor+'15;color:'+partColor+';padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">'+partIcon+' '+esc(partLabel)+'</span></td>';

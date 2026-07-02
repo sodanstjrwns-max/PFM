@@ -68,6 +68,13 @@ async function renderSettings(body) {
       </div>
       ` : ''}
 
+      ${isAdmin ? `
+      <div class="section-title">🔎 <span>감사 로그 (Audit Trail)</span></div>
+      <div id="auditLogSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+      ` : ''}
+
       <div class="section-title">🔒 <span>보안 & 데이터 보호</span></div>
       <div style="background:linear-gradient(135deg,#f0fdfa 0%,#ecfdf5 100%);border:1px solid #a7f3d0;border-radius:var(--radius);padding:20px 24px;margin-bottom:24px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
@@ -175,6 +182,7 @@ async function renderSettings(body) {
       renderBackup();
       renderSimulation();
     }
+    if (isAdmin) renderAuditLogs();
   } catch(e) {
     document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
   }
@@ -793,6 +801,90 @@ function renderCoreRegions(settings) {
 /* ═══ 데이터 백업 / 복구 ═══ */
 
 // JSZip 동적 로더 (초기 번들 사이즈 영향 0)
+/* ═══ 감사 로그 (Audit Trail) — v5.8 ═══ */
+const AUDIT_ACTION_META = {
+  'auth.login': { icon: '🔑', label: '로그인' },
+  'auth.join': { icon: '🤝', label: '직원 합류' },
+  'hr.role_change': { icon: '⚠️', label: '권한 변경' },
+  'hr.status_change': { icon: '👥', label: '재직상태 변경' },
+  'hr.invite_create': { icon: '✉️', label: '초대코드 생성' },
+  'hr.invite_revoke': { icon: '🚫', label: '초대코드 취소' },
+  'patient.delete': { icon: '🗑️', label: '환자 비활성화' },
+  'funnel.delete': { icon: '🗑️', label: '퍼널 환자 삭제' },
+  'referral.delete': { icon: '🗑️', label: '소개관계 삭제' },
+  'review.delete': { icon: '🗑️', label: '리뷰 삭제' },
+  'leave.approve': { icon: '✅', label: '연차 승인' },
+  'leave.reject': { icon: '❌', label: '연차 반려' },
+  'leave.cancel': { icon: '↩️', label: '연차 취소(타인)' },
+  'admin.export': { icon: '📦', label: '데이터 내보내기' },
+};
+
+let _auditState = { action: '', offset: 0, limit: 30 };
+
+async function renderAuditLogs() {
+  const section = document.getElementById('auditLogSection');
+  if (!section) return;
+  let data;
+  try {
+    const q = new URLSearchParams({ limit: _auditState.limit, offset: _auditState.offset });
+    if (_auditState.action) q.set('action', _auditState.action);
+    data = await api('/api/protected/admin/audit-logs?' + q.toString());
+  } catch(e) {
+    section.innerHTML = `<div style="color:#ef4444;font-size:13px">감사 로그 로딩 실패: ${esc(e.message)}</div>`;
+    return;
+  }
+  const logs = data.logs || [];
+  const total = data.total || 0;
+  const page = Math.floor(_auditState.offset / _auditState.limit) + 1;
+  const pages = Math.max(1, Math.ceil(total / _auditState.limit));
+
+  const filterOptions = ['', ...Object.keys(AUDIT_ACTION_META)].map(a => {
+    const label = a === '' ? '전체 액션' : `${AUDIT_ACTION_META[a].icon} ${AUDIT_ACTION_META[a].label}`;
+    return `<option value="${a}" ${_auditState.action === a ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+
+  section.innerHTML = `
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+      권한 변경 · 계정 상태 · 데이터 삭제 · 내보내기 등 민감 작업이 자동 기록됩니다. (원장 전용, 총 ${total.toLocaleString()}건)
+    </p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <select id="auditActionFilter" class="input" style="width:auto;font-size:12px;padding:6px 10px">${filterOptions}</select>
+      <button class="btn btn-outline btn-sm" id="auditRefreshBtn">🔄 새로고침</button>
+      <span style="margin-left:auto;font-size:12px;color:var(--text-secondary)">${page} / ${pages} 페이지</span>
+      <button class="btn btn-outline btn-sm" id="auditPrevBtn" ${page <= 1 ? 'disabled' : ''}>◀</button>
+      <button class="btn btn-outline btn-sm" id="auditNextBtn" ${page >= pages ? 'disabled' : ''}>▶</button>
+    </div>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border-light);border-radius:8px">
+      ${logs.length === 0 ? '<div style="padding:24px;text-align:center;font-size:13px;color:var(--text-secondary)">기록이 없습니다</div>' :
+        logs.map(l => {
+          const meta = AUDIT_ACTION_META[l.action] || { icon: '📋', label: l.action };
+          const time = (l.created_at || '').replace('T', ' ').slice(0, 16);
+          return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-light);align-items:flex-start">
+            <span style="font-size:16px;flex-shrink:0">${meta.icon}</span>
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+                <strong style="font-size:12px">${esc(meta.label)}</strong>
+                <span style="font-size:11px;color:var(--text-secondary)">${esc(l.actor_name || l.actor_id || '?')} (${esc(l.actor_role || '-')})</span>
+                <span style="font-size:11px;color:var(--text-secondary);margin-left:auto">${esc(time)} · ${esc(l.ip_address || '')}</span>
+              </div>
+              ${l.summary ? `<div style="font-size:12px;color:var(--text-primary);margin-top:2px">${esc(l.summary)}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+    </div>`;
+
+  document.getElementById('auditActionFilter')?.addEventListener('change', (e) => {
+    _auditState.action = e.target.value; _auditState.offset = 0; renderAuditLogs();
+  });
+  document.getElementById('auditRefreshBtn')?.addEventListener('click', () => renderAuditLogs());
+  document.getElementById('auditPrevBtn')?.addEventListener('click', () => {
+    _auditState.offset = Math.max(0, _auditState.offset - _auditState.limit); renderAuditLogs();
+  });
+  document.getElementById('auditNextBtn')?.addEventListener('click', () => {
+    _auditState.offset += _auditState.limit; renderAuditLogs();
+  });
+}
+
 let _jszipPromise = null;
 function loadJSZip() {
   if (window.JSZip) return Promise.resolve(window.JSZip);

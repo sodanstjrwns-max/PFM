@@ -74,7 +74,7 @@ async function renderWaitTimes(body, actions) {
       var avgColor = r.avg_wait_minutes<=15?'#22c55e':r.avg_wait_minutes<=20?'#f59e0b':'#ef4444';
       var statusLabel = r.avg_wait_minutes<=15?'양호':r.avg_wait_minutes<=20?'주의':'위험';
       var statusBg = r.avg_wait_minutes<=15?'#22c55e':r.avg_wait_minutes<=20?'#f59e0b':'#ef4444';
-      html += '<tr class="wt-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">';
+      html += '<tr class="wt-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" data-act-over="this.style.background=\'var(--bg-hover)\'" data-act-out="this.style.background=\'\'">';
       html += '<td style="padding:10px 12px;font-size:11px;white-space:nowrap">'+esc(r.record_date||'-')+'</td>';
       html += '<td style="padding:10px 8px;font-size:11px;font-weight:600">'+esc(dowLabel)+'</td>';
       html += '<td style="padding:10px 8px;text-align:center;font-size:11px">'+fmt(Math.round(r.total_wait_minutes))+'분</td>';

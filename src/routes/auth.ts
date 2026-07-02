@@ -3,6 +3,7 @@ import { setCookie, deleteCookie } from 'hono/cookie'
 import type { Bindings, Variables } from '../lib/types'
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '../lib/crypto'
 import { checkRateLimitD1, recordLoginFailureD1, clearLoginAttemptsD1, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
+import { writeAudit } from '../lib/audit'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -108,6 +109,7 @@ auth.post('/join', async (c) => {
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: invite.hospital_id, email, name, role }, secret)
   setAuthCookie(c, token)
+  writeAudit(c.env.DB, { hospitalId: invite.hospital_id, actorId: uid, actorName: name, actorRole: role, action: 'auth.join', targetType: 'invite', targetId: invite.id, summary: `직원 합류: ${name} (${email}, 권한: ${role})`, ip: joinIp, userAgent: (c.req.header('user-agent') || '').slice(0, 300) })
   return c.json({ token, user: { id: uid, hospitalId: invite.hospital_id, email, name, role, hospitalName: hospital?.name } })
 })
 
@@ -173,6 +175,7 @@ auth.post('/login', async (c) => {
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
   setAuthCookie(c, token)
+  writeAudit(c.env.DB, { hospitalId: row.hospital_id, actorId: row.id, actorName: row.name, actorRole: row.role, action: 'auth.login', summary: `로그인 성공 (${row.email})`, ip, userAgent: (c.req.header('user-agent') || '').slice(0, 300) })
   return c.json({ token, user: { id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role, position: row.position, team: row.team, hospitalName: row.hospital_name, onboardingCompleted: !!row.onboarding_completed } })
 })
 

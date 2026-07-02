@@ -42,8 +42,8 @@ function renderPfIndexHome(body, status) {
       </div>
       <div style="display:flex;gap:8px">
         ${responded
-          ? `<button class="btn btn-primary" onclick="PFMPfIndex.openNational()"><i class="fas fa-globe"></i> 전국 인사이트</button>`
-          : `<button class="btn btn-primary" onclick="PFMPfIndex.openSurvey()"><i class="fas fa-pen-to-square"></i> 이번 주 설문 시작 (5분)</button>`
+          ? `<button class="btn btn-primary" data-act="PFMPfIndex.openNational()"><i class="fas fa-globe"></i> 전국 인사이트</button>`
+          : `<button class="btn btn-primary" data-act="PFMPfIndex.openSurvey()"><i class="fas fa-pen-to-square"></i> 이번 주 설문 시작 (5분)</button>`
         }
       </div>
     </div>
@@ -221,7 +221,7 @@ function renderSurveyOverlay() {
           <div style="font-size:11px;opacity:0.85;letter-spacing:1px;font-weight:600">PATIENT INDEX · ${s.weekStart}</div>
           <div style="font-size:20px;font-weight:700;margin-top:2px">이번 주 병원 경영 체감 설문</div>
         </div>
-        <button onclick="PFMPfIndex.dismissSurvey()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer">×</button>
+        <button data-act="PFMPfIndex.dismissSurvey()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer">×</button>
       </div>
 
       <!-- 진행 바 -->
@@ -302,7 +302,7 @@ function renderSurveyStep() {
         <input type="checkbox" id="pfi-share" ${s.shareToNational?'checked':''}>
         전국 풀에 익명 합산
       </label>
-      <button class="btn btn-primary" onclick="PFMPfIndex.nextStep()">시작하기 <i class="fas fa-arrow-right"></i></button>
+      <button class="btn btn-primary" data-act="PFMPfIndex.nextStep()">시작하기 <i class="fas fa-arrow-right"></i></button>
     `;
     return;
   }
@@ -338,15 +338,15 @@ function renderSurveyStep() {
     `;
 
     footer.innerHTML = `
-      <button class="btn btn-secondary" onclick="PFMPfIndex.prevStep()"><i class="fas fa-arrow-left"></i> 이전</button>
+      <button class="btn btn-secondary" data-act="PFMPfIndex.prevStep()"><i class="fas fa-arrow-left"></i> 이전</button>
       <div style="font-size:12px;color:${allAnswered?'#10b981':'#94a3b8'}">
         ${answeredInGroup} / ${qs.length} 답변
       </div>
       ${s.currentStep === 4
-        ? `<button class="btn btn-primary" onclick="PFMPfIndex.submitSurvey()" ${allAnswered ? '' : 'disabled'} id="pfi-submit-btn">
+        ? `<button class="btn btn-primary" data-act="PFMPfIndex.submitSurvey()" ${allAnswered ? '' : 'disabled'} id="pfi-submit-btn">
             ${allAnswered ? '<i class="fas fa-paper-plane"></i> 제출하기' : '모든 문항에 답해주세요'}
           </button>`
-        : `<button class="btn btn-primary" onclick="PFMPfIndex.nextStep()" ${allAnswered ? '' : 'disabled'}>
+        : `<button class="btn btn-primary" data-act="PFMPfIndex.nextStep()" ${allAnswered ? '' : 'disabled'}>
             다음 <i class="fas fa-arrow-right"></i>
           </button>`
       }
@@ -495,8 +495,8 @@ function renderSubmitResult(res) {
       </div>
 
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="PFMPfIndex.openNational()"><i class="fas fa-globe"></i> 전국 인사이트 보기</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('pfindexSurveyOverlay').remove();PFM.navigate('pf_index')">대시보드로</button>
+        <button class="btn btn-primary" data-act="PFMPfIndex.openNational()"><i class="fas fa-globe"></i> 전국 인사이트 보기</button>
+        <button class="btn btn-secondary" data-act="document.getElementById('pfindexSurveyOverlay').remove();PFM.navigate('pf_index')">대시보드로</button>
       </div>
     </div>
   `;
@@ -534,10 +534,10 @@ async function openNational() {
       <div style="font-size:60px;margin-bottom:12px">🔒</div>
       <h3 style="margin:0;font-size:22px;font-weight:700">참여자 전용 보고서</h3>
       <p style="color:#64748b;margin:12px 0 24px;font-size:14px">${esc(data.message)}</p>
-      <button class="btn btn-primary" onclick="document.getElementById('pfindexNationalOverlay').remove();PFMPfIndex.openSurvey()">
+      <button class="btn btn-primary" data-act="document.getElementById('pfindexNationalOverlay').remove();PFMPfIndex.openSurvey()">
         <i class="fas fa-pen-to-square"></i> 이번 주 설문 시작 (5분)
       </button>
-      <button class="btn btn-secondary" style="margin-left:8px" onclick="document.getElementById('pfindexNationalOverlay').remove()">닫기</button>
+      <button class="btn btn-secondary" style="margin-left:8px" data-act="document.getElementById('pfindexNationalOverlay').remove()">닫기</button>
     `;
     return;
   }
@@ -575,7 +575,7 @@ function renderNational(overlay, data) {
           <div style="font-size:11px;opacity:0.85;letter-spacing:1px;font-weight:600">NATIONAL INSIGHTS · ${data.weekStart}</div>
           <div style="font-size:20px;font-weight:700;margin-top:2px">전국 개원가 분위기 보고서</div>
         </div>
-        <button onclick="document.getElementById('pfindexNationalOverlay').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer">×</button>
+        <button data-act="document.getElementById('pfindexNationalOverlay').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer">×</button>
       </div>
 
       <div style="padding:24px 28px;max-height:calc(100vh - 160px);overflow-y:auto">

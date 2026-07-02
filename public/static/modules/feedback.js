@@ -274,7 +274,7 @@ function renderList(container, notes) {
       emptySub = '첫 사례부터 시작해 팀의 학습 라이브러리를 함께 만들어봐요.';
     }
     const cta = canAuthor()
-      ? `<button class="btn btn-primary btn-md" onclick="document.getElementById('fbNewBtn')?.click()">+ 사례 기록하기</button>`
+      ? `<button class="btn btn-primary btn-md" data-act="document.getElementById('fbNewBtn')?.click()">+ 사례 기록하기</button>`
       : '';
     container.innerHTML = `
       <div class="empty-state">
@@ -355,7 +355,7 @@ function renderNoteRow(n) {
   const titleWeight = isUnread ? '700' : '500';
 
   return `
-    <div data-note-id="${esc(n.id)}" style="display:grid;grid-template-columns:36px 70px 60px minmax(0,1fr) 140px 80px 80px;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.1s;border-left:3px solid ${sevBarColor};${rowBg}" onmouseover="this.style.background='${hoverBg}'" onmouseout="this.style.background='${isUnread ? '#fef2f2' : ''}'">
+    <div data-note-id="${esc(n.id)}" style="display:grid;grid-template-columns:36px 70px 60px minmax(0,1fr) 140px 80px 80px;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.1s;border-left:3px solid ${sevBarColor};${rowBg}" data-act-over="this.style.background='${hoverBg}'" data-act-out="this.style.background='${isUnread ? '#fef2f2' : ''}'">
       <div style="text-align:center;font-size:18px" title="${cat.label}">${cat.icon}</div>
       <div style="text-align:center">
         <span style="background:${sev.bg};color:${sev.color};padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${sev.label}</span>
@@ -623,7 +623,7 @@ async function openDetailModal(noteId) {
           ${(isAuthor || isManagerLike) && n.status !== 'resolved' ? `<button class="btn btn-outline btn-sm" id="fbResolve">✅ 해결로 표시</button>` : ''}
           ${(isAuthor || isManagerLike) && n.status !== 'archived' ? `<button class="btn btn-outline btn-sm" id="fbArchive">📦 보관</button>` : ''}
           ${(isAuthor || isAdmin) ? `<button class="btn btn-danger btn-sm" id="fbDelete">🗑️ 삭제</button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="PFM.closeModal()">닫기</button>
+          <button class="btn btn-outline btn-sm" data-act="PFM.closeModal()">닫기</button>
         </div>
       </div>
     `

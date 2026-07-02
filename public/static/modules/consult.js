@@ -69,7 +69,7 @@ async function renderConsultRecords(body, actions) {
   
   actions.innerHTML = `
     ${isManager ? '<button class="btn btn-primary btn-sm" id="addConsultBtn">➕ 상담 기록</button>' : ''}
-    <button class="btn btn-sm" onclick="PFM.navigate('consult_dashboard')" style="margin-left:6px">📊 분석</button>
+    <button class="btn btn-sm" data-act="PFM.navigate('consult_dashboard')" style="margin-left:6px">📊 분석</button>
     ${isManager ? '<button class="btn btn-sm" id="seedConsultBtn" style="margin-left:6px;background:#fef3c7;border-color:#fcd34d;color:#92400e">✨ 샘플 데이터</button>' : ''}
   `;
   
@@ -358,7 +358,7 @@ function renderRecordsList(body, records, month, reload, staffData, isManager) {
                 : '<span style="color:#94a3b8">⏳</span>';
               const apptBadge = r.appointment_made === 'O' ? '✅' : r.appointment_made === 'X' ? '❌' : '-';
               const zebra = idx % 2 === 1 ? 'background:rgba(0,0,0,0.015);' : '';
-              return `<tr style="border-bottom:1px solid var(--border-light);cursor:pointer;transition:background 0.12s;${zebra}" data-id="${r.id}" class="cr-row" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='${idx%2===1?'rgba(0,0,0,0.015)':''}'" >
+              return `<tr style="border-bottom:1px solid var(--border-light);cursor:pointer;transition:background 0.12s;${zebra}" data-id="${r.id}" class="cr-row" data-act-over="this.style.background='var(--bg-hover)'" data-act-out="this.style.background='${idx%2===1?'rgba(0,0,0,0.015)':''}'" >
                 <td style="padding:8px;font-weight:600;white-space:nowrap">${dateStr}</td>
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name)}${r.chart_number ? '<span style="color:var(--text-muted);font-size:10px;margin-left:4px">#'+esc(String(r.chart_number))+'</span>' : ''}</td>
                 <td style="padding:7px 8px">${esc(r.doctor_name)}</td>
@@ -658,7 +658,7 @@ function openRecordForm(record, staffData, onSave) {
         <div style="display:flex;gap:8px;margin-top:4px;padding:0 2px">
           <button type="submit" class="btn btn-primary" style="flex:1;padding:14px;font-weight:800;font-size:15px;border-radius:12px">${isEdit ? '수정 저장' : '기록 저장'}</button>
           ${isEdit ? '<button type="button" id="crDelete" class="btn" style="padding:14px;color:#ef4444;font-weight:700;border-radius:12px;border:1px solid #fecaca">삭제</button>' : ''}
-          <button type="button" onclick="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
+          <button type="button" data-act="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
         </div>
       </form>
     </div>
@@ -739,7 +739,7 @@ function openRecordForm(record, staffData, onSave) {
           suggestBox.style.display = 'block';
           suggestBox.innerHTML = acResults.map((pt, i) => {
             const typeTag = pt.patient_type === 'new' ? '<span style="color:#3b82f6;font-weight:700;font-size:10px">신환</span>' : '<span style="color:#22c55e;font-weight:700;font-size:10px">구환</span>';
-            return `<div class="cr-ac-item" data-idx="${i}" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+            return `<div class="cr-ac-item" data-idx="${i}" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;display:flex;align-items:center;gap:8px" data-act-over="this.style.background='var(--bg-hover)'" data-act-out="this.style.background=''">
               <div class="flex-1">
                 <strong style="font-size:13px">${esc(pt.patient_name)}</strong>
                 ${pt.chart_number ? `<span style="color:var(--text-muted);font-size:11px;margin-left:6px">#${esc(pt.chart_number)}</span>` : ''}
@@ -819,7 +819,7 @@ async function renderConsultDashboard(body, actions) {
   const now = new Date();
   let currentMonth = now.toISOString().slice(0,7);
   
-  actions.innerHTML = `<button class="btn btn-sm" onclick="PFM.navigate('consult_records')">📋 기록</button>`;
+  actions.innerHTML = `<button class="btn btn-sm" data-act="PFM.navigate('consult_records')">📋 기록</button>`;
   body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
   
   async function loadDashboard(month) {
@@ -1088,7 +1088,7 @@ async function loadConsultKnowledgeRecommend(summary) {
           <div style="font-weight:700;font-size:13px;color:#065f46">확정률 ${rate}% — 잘하고 있어요!</div>
           <div style="font-size:12px;color:#047857;margin-top:2px">상담 시스템이 안정적으로 돌아가는 중. 이번 달도 페이스 유지하세요.</div>
         </div>
-        <button onclick="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;color:#065f46;border:1px solid #6ee7b7">📚 노하우 더보기</button>
+        <button data-act="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;color:#065f46;border:1px solid #6ee7b7">📚 노하우 더보기</button>
       </div>
     `;
     return;
@@ -1118,14 +1118,14 @@ async function loadConsultKnowledgeRecommend(summary) {
             <div style="font-weight:700;font-size:14px;color:${severityColor}">전환율 개선 노하우 (확정률 ${rate}%)</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${severityMsg}</div>
           </div>
-          <button onclick="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;border:1px solid ${severityBorder}">📚 전체 보기</button>
+          <button data-act="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;border:1px solid ${severityBorder}">📚 전체 보기</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
           ${cards.map(c => `
-            <div onclick="window.PFMKnowledge?.openCard('${c.id}')"
+            <div data-act="window.PFMKnowledge?.openCard('${c.id}')"
               style="background:#fff;border:1px solid ${severityBorder};border-radius:10px;padding:12px 14px;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
-              onmouseout="this.style.transform='';this.style.boxShadow=''">
+              data-act-over="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
+              data-act-out="this.style.transform='';this.style.boxShadow=''">
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
                 <span style="background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600">
                   ${c.categoryMeta?.icon || '📁'} ${esc(c.categoryMeta?.label || c.category)}

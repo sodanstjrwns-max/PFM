@@ -136,7 +136,7 @@ async function renderTreatmentBoard(body, actions) {
                 ${isOffDuty ? `<button class="tb-add-duty-btn" data-doctor-id="${d.id}" data-action="add-duty" title="오늘 출근 처리" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:#22c55e;color:white;border:2px solid white;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2)">+</button>` : ''}
               </div>`;
             }).join('')}
-            <button id="tbAddDoctorBtn" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:white;border:2px dashed var(--primary);color:var(--primary);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;min-width:120px;justify-content:center" onmouseover="this.style.background='var(--primary)';this.style.color='white'" onmouseout="this.style.background='white';this.style.color='var(--primary)'">
+            <button id="tbAddDoctorBtn" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:white;border:2px dashed var(--primary);color:var(--primary);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;min-width:120px;justify-content:center" data-act-over="this.style.background='var(--primary)';this.style.color='white'" data-act-out="this.style.background='white';this.style.color='var(--primary)'">
               <span style="font-size:16px">+</span> 원장 추가
             </button>
             ${dutyList.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:8px">등록된 원장이 없습니다</div>' : ''}
@@ -176,7 +176,7 @@ async function renderTreatmentBoard(body, actions) {
               <span style="font-size:10px;padding:1px 6px;border-radius:6px;background:#ef444415;color:#ef4444;font-weight:600">${esc(t.position||'알바')}</span>
               <button data-remove-temp="${t.id}" style="width:16px;height:16px;border-radius:50%;background:#ef4444;color:white;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:2px" title="제거">✕</button>
             </div>`).join('')}
-            <button id="tbAddTempStaffBtn" style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;background:white;border:2px dashed #f59e0b;color:#f59e0b;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='#f59e0b';this.style.color='white'" onmouseout="this.style.background='white';this.style.color='#f59e0b'">
+            <button id="tbAddTempStaffBtn" style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;background:white;border:2px dashed #f59e0b;color:#f59e0b;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s" data-act-over="this.style.background='#f59e0b';this.style.color='white'" data-act-out="this.style.background='white';this.style.color='#f59e0b'">
               <span style="font-size:14px">+</span> 알바/직원 추가
             </button>
             ${presentStaff.length === 0 && tempStaff.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:4px">출근한 직원이 없습니다</div>' : ''}

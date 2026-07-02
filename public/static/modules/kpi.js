@@ -35,9 +35,9 @@ async function renderKpiDashboard(body, actions) {
   let currentMonth = now.toISOString().slice(0,7);
   
   actions.innerHTML = isManager ? `
-    <button class="btn btn-sm" onclick="PFM.navigate('kpi_daily')" style="margin-right:6px">📝 일간 기록</button>
-    <button class="btn btn-primary btn-sm" onclick="PFM.navigate('kpi_targets')">🎯 목표 설정</button>
-  ` : `<button class="btn btn-primary btn-sm" onclick="PFM.navigate('kpi_daily')">📝 일간 기록</button>`;
+    <button class="btn btn-sm" data-act="PFM.navigate('kpi_daily')" style="margin-right:6px">📝 일간 기록</button>
+    <button class="btn btn-primary btn-sm" data-act="PFM.navigate('kpi_targets')">🎯 목표 설정</button>
+  ` : `<button class="btn btn-primary btn-sm" data-act="PFM.navigate('kpi_daily')">📝 일간 기록</button>`;
   
   body.innerHTML = `<div class="mod-empty"><span class="loading-spinner"></span></div>`;
   
@@ -53,7 +53,7 @@ async function renderKpiDashboard(body, actions) {
       <div style="font-size:48px;margin-bottom:16px">📊</div>
       <h3>KPI 데이터가 없습니다</h3>
       <p style="margin:8px 0 20px">먼저 월간 목표를 설정하고, 일간 기록을 입력해주세요.</p>
-      ${isManager ? '<button class="btn btn-primary" onclick="PFM.navigate(\'kpi_targets\')">🎯 목표 설정하기</button>' : ''}
+      ${isManager ? '<button class="btn btn-primary" data-act="PFM.navigate(\'kpi_targets\')">🎯 목표 설정하기</button>' : ''}
     </div>`;
   }
 }
@@ -427,7 +427,7 @@ function renderKpiDashboardContent(body, data, cfg, month, isManager, reload) {
 /* ═══ 일간 기록 입력 ═══ */
 async function renderKpiDaily(body, actions) {
   const isManager = ['admin','manager'].includes(state.user.role);
-  actions.innerHTML = `<button class="btn btn-sm" onclick="PFM.navigate('kpi_dashboard')">📊 대시보드</button>`;
+  actions.innerHTML = `<button class="btn btn-sm" data-act="PFM.navigate('kpi_dashboard')">📊 대시보드</button>`;
   
   const cfg = await getHospitalConfig();
   const today = new Date().toISOString().slice(0,10);
@@ -576,7 +576,7 @@ function renderDailyForm(body, record, cfg, date, reload, isManager) {
 
 /* ═══ 월간 목표 설정 ═══ */
 async function renderKpiTargets(body, actions) {
-  actions.innerHTML = `<button class="btn btn-sm" onclick="PFM.navigate('kpi_dashboard')">📊 대시보드</button>`;
+  actions.innerHTML = `<button class="btn btn-sm" data-act="PFM.navigate('kpi_dashboard')">📊 대시보드</button>`;
   
   const now = new Date();
   let selectedMonth = now.toISOString().slice(0,7);

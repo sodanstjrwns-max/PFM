@@ -129,7 +129,7 @@ async function renderCommunity(body, actions, boardType) {
         const dateFormatted = formatBoardDate(p.created_at);
 
         return `
-          <div class="post-row" data-id="${esc(p.id)}" style="display:grid;grid-template-columns:50px minmax(0,1fr) 110px 70px 60px 80px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.1s;${p.is_pinned ? 'background:#fffbeb' : ''}" onmouseover="this.style.background='${p.is_pinned ? '#fef3c7' : '#f8fafc'}'" onmouseout="this.style.background='${p.is_pinned ? '#fffbeb' : ''}'">
+          <div class="post-row" data-id="${esc(p.id)}" style="display:grid;grid-template-columns:50px minmax(0,1fr) 110px 70px 60px 80px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.1s;${p.is_pinned ? 'background:#fffbeb' : ''}" data-act-over="this.style.background='${p.is_pinned ? '#fef3c7' : '#f8fafc'}'" data-act-out="this.style.background='${p.is_pinned ? '#fffbeb' : ''}'">
             <div style="text-align:center">${num}</div>
             <div style="min-width:0;overflow:hidden">
               ${targetTag}<span style="color:${titleColor};font-weight:${titleWeight};font-size:14px">${esc(p.title)}</span>${commentBracket}${hotBadge}${newBadge}
@@ -155,7 +155,7 @@ async function renderCommunity(body, actions, boardType) {
         const likeStyle = likes > 0 ? 'color:#ef4444;font-weight:600' : 'color:var(--text-muted)';
 
         return `
-        <div class="post-row" data-id="${esc(p.id)}" style="background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%);border:1px solid #fcd34d;border-radius:14px;padding:18px 22px;margin-bottom:12px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(245,158,11,0.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div class="post-row" data-id="${esc(p.id)}" style="background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%);border:1px solid #fcd34d;border-radius:14px;padding:18px 22px;margin-bottom:12px;cursor:pointer;transition:all 0.15s" data-act-over="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(245,158,11,0.15)'" data-act-out="this.style.transform='';this.style.boxShadow=''">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <span style="font-size:20px">💛</span>
             ${p.target_name ? `<span style="background:#fff;color:#92400e;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;border:1px solid #fcd34d">To. ${esc(p.target_name)}</span>` : ''}

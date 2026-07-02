@@ -25,7 +25,7 @@
   /* ─── 메인 페이지 렌더 ─── */
   async function renderKnowledge(body, actions) {
     actions.innerHTML = `
-      <button class="btn btn-secondary btn-sm" onclick="PFMKnowledge.openMyFavorites()">
+      <button class="btn btn-secondary btn-sm" data-act="PFMKnowledge.openMyFavorites()">
         <i class="fas fa-star"></i> 내 즐겨찾기
       </button>
     `;
@@ -52,14 +52,14 @@
               <i class="fas fa-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8"></i>
               <input id="kbSearch" type="text" placeholder="검색: 제목, 내용, 태그 (예: 임플란트, SPIN, 노쇼)"
                 style="width:100%;padding:10px 12px 10px 36px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px"
-                onkeyup="if(event.key==='Enter')PFMKnowledge.search()" />
+                data-act-key-enter="PFMKnowledge.search()" />
             </div>
-            <select id="kbSort" onchange="PFMKnowledge.changeSort()" style="padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px">
+            <select id="kbSort" data-act-change="PFMKnowledge.changeSort()" style="padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px">
               <option value="priority">⭐ 추천순</option>
               <option value="popular">🔥 조회순</option>
               <option value="recent">🕒 최신순</option>
             </select>
-            <button class="btn btn-primary btn-sm" onclick="PFMKnowledge.search()">
+            <button class="btn btn-primary btn-sm" data-act="PFMKnowledge.search()">
               <i class="fas fa-search"></i> 검색
             </button>
           </div>
@@ -140,7 +140,7 @@
     el.innerHTML = items.map(c => {
       const active = _state.category === c.key;
       return `
-        <button onclick="PFMKnowledge.setCategory('${esc(c.key)}')"
+        <button data-act="PFMKnowledge.setCategory('${esc(c.key)}')"
           style="padding:8px 14px;border-radius:20px;border:1.5px solid ${active ? '#0f766e' : '#e5e7eb'};
                  background:${active ? '#0f766e' : '#fff'};color:${active ? '#fff' : '#475569'};
                  font-size:13px;font-weight:${active ? '700' : '500'};cursor:pointer;transition:all 0.15s">
@@ -161,7 +161,7 @@
         const label = b.name || '전체';
         const cnt = b.count ? ` (${b.count})` : '';
         return `
-          <button onclick="PFMKnowledge.setBook('${esc(b.name)}')"
+          <button data-act="PFMKnowledge.setBook('${esc(b.name)}')"
             style="padding:5px 12px;border-radius:14px;border:1px solid ${active ? '#0e7490' : '#e5e7eb'};
                    background:${active ? '#cffafe' : '#fff'};color:${active ? '#0e7490' : '#64748b'};
                    font-size:12px;font-weight:${active ? '600' : '400'};cursor:pointer">
@@ -185,7 +185,7 @@
     el.innerHTML = `
       <div><b>${_state.total}</b>개 카드 ${filterDesc.length ? `· ${filterDesc.join(' · ')}` : ''}</div>
       ${(_state.q || _state.category || _state.book)
-        ? `<button onclick="PFMKnowledge.resetFilters()" style="background:none;border:none;color:#0f766e;cursor:pointer;font-size:12px"><i class="fas fa-times"></i> 필터 초기화</button>`
+        ? `<button data-act="PFMKnowledge.resetFilters()" style="background:none;border:none;color:#0f766e;cursor:pointer;font-size:12px"><i class="fas fa-times"></i> 필터 초기화</button>`
         : ''}
     `;
   }
@@ -212,11 +212,11 @@
     ).join(' ');
     const preview = String(c.content || '').replace(/^['"]/, '').slice(0, 120);
     return `
-      <div onclick="PFMKnowledge.openCard('${c.id}')"
+      <div data-act="PFMKnowledge.openCard('${c.id}')"
         style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;cursor:pointer;
                transition:all 0.15s;position:relative"
-        onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';this.style.borderColor='#0f766e'"
-        onmouseout="this.style.boxShadow='';this.style.borderColor='#e5e7eb'">
+        data-act-over="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';this.style.borderColor='#0f766e'"
+        data-act-out="this.style.boxShadow='';this.style.borderColor='#e5e7eb'">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="background:#ecfdf5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600">
@@ -226,7 +226,7 @@
               ? `<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:10px;font-size:11px">📖 ${esc(c.book_source)}</span>`
               : ''}
           </div>
-          <button onclick="event.stopPropagation();PFMKnowledge.toggleFavorite('${c.id}')"
+          <button data-act="event.stopPropagation();PFMKnowledge.toggleFavorite('${c.id}')"
             style="background:none;border:none;cursor:pointer;font-size:18px;color:${c.is_favorite ? '#f59e0b' : '#cbd5e1'};padding:0">
             ${c.is_favorite ? '★' : '☆'}
           </button>
@@ -278,13 +278,13 @@
             </div>
             ${tagHTML ? `<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">${tagHTML}</div>` : ''}
             <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #e5e7eb;padding-top:14px">
-              <button class="btn btn-secondary" onclick="PFMKnowledge.toggleFavorite('${card.id}', true)">
+              <button class="btn btn-secondary" data-act="PFMKnowledge.toggleFavorite('${card.id}', true)">
                 ${card.is_favorite ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기'}
               </button>
-              <button class="btn btn-primary" onclick="PFMKnowledge.copyContent('${card.id}')">
+              <button class="btn btn-primary" data-act="PFMKnowledge.copyContent('${card.id}')">
                 <i class="fas fa-copy"></i> 본문 복사
               </button>
-              <button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>
+              <button class="btn btn-default" data-act="PFM.closeModal()">닫기</button>
             </div>
           </div>
         `
@@ -331,14 +331,14 @@
         showModal(
           '⭐ 내 즐겨찾기',
           `<div style="padding:20px;text-align:center;color:#94a3b8">아직 즐겨찾기한 카드가 없습니다.<br>마음에 드는 카드의 ☆ 버튼을 눌러 추가해보세요.</div>
-           <div style="margin-top:14px;text-align:right"><button class="btn btn-primary" onclick="PFM.closeModal()">확인</button></div>`
+           <div style="margin-top:14px;text-align:right"><button class="btn btn-primary" data-act="PFM.closeModal()">확인</button></div>`
         );
         return;
       }
       const list = meta.favorites.map(f => `
-        <div onclick="PFM.closeModal();PFMKnowledge.openCard('${f.id}')"
+        <div data-act="PFM.closeModal();PFMKnowledge.openCard('${f.id}')"
           style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:8px"
-          onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+          data-act-over="this.style.background='#f8fafc'" data-act-out="this.style.background='#fff'">
           <div style="font-weight:600;color:#1e293b;font-size:14px">${esc(f.title)}</div>
           <div style="font-size:12px;color:#64748b;margin-top:4px">
             ${esc(f.category)} ${f.book_source ? '· 📖 ' + esc(f.book_source) : ''}
@@ -349,7 +349,7 @@
         `⭐ 내 즐겨찾기 (${meta.favorites.length}개)`,
         `<div style="max-width:520px">${list}</div>
          <div style="margin-top:14px;text-align:right;border-top:1px solid #e5e7eb;padding-top:12px">
-           <button class="btn btn-default" onclick="PFM.closeModal()">닫기</button>
+           <button class="btn btn-default" data-act="PFM.closeModal()">닫기</button>
          </div>`
       );
     } catch (e) { toast('불러오기 실패', 'error'); }

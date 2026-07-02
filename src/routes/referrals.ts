@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { calculateFanScore, FAN_LEVEL_META, getLevelChangeNotification, type FanLevel } from '../lib/fan-score'
+import { auditFromCtx } from '../lib/audit'
 
 const referrals = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -166,6 +167,7 @@ referrals.delete('/:id', async (c) => {
   `).bind(id, user.hospitalId).run()
 
   await recalculateFanLevel(c.env.DB, user.hospitalId, (ref as any).referrer_id)
+  auditFromCtx(c, 'referral.delete', { targetType: 'referral', targetId: id, summary: `소개 관계 삭제 (referrer: ${(ref as any).referrer_id})` })
   return c.json({ ok: true })
 })
 

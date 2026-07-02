@@ -147,7 +147,7 @@ async function renderCallsOutbound(body, actions) {
               const purpose = CALL_PURPOSES.find(p => p.key === r.call_purpose) || { icon: '', label: r.call_purpose || '-' };
               const ptColor = r.patient_type === 'new' ? '#3b82f6' : '#22c55e';
               const ptLabel = r.patient_type === 'new' ? '신환' : r.patient_type === 'existing' ? '구환' : '-';
-              return `<tr class="co-row" data-id="${r.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+              return `<tr class="co-row" data-id="${r.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" data-act-over="this.style.background='var(--bg-hover)'" data-act-out="this.style.background=''">
                 <td style="padding:8px;font-size:11px;white-space:nowrap">${fmtDate(r.call_date)}</td>
                 <td style="padding:8px;font-weight:700">${esc(r.patient_name||'-')}</td>
                 <td style="padding:8px;font-size:11px;color:var(--text-muted)">${esc(r.phone||'-')}</td>

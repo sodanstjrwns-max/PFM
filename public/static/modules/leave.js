@@ -187,11 +187,11 @@ async function renderLeaveManagement(body, actions) {
         ${r.reason ? `<div style="font-size:12px;color:var(--text-secondary)">💬 ${esc(r.reason)}</div>` : ''}
         ${r.reject_reason ? `<div style="font-size:12px;color:#ef4444;margin-top:4px">❌ 반려 사유: ${esc(r.reject_reason)}</div>` : ''}
         ${r.status === 'pending' && isAdmin ? `<div style="display:flex;gap:6px;margin-top:8px">
-          <button class="btn btn-sm" style="background:#22c55e;color:white;font-size:11px" onclick="approveLeave('${r.id}')">✅ 승인</button>
-          <button class="btn btn-sm" style="background:#ef4444;color:white;font-size:11px" onclick="rejectLeave('${r.id}')">❌ 반려</button>
+          <button class="btn btn-sm" style="background:#22c55e;color:white;font-size:11px" data-act="approveLeave('${r.id}')">✅ 승인</button>
+          <button class="btn btn-sm" style="background:#ef4444;color:white;font-size:11px" data-act="rejectLeave('${r.id}')">❌ 반려</button>
         </div>` : ''}
-        ${r.status === 'pending' && r.user_id === state.user.id ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px" onclick="cancelLeave('${r.id}')">취소</button></div>` : ''}
-        ${r.status === 'approved' && (r.user_id === state.user.id || ['admin','manager'].includes(state.user.role)) ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" onclick="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
+        ${r.status === 'pending' && r.user_id === state.user.id ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px" data-act="cancelLeave('${r.id}')">취소</button></div>` : ''}
+        ${r.status === 'approved' && (r.user_id === state.user.id || ['admin','manager'].includes(state.user.role)) ? `<div class="mt-8"><button class="btn btn-sm" style="font-size:11px;color:#ef4444" data-act="cancelLeave('${r.id}')">연차 취소 (잔여 복구)</button></div>` : ''}
       </div>`;
     }).join('');
   }
@@ -323,7 +323,7 @@ async function renderLeaveManagement(body, actions) {
           </div>
 
           <div style="display:flex;gap:12px">
-            <button type="button" class="btn" onclick="closeModal()" style="flex:1;padding:14px;font-size:14px;font-weight:600;border-radius:12px">취소</button>
+            <button type="button" class="btn" data-act="closeModal()" style="flex:1;padding:14px;font-size:14px;font-weight:600;border-radius:12px">취소</button>
             <button type="submit" class="btn btn-primary" style="flex:2;padding:14px;font-size:14px;font-weight:700;border-radius:12px">🏖️ 신청하기</button>
           </div>
         </form>
@@ -410,20 +410,20 @@ async function renderLeaveManagement(body, actions) {
                 <td style="padding:10px;text-align:center;border-bottom:1px solid var(--border)">
                   <input type="number" min="0" max="30" step="0.5" value="${ab ? ab.total_days : 0}" 
                     style="width:60px;text-align:center;padding:4px;border:1px solid var(--border);border-radius:4px"
-                    onchange="saveBalance('${u.id}','annual',this.value)">
+                    data-act-change="saveBalance('${u.id}','annual',this.value)">
                   ${ab ? `<span style="font-size:11px;color:var(--text-secondary)">(사용 ${ab.used_days})</span>` : ''}
                 </td>
                 <td style="padding:10px;text-align:center;border-bottom:1px solid var(--border)">
                   <input type="number" min="0" max="30" step="0.5" value="${sb ? sb.total_days : 0}" 
                     style="width:60px;text-align:center;padding:4px;border:1px solid var(--border);border-radius:4px"
-                    onchange="saveBalance('${u.id}','sick',this.value)">
+                    data-act-change="saveBalance('${u.id}','sick',this.value)">
                   ${sb ? `<span style="font-size:11px;color:var(--text-secondary)">(사용 ${sb.used_days})</span>` : ''}
                 </td>
               </tr>`;
             }).join('')}
           </tbody>
         </table>
-        <div style="text-align:right;margin-top:24px"><button class="btn" onclick="closeModal()" style="padding:10px 24px;border-radius:10px">닫기</button></div>
+        <div style="text-align:right;margin-top:24px"><button class="btn" data-act="closeModal()" style="padding:10px 24px;border-radius:10px">닫기</button></div>
       </div>
       `;
       showModal();

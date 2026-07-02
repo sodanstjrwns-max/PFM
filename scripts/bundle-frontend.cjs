@@ -11,6 +11,7 @@ const DIST = path.join(STATIC, 'dist');
 ═══ */
 
 const CORE_FILES = [
+  'modules/actions.js', // v5.8 CSP-safe 이벤트 위임 (data-act) — 반드시 최우선 로드
   'app.js',
   'modules/dashboard.js',
   'modules/pwa.js',   // v3.2 PWA + Service Worker 등록

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 
 const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -123,8 +124,24 @@ hr.put('/staff/:id', async (c) => {
     }
   }
   if (fields.length === 0) return c.json({ error: '변경 사항이 없습니다' }, 400)
+  // 📝 감사 로그: 민감 필드 변경은 before 값을 남긴다
+  const changedSensitive = SENSITIVE.filter(k => body[k] !== undefined)
+  let before: any = null
+  if (changedSensitive.length > 0) {
+    before = await c.env.DB.prepare('SELECT name, role, is_active, work_status FROM users WHERE id=? AND hospital_id=?').bind(targetId, user.hospitalId).first()
+  }
   fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(targetId, user.hospitalId)
   await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  if (changedSensitive.length > 0 && before) {
+    const isRole = body.role !== undefined && body.role !== before.role
+    auditFromCtx(c, isRole ? 'hr.role_change' : 'hr.status_change', {
+      targetType: 'user', targetId,
+      summary: isRole
+        ? `${before.name} 권한 변경: ${before.role} → ${body.role}`
+        : `${before.name} 재직상태 변경 (${changedSensitive.join(', ')})`,
+      metadata: { before: { role: before.role, is_active: before.is_active, work_status: before.work_status }, after: Object.fromEntries(changedSensitive.map(k => [k, body[k]])) },
+    })
+  }
   return c.json({ success: true })
 })
 
@@ -157,6 +174,7 @@ hr.post('/invite', async (c) => {
   await c.env.DB.prepare(
     'INSERT INTO staff_invites (id, hospital_id, invite_code, role, position, team, created_by, expires_at, max_uses, use_count, status, memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(id, user.hospitalId, code, b.role||'staff', b.position||'', b.team||'', user.id, expiresAt, maxUses, 0, 'active', b.memo || '').run()
+  auditFromCtx(c, 'hr.invite_create', { targetType: 'invite', targetId: id, summary: `초대코드 생성 (권한: ${b.role||'staff'}, ${maxUses}인용)`, metadata: { role: b.role||'staff', max_uses: maxUses, expires_at: expiresAt } })
   return c.json({ id, invite_code: code, expires_at: expiresAt, max_uses: maxUses, memo: b.memo || '' })
 })
 
@@ -205,6 +223,7 @@ hr.delete('/invites/:id', async (c) => {
   await c.env.DB.prepare(
     'UPDATE staff_invites SET status=?, revoked_at=CURRENT_TIMESTAMP, revoked_by=? WHERE id=? AND hospital_id=?'
   ).bind('revoked', user.id, inviteId, user.hospitalId).run()
+  auditFromCtx(c, 'hr.invite_revoke', { targetType: 'invite', targetId: inviteId, summary: `초대코드 취소 (권한: ${invite.role})` })
   return c.json({ success: true })
 })
 

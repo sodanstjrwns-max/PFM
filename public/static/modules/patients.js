@@ -310,7 +310,7 @@ async function renderPatients(body, actions) {
               const sourceGroup = SOURCE_GROUPS[p.visit_source] || '미입력';
               const sgColor = SOURCE_GROUP_COLORS[sourceGroup] || '#cbd5e1';
               const addrShort = fmtAddrShort(p);
-              return `<tr class="pt-row" data-id="${p.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+              return `<tr class="pt-row" data-id="${p.id}" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s" data-act-over="this.style.background='var(--bg-hover)'" data-act-out="this.style.background=''">
                 <td style="padding:10px 12px;font-weight:700">${esc(p.patient_name)}</td>
                 <td style="padding:10px 8px;color:var(--text-muted);font-size:11px">${esc(p.chart_number||'-')}</td>
                 <td style="padding:10px 8px"><span style="background:${typeColor}15;color:${typeColor};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${typeLabel}</span></td>
@@ -632,7 +632,7 @@ function openPatientForm(patient, staffData, onSave) {
             ${isEdit ? '✅ 수정 저장' : '👤 환자 등록'}
           </button>
           ${isEdit ? '<button type="button" id="ptDelete" class="btn" style="padding:14px;color:#ef4444;font-weight:700;border-radius:12px;border:1px solid #fecaca">삭제</button>' : ''}
-          <button type="button" onclick="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
+          <button type="button" data-act="PFM.closeModal()" class="btn" style="padding:14px;border-radius:12px">취소</button>
         </div>
       </form>
     </div>
@@ -761,7 +761,7 @@ async function openPatientDetail(patientId, staffData, onUpdate) {
         </div>
         
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button onclick="PFM.closeModal()" class="btn" style="flex:1;padding:12px;border-radius:12px">닫기</button>
+          <button data-act="PFM.closeModal()" class="btn" style="flex:1;padding:12px;border-radius:12px">닫기</button>
         </div>
       </div>
     `;

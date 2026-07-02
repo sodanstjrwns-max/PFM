@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 const reviewMgmt = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 리뷰 통합 관리 시스템 ═══ */
@@ -102,6 +103,7 @@ reviewMgmt.delete('/:id', async (c) => {
   const exist: any = await c.env.DB.prepare('SELECT id FROM review_management WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
   if (!exist) return c.json({ error: '리뷰를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM review_management WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  auditFromCtx(c, 'review.delete', { targetType: 'review', targetId: exist.id, summary: '리뷰 기록 삭제' })
   return c.json({ success: true })
 })
 

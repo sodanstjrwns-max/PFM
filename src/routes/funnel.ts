@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 const funnel = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 환자 퍼널 (Patient Funnel) 10단계 ═══ */
@@ -350,9 +351,10 @@ funnel.delete('/:id', async (c) => {
   if (user.role !== 'admin' && user.role !== 'manager') {
     return c.json({ error: '퍼널 환자 삭제는 관리자/매니저만 가능합니다' }, 403)
   }
-  const exist = await c.env.DB.prepare('SELECT id FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  const exist: any = await c.env.DB.prepare('SELECT id, patient_name FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
   if (!exist) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare('DELETE FROM patient_funnel WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
+  auditFromCtx(c, 'funnel.delete', { targetType: 'funnel_patient', targetId: exist.id, summary: `퍼널 환자 삭제: ${exist.patient_name || exist.id}` })
   return c.json({ success: true })
 })
 

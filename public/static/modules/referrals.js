@@ -1717,7 +1717,7 @@
       <div class="modal-overlay" id="rfx-detail-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
         <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl">
           <div class="bg-gradient-to-r ${meta.bg} p-6 rounded-t-3xl text-white relative">
-            <button onclick="document.getElementById('rfx-detail-modal').remove()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30">✕</button>
+            <button data-act="document.getElementById('rfx-detail-modal').remove()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30">✕</button>
             <div class="text-5xl mb-2">${meta.emoji}</div>
             <h2 class="text-2xl font-bold">${node.name}</h2>
             <div class="text-white/80 text-sm mt-1">${meta.label} · 영향력 점수 ${node.score}점</div>

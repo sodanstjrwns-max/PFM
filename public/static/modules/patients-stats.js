@@ -366,7 +366,7 @@ const LTV_TIER_COLORS = {
 };
 
 async function renderLtvRanking(body, actions) {
-  actions.innerHTML = '<button class="btn btn-sm" onclick="PFM.navigate(\'patients_stats\')">📊 환자 통계</button>';
+  actions.innerHTML = '<button class="btn btn-sm" data-act="PFM.navigate(\'patients_stats\')">📊 환자 통계</button>';
   body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   try {
@@ -419,7 +419,7 @@ async function renderLtvRanking(body, actions) {
           <tbody>
             ${ranking.map(r => {
               const m = LTV_TIER_COLORS[r.tier] || LTV_TIER_COLORS.REGULAR;
-              return `<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="PFM.modules.patients?.openPatientDetail?.('${r.id}', null, ()=>{})">
+              return `<tr style="border-bottom:1px solid var(--border);cursor:pointer" data-act="PFM.modules.patients?.openPatientDetail?.('${r.id}', null, ()=>{})">
                 <td style="padding:8px 12px;font-weight:900;color:#64748b">${r.rank}</td>
                 <td style="padding:8px 12px"><span style="background:${m.bg};color:${m.color};border:1px solid ${m.border};padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px">${m.icon} ${r.tier}</span></td>
                 <td style="padding:8px 12px;font-weight:700">${esc(r.patient_name)}</td>

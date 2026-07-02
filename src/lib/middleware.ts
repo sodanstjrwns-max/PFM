@@ -43,12 +43,12 @@ export function securityHeaders(app: AppType) {
       "default-src 'self'",
       // v5.6.1: Tailwind 정적화로 'unsafe-eval' 제거
       // v5.7: 모든 인라인 <script> 블록 외부화 완료 → script-src-elem 에서 'unsafe-inline' 제거.
-      //   CSP3 분리 지시어: -elem(스크립트 태그) vs -attr(이벤트 핸들러 속성)
-      //   → 주입된 <script>…</script> (핵심 XSS 벡터)는 차단, 기존 onclick= 핸들러는 동작 유지.
-      //   script-src 는 구형 브라우저 폴백 (CSP3 미지원 시 기존 동작과 동일).
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+      // v5.8: onclick= 등 인라인 이벤트 핸들러 129곳 → data-act 이벤트 위임으로 전환 완료.
+      //   script-src-attr 에서도 'unsafe-inline' 제거 → 인라인 스크립트 실행 경로 전면 차단.
+      //   script-src(폴백)에서도 'unsafe-inline' 제거 — 구형 브라우저에서도 동일 차단.
+      "script-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
       "script-src-elem 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
-      "script-src-attr 'unsafe-inline'",
+      "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",

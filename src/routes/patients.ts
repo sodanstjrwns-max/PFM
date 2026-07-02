@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 const patients = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 환자 데이터베이스 (Patient Registry) ═══ */
@@ -255,9 +256,10 @@ patients.delete('/:id', async (c) => {
     return c.json({ error: '환자 비활성화는 관리자/매니저만 가능합니다' }, 403)
   }
   const id = c.req.param('id')
-  const exist: any = await c.env.DB.prepare('SELECT id FROM patients WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
+  const exist: any = await c.env.DB.prepare('SELECT id, patient_name FROM patients WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first()
   if (!exist) return c.json({ error: '환자를 찾을 수 없습니다' }, 404)
   await c.env.DB.prepare("UPDATE patients SET status='inactive', updated_at=? WHERE id=? AND hospital_id=?").bind(new Date().toISOString(), id, user.hospitalId).run()
+  auditFromCtx(c, 'patient.delete', { targetType: 'patient', targetId: id, summary: `환자 비활성화: ${exist.patient_name}` })
   return c.json({ success: true })
 })
 

@@ -1,8 +1,44 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { requireRole, sanitizeString, sanitizeNumber } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 
 const admin = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+
+/* ═══ 시스템 감사 로그 (Audit Trail) — v5.8 ═══ */
+
+// 감사 로그 조회 (admin 전용 — 권한 변경 이력은 원장만)
+admin.get('/audit-logs', requireRole('admin'), async (c) => {
+  const user = c.get('user')!
+  const action = sanitizeString(c.req.query('action') || '', 50)
+  const actorId = sanitizeString(c.req.query('actor_id') || '', 50)
+  const limit = Math.min(sanitizeNumber(c.req.query('limit'), 100) || 100, 500)
+  const offset = Math.max(sanitizeNumber(c.req.query('offset'), 0) || 0, 0)
+
+  let where = 'WHERE hospital_id = ?'
+  const params: any[] = [user.hospitalId]
+  if (action) {
+    // 'hr.' 처럼 접두어 필터 허용
+    where += action.endsWith('.') ? ' AND action LIKE ?' : ' AND action = ?'
+    params.push(action.endsWith('.') ? action + '%' : action)
+  }
+  if (actorId) { where += ' AND actor_id = ?'; params.push(actorId) }
+
+  const [rows, count] = await c.env.DB.batch([
+    c.env.DB.prepare(`SELECT * FROM audit_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...params, limit, offset),
+    c.env.DB.prepare(`SELECT COUNT(*) as total FROM audit_logs ${where}`).bind(...params),
+  ])
+  return c.json({ logs: rows.results, total: (count.results?.[0] as any)?.total || 0, limit, offset })
+})
+
+// 감사 로그 액션 종류 (필터 UI용)
+admin.get('/audit-logs/actions', requireRole('admin'), async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(
+    'SELECT action, COUNT(*) as cnt FROM audit_logs WHERE hospital_id=? GROUP BY action ORDER BY cnt DESC'
+  ).bind(user.hospitalId).all()
+  return c.json(rows.results)
+})
 
 /* ═══ #19 Error Monitoring / Logging ═══ */
 
@@ -115,6 +151,7 @@ admin.get('/export/:table', requireRole('admin', 'manager'), async (c) => {
   await c.env.DB.prepare(
     'INSERT INTO export_logs (hospital_id, user_id, export_type, table_name, row_count, format) VALUES (?,?,?,?,?,?)'
   ).bind(user.hospitalId, user.id, 'csv', table, rows.results?.length || 0, 'csv').run()
+  auditFromCtx(c, 'admin.export', { targetType: 'table', targetId: table, summary: `데이터 내보내기: ${table} (${rows.results?.length || 0}행 CSV)` })
 
   // Return CSV with BOM for Excel compatibility
   const bom = '\uFEFF'

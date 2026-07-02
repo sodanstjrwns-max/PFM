@@ -222,7 +222,7 @@ async function renderStaffManagement(body, actions) {
                 const dayKeys = ['mon','tue','wed','thu','fri','sat','sun'];
                 const workDays = dayKeys.filter(d => schedule[d]).length;
 
-                return `<div class="staff-row" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;cursor:pointer;transition:box-shadow 0.15s" onmouseenter="this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.boxShadow='none'">
+                return `<div class="staff-row" data-id="${m.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;cursor:pointer;transition:box-shadow 0.15s" data-act-menter="this.style.boxShadow='var(--shadow-md)'" data-act-mleave="this.style.boxShadow='none'">
                   <div style="display:flex;align-items:center;gap:12px">
                     <div style="width:42px;height:42px;border-radius:50%;background:${teamColors[t]||'#6b7280'}15;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${pe}</div>
                     <div style="flex:1;min-width:0">

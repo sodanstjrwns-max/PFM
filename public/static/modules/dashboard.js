@@ -69,11 +69,11 @@ async function loadDailyKnowledgeWidget() {
     ).join(' ');
     slot.innerHTML = `
       <div class="section-title">📚 <span>오늘의 노하우 카드</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">매일 한 장 · 원장님 6권 노하우</span></div>
-      <div onclick="window.PFMKnowledge?.openCard('${c.id}')"
+      <div data-act="window.PFMKnowledge?.openCard('${c.id}')"
         style="background:linear-gradient(135deg,#0f766e 0%,#0e7490 50%,#1e40af 100%);color:#fff;border-radius:14px;padding:20px 22px;cursor:pointer;
                box-shadow:0 4px 14px rgba(15,118,110,0.25);transition:all 0.2s;position:relative;overflow:hidden"
-        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(15,118,110,0.35)'"
-        onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(15,118,110,0.25)'">
+        data-act-over="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(15,118,110,0.35)'"
+        data-act-out="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(15,118,110,0.25)'">
         <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:240px">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
@@ -90,12 +90,12 @@ async function loadDailyKnowledgeWidget() {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-            <button onclick="event.stopPropagation();window.PFMKnowledge?.openCard('${c.id}')"
+            <button data-act="event.stopPropagation();window.PFMKnowledge?.openCard('${c.id}')"
               style="background:rgba(255,255,255,0.95);color:#0f766e;border:none;padding:8px 14px;border-radius:8px;
                      font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
               자세히 보기 <i class="fas fa-arrow-right" style="font-size:10px"></i>
             </button>
-            <button onclick="event.stopPropagation();PFM.navigate('knowledge')"
+            <button data-act="event.stopPropagation();PFM.navigate('knowledge')"
               style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:6px 12px;border-radius:8px;
                      font-size:11px;cursor:pointer;white-space:nowrap">
               전체 보기
@@ -574,7 +574,7 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
               ${heroDormant > 0 ? `휴면 환자 <b><span data-flow-target="${heroDormant}" data-flow-suffix="명" data-flow-delay="400">0명</span></b>에게 리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.` : '리콜 한 통이면 이 중 20~30%는 예약으로 전환 가능합니다.'}
             </div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px" data-act="event.stopPropagation()">
             <button class="btn btn-lg" data-goto="recall" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.35);backdrop-filter:blur(10px);font-weight:700">
               📞 리콜 시작
             </button>
@@ -640,10 +640,10 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
         </div>
       </div>
       <div class="sample-banner-actions">
-        <button class="btn-sample-inject" onclick="injectSampleData(this)">
+        <button class="btn-sample-inject" data-act="injectSampleData(this)">
           ✨ 샘플 데이터로 체험 시작
         </button>
-        <button class="btn-sample-skip" onclick="this.closest('.sample-banner').style.display='none';localStorage.setItem('pfm_skip_sample','1')">
+        <button class="btn-sample-skip" data-act="this.closest('.sample-banner').style.display='none';localStorage.setItem('pfm_skip_sample','1')">
           직접 입력할게요
         </button>
       </div>
@@ -715,7 +715,7 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
     </div>
 
     ${(surveyToday?.isSendDay && isManager) ? `
-    <div id="surveyTodayBanner" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:14px;padding:16px 20px;margin-bottom:20px;border:2px solid #f59e0b;cursor:pointer;transition:transform .15s" onmouseenter="this.style.transform='translateY(-1px)'" onmouseleave="this.style.transform=''">
+    <div id="surveyTodayBanner" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:14px;padding:16px 20px;margin-bottom:20px;border:2px solid #f59e0b;cursor:pointer;transition:transform .15s" data-act-menter="this.style.transform='translateY(-1px)'" data-act-mleave="this.style.transform=''">
       <div style="display:flex;align-items:center;gap:12px">
         <span style="font-size:32px;flex-shrink:0">🔔</span>
         <div style="flex:1;min-width:0">
@@ -880,7 +880,7 @@ function renderDashboardContent(body, s, briefing, surveyToday, weeklyStatus, in
             { goto: 'materials', icon: '📖', bg: '#dcfce7', title: '3단계: 설명자료 업로드', desc: '환자 교육 자료 등록', tc: '#166534' },
             { goto: 'scripts', icon: '🎯', bg: '#fce7f3', title: '4단계: 상담 스크립트', desc: '시술별 상담 가이드 작성', tc: '#9d174d' },
           ].map(s => `
-            <div class="onboard-step" data-goto="${s.goto}" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseleave="this.style.boxShadow=''">
+            <div class="onboard-step" data-goto="${s.goto}" style="background:white;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;border:1px solid #e0f2fe;transition:box-shadow .15s" data-act-menter="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" data-act-mleave="this.style.boxShadow=''">
               <div style="width:44px;height:44px;border-radius:12px;background:${s.bg};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.icon}</div>
               <div class="flex-1"><div style="font-weight:700;font-size:14px;color:${s.tc}">${h(s.title)}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${s.desc}</div></div>
               <span style="font-size:20px">→</span>
@@ -915,8 +915,8 @@ function renderPfIndexWidget(status) {
           <div style="font-size:13px;color:#475569;margin-top:4px">내 인덱스 <strong style="color:#6366f1;font-size:18px">${(myScore||0).toFixed(2)}</strong> / 5.00 · 연속 ${streak}주 · 전국 ${natHosp}개 병원 ${natResp}명 참여</div>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="window.PFMPfIndex?.openNational()">🌐 전국 인사이트</button>
-          <button class="btn btn-secondary btn-sm" onclick="PFM.navigate('pf_index')">상세</button>
+          <button class="btn btn-primary btn-sm" data-act="window.PFMPfIndex?.openNational()">🌐 전국 인사이트</button>
+          <button class="btn btn-secondary btn-sm" data-act="PFM.navigate('pf_index')">상세</button>
         </div>
       </div>
     `;
@@ -929,7 +929,7 @@ function renderPfIndexWidget(status) {
         <div style="font-size:13px;color:#92400e;font-weight:700">📝 이번 주 설문이 도착했습니다</div>
         <div style="font-size:13px;color:#78350f;margin-top:4px">5분이면 끝 · 응답하면 전국 ${natHosp}개 병원 ${natResp}명의 인사이트 보고서 잠금 해제</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="window.PFMPfIndex?.openSurvey()"><i class="fas fa-pen-to-square"></i> 5분 설문 시작</button>
+      <button class="btn btn-primary btn-sm" data-act="window.PFMPfIndex?.openSurvey()"><i class="fas fa-pen-to-square"></i> 5분 설문 시작</button>
     </div>
   `;
 }

@@ -914,8 +914,8 @@ function bindMessengerEvents() {
         return `
           <div class="msg-dir-user" data-user-id="${u.id}" data-user-name="${escapeHtml(u.name)}"
                style="display:flex; align-items:center; padding:6px 10px; border-radius:6px; cursor:pointer; color:#e5e7eb; font-size:12px;"
-               onmouseover="this.style.background='rgba(255,255,255,0.06)'"
-               onmouseout="this.style.background='transparent'">
+               data-act-over="this.style.background='rgba(255,255,255,0.06)'"
+               data-act-out="this.style.background='transparent'">
             ${presenceDot(eff)}
             <div style="flex:1; min-width:0;">
               <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -1500,7 +1500,7 @@ function showNewChannelModal() {
           <textarea id="newChDesc" class="form-input" rows="2" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;"></textarea>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">취소</button>
+          <button class="msg-main-btn" data-act="document.getElementById('msgModal').remove()">취소</button>
           <button class="msg-send" id="newChSubmit">만들기</button>
         </div>
       </div>
@@ -1549,7 +1549,7 @@ async function showNewDmModal() {
             </div>`).join('') || '<div style="padding:30px;text-align:center;color:#9ca3af;">사용자가 없습니다</div>'}
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+          <button class="msg-main-btn" data-act="document.getElementById('msgModal').remove()">닫기</button>
         </div>
       </div>
     </div>`;
@@ -1590,7 +1590,7 @@ function showSearchModal() {
           <div style="padding:20px;text-align:center;color:#9ca3af;">검색어를 입력하세요</div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+          <button class="msg-main-btn" data-act="document.getElementById('msgModal').remove()">닫기</button>
         </div>
       </div>
     </div>`;
@@ -1652,7 +1652,7 @@ async function showMembersModal(channel) {
             </div>`).join('')}
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="msg-main-btn" onclick="document.getElementById('msgModal').remove()">닫기</button>
+          <button class="msg-main-btn" data-act="document.getElementById('msgModal').remove()">닫기</button>
         </div>
       </div>
     </div>`;

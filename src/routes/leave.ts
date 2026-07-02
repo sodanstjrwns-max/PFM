@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { auditFromCtx } from '../lib/audit'
 const leave = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 leave.get('/users', async (c) => {
@@ -98,6 +99,7 @@ leave.put('/requests/:id', async (c) => {
     await c.env.DB.prepare('UPDATE leave_balances SET used_days = used_days + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND year = ? AND leave_type = ?').bind(req.days, req.user_id, year, balType).run()
   }
   await c.env.DB.prepare('UPDATE leave_requests SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, reject_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(b.status, user.id, b.reject_reason || '', id).run()
+  auditFromCtx(c, b.status === 'approved' ? 'leave.approve' : 'leave.reject', { targetType: 'leave', targetId: id, summary: `연차 ${b.status === 'approved' ? '승인' : '반려'} (신청자: ${req.user_id}, ${req.start_date}~${req.end_date}, ${req.days}일)`, metadata: { leave_type: req.leave_type, days: req.days, reject_reason: b.reject_reason || undefined } })
   return c.json({ success: true })
 })
 
@@ -113,6 +115,10 @@ leave.delete('/requests/:id', async (c) => {
     await c.env.DB.prepare('UPDATE leave_balances SET used_days = MAX(0, used_days - ?), updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND year = ? AND leave_type = ?').bind(req.days, req.user_id, year, balType).run()
   }
   await c.env.DB.prepare('UPDATE leave_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind('cancelled', id).run()
+  if (req.user_id !== user.id) {
+    // 본인 취소는 일상 작업 — 관리자가 타인 연차를 취소한 경우만 기록
+    auditFromCtx(c, 'leave.cancel', { targetType: 'leave', targetId: id, summary: `타인 연차 취소 (신청자: ${req.user_id}, 상태였던 값: ${req.status})`, metadata: { was_approved: req.status === 'approved', days: req.days } })
+  }
   return c.json({ success: true })
 })
 
