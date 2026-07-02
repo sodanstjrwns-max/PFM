@@ -66,7 +66,7 @@ meetings.put('/:id', async (c) => {
   const raw = await c.req.json()
   const meeting = await c.env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND hospital_id = ?').bind(id, user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
-  if (meeting.created_by !== user.id && user.role !== 'admin') return c.json({ error: '권한이 없습니다' }, 403)
+  if (meeting.created_by !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
   const allowed = ['title','description','meeting_date','start_time','end_time','location','status','visibility']
   const maxLens: Record<string,number> = { title:200, description:5000, meeting_date:10, start_time:10, end_time:10, location:200, status:20, visibility:20 }
   const fields: string[] = []; const vals: any[] = []
@@ -81,27 +81,43 @@ meetings.delete('/:id', async (c) => {
   const user = c.get('user')!; const id = c.req.param('id')
   const meeting = await c.env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND hospital_id = ?').bind(id, user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
-  if (meeting.created_by !== user.id && user.role !== 'admin') return c.json({ error: '권한이 없습니다' }, 403)
-  await c.env.DB.prepare('DELETE FROM meetings WHERE id = ?').bind(id).run()
+  if (meeting.created_by !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
+  // 연쇄 삭제: 참석자·회의록 고아 레코드 방지 (FK CASCADE 미보장 환경 대비 명시 삭제)
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM meeting_participants WHERE meeting_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM meeting_minutes WHERE meeting_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM meetings WHERE id = ?').bind(id),
+  ])
   return c.json({ success: true })
 })
 
 meetings.put('/:id/participants', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
   // IDOR 방지: 해당 병원의 회의인지 확인
-  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first()
+  const meeting = await c.env.DB.prepare('SELECT id, created_by FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  const isOrganizerLike = meeting.created_by === user.id || user.role === 'admin' || user.role === 'manager'
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     user_id: { type: 'string', max: 100 },
-    role: { type: 'enum', values: ['organizer','attendee','optional'] },
-    attendance: { type: 'enum', values: ['present','absent','late'] },
+    // DB CHECK 제약과 동일한 enum (organizer/presenter/attendee)
+    role: { type: 'enum', values: ['organizer','presenter','attendee'] },
+    // DB CHECK 제약과 동일한 enum (pending/attended/absent/late) — UI '참석' 클릭 무시 버그 수정
+    attendance: { type: 'enum', values: ['pending','attended','absent','late'] },
   })
+  if (raw.attendance !== undefined && !b.attendance) return c.json({ error: '유효하지 않은 출석 상태입니다' }, 400)
   if (b.attendance) {
-    await c.env.DB.prepare('UPDATE meeting_participants SET attendance = ? WHERE meeting_id = ? AND user_id = ?').bind(b.attendance, meetingId, b.user_id || user.id).run()
+    const targetId = b.user_id || user.id
+    // 본인 출석은 스스로 변경 가능, 타인 출석은 주최자·관리자만 변경 가능
+    if (targetId !== user.id && !isOrganizerLike) return c.json({ error: '다른 참석자의 출석 상태를 변경할 권한이 없습니다' }, 403)
+    await c.env.DB.prepare('UPDATE meeting_participants SET attendance = ? WHERE meeting_id = ? AND user_id = ?').bind(b.attendance, meetingId, targetId).run()
   } else if (b.user_id) {
+    // 참석자 추가는 주최자·관리자만 가능
+    if (!isOrganizerLike) return c.json({ error: '참석자 추가는 주최자 또는 관리자만 가능합니다' }, 403)
     const pId = 'mp-' + crypto.randomUUID().slice(0,8)
     await c.env.DB.prepare('INSERT OR IGNORE INTO meeting_participants (id, meeting_id, user_id, role, hospital_id) VALUES (?,?,?,?,?)').bind(pId, meetingId, b.user_id, b.role || 'attendee', user.hospitalId).run()
+  } else {
+    return c.json({ error: '유효하지 않은 요청입니다' }, 400)
   }
   return c.json({ success: true })
 })
@@ -109,8 +125,11 @@ meetings.put('/:id/participants', async (c) => {
 meetings.delete('/:id/participants/:userId', async (c) => {
   const user = c.get('user')!
   // IDOR 방지: 해당 병원의 회의인지 확인
-  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  const meeting = await c.env.DB.prepare('SELECT id, created_by FROM meetings WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  // 본인 탈퇴는 허용, 타인 제거는 주최자·관리자만 가능
+  const isOrganizerLike = meeting.created_by === user.id || user.role === 'admin' || user.role === 'manager'
+  if (c.req.param('userId') !== user.id && !isOrganizerLike) return c.json({ error: '참석자 제거는 주최자 또는 관리자만 가능합니다' }, 403)
   await c.env.DB.prepare('DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(c.req.param('id'), c.req.param('userId')).run()
   return c.json({ success: true })
 })
@@ -118,18 +137,26 @@ meetings.delete('/:id/participants/:userId', async (c) => {
 meetings.post('/:id/minutes', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
   // IDOR 방지: 해당 병원의 회의인지 확인
-  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first()
+  const meeting = await c.env.DB.prepare('SELECT id, created_by FROM meetings WHERE id=? AND hospital_id=?').bind(meetingId, user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  const isOrganizerLike = meeting.created_by === user.id || user.role === 'admin' || user.role === 'manager'
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     content: { type: 'string', max: 20000 },
     decisions: { type: 'string', max: 10000 },
     action_items: { type: 'string', max: 10000 },
   })
-  const existing = await c.env.DB.prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
+  const existing = await c.env.DB.prepare('SELECT id, written_by FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
   if (existing) {
+    // 기존 회의록 수정은 원작성자·주최자·관리자만 가능 (임의 덮어쓰기 방지)
+    if (existing.written_by !== user.id && !isOrganizerLike) return c.json({ error: '회의록 수정은 작성자, 주최자 또는 관리자만 가능합니다' }, 403)
     await c.env.DB.prepare('UPDATE meeting_minutes SET content = ?, decisions = ?, action_items = ?, written_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(b.content || '', b.decisions || '', b.action_items || '', user.id, existing.id).run()
     return c.json({ id: existing.id, updated: true })
+  }
+  // 신규 작성은 회의 참석자·주최자·관리자만 가능
+  if (!isOrganizerLike) {
+    const isParticipant = await c.env.DB.prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(meetingId, user.id).first()
+    if (!isParticipant) return c.json({ error: '회의록 작성은 회의 참석자만 가능합니다' }, 403)
   }
   const id = 'mm-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, content, decisions, action_items, written_by, hospital_id) VALUES (?,?,?,?,?,?,?)').bind(id, meetingId, b.content || '', b.decisions || '', b.action_items || '', user.id, user.hospitalId).run()
@@ -140,8 +167,14 @@ meetings.post('/:id/minutes', async (c) => {
 meetings.post('/:id/minutes/upload', async (c) => {
   const user = c.get('user')!; const meetingId = c.req.param('id')
   // IDOR 방어: 미팅이 본인 병원 소속인지 사전 확인
-  const meeting = await c.env.DB.prepare('SELECT id FROM meetings WHERE id = ? AND hospital_id = ?').bind(meetingId, user.hospitalId).first()
+  const meeting = await c.env.DB.prepare('SELECT id, created_by FROM meetings WHERE id = ? AND hospital_id = ?').bind(meetingId, user.hospitalId).first() as any
   if (!meeting) return c.json({ error: '회의를 찾을 수 없습니다' }, 404)
+  // 파일 업로드도 회의록 작성 권한과 동일: 참석자·주최자·관리자만
+  const isOrganizerLike = meeting.created_by === user.id || user.role === 'admin' || user.role === 'manager'
+  if (!isOrganizerLike) {
+    const isParticipant = await c.env.DB.prepare('SELECT 1 FROM meeting_participants WHERE meeting_id = ? AND user_id = ?').bind(meetingId, user.id).first()
+    if (!isParticipant) return c.json({ error: '회의록 파일 업로드는 회의 참석자만 가능합니다' }, 403)
+  }
   const formData = await c.req.formData(); const file = formData.get('file') as unknown as File
   if (!file) return c.json({ error: '파일이 없습니다' }, 400)
   const fv = validateFile(file, 20)

@@ -71,6 +71,9 @@ leave.post('/requests', async (c) => {
   const year = new Date(b.start_date).getFullYear()
   const balance = await c.env.DB.prepare('SELECT total_days, used_days FROM leave_balances WHERE user_id = ? AND year = ? AND leave_type = ?').bind(user.id, year, balType).first() as any
   if (balance && (balance.total_days - balance.used_days) < days) return c.json({ error: `잔여 ${balType === 'annual' ? '연차' : '병가'}가 부족합니다 (잔여: ${balance.total_days - balance.used_days}일)` }, 400)
+  // 중복 기간 신청 방지: 대기/승인 상태의 기존 신청과 기간이 겹치면 거부
+  const overlap = await c.env.DB.prepare(`SELECT id FROM leave_requests WHERE user_id = ? AND status IN ('pending','approved') AND start_date <= ? AND end_date >= ?`).bind(user.id, b.end_date, b.start_date).first()
+  if (overlap) return c.json({ error: '해당 기간에 이미 신청된 연차가 있습니다' }, 400)
   const id = 'lr-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`INSERT INTO leave_requests (id, hospital_id, user_id, leave_type, start_date, end_date, days, reason, status) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id, user.hospitalId, user.id, b.leave_type, b.start_date, b.end_date, days, b.reason || '', 'pending').run()
   return c.json({ id, days })
@@ -102,7 +105,8 @@ leave.delete('/requests/:id', async (c) => {
   const user = c.get('user')!; const id = c.req.param('id')
   const req = await c.env.DB.prepare('SELECT * FROM leave_requests WHERE id = ? AND hospital_id = ?').bind(id, user.hospitalId).first() as any
   if (!req) return c.json({ error: '요청을 찾을 수 없습니다' }, 404)
-  if (req.user_id !== user.id && user.role !== 'admin') return c.json({ error: '권한이 없습니다' }, 403)
+  if (req.user_id !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '권한이 없습니다' }, 403)
+  if (req.status === 'cancelled') return c.json({ error: '이미 취소된 요청입니다' }, 400)
   if (req.status === 'approved') {
     const balType = (req.leave_type === 'half_am' || req.leave_type === 'half_pm') ? 'annual' : req.leave_type
     const year = new Date(req.start_date).getFullYear()

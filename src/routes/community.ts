@@ -176,6 +176,10 @@ community.put('/kanban/cards/:id', async (c) => {
     actual_cost: { type: 'number', min: 0, max: 999999999 },
   })
   if (!b.status) return c.json({ error: '유효하지 않은 상태입니다' }, 400)
+  // 승인/반려는 관리자만 가능 (셀프 승인 방지)
+  if ((b.status === 'approved' || b.status === 'rejected') && user.role !== 'admin' && user.role !== 'manager') {
+    return c.json({ error: '승인/반려는 관리자만 가능합니다' }, 403)
+  }
   const completed = b.status === 'completed' ? new Date().toISOString() : null
   await c.env.DB.prepare('UPDATE kanban_cards SET status=?, actual_cost=COALESCE(?,actual_cost), completed_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?').bind(b.status, b.actual_cost||null, completed, c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
@@ -183,6 +187,10 @@ community.put('/kanban/cards/:id', async (c) => {
 
 community.delete('/kanban/cards/:id', async (c) => {
   const user = c.get('user')!
+  // 삭제는 요청자 본인 또는 관리자만 가능
+  const card = await c.env.DB.prepare('SELECT requested_by FROM kanban_cards WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first() as any
+  if (!card) return c.json({ error: '카드를 찾을 수 없습니다' }, 404)
+  if (card.requested_by !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '삭제 권한이 없습니다' }, 403)
   await c.env.DB.prepare('DELETE FROM kanban_cards WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
@@ -224,6 +232,19 @@ community.put('/staff-supplies/:id', async (c) => {
   const user = c.get('user')!
   const id = c.req.param('id')
   const raw = await c.req.json()
+  const supply = await c.env.DB.prepare('SELECT requested_by, status FROM staff_supplies WHERE id=? AND hospital_id=?').bind(id, user.hospitalId).first() as any
+  if (!supply) return c.json({ error: '주문을 찾을 수 없습니다' }, 404)
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  if (raw.status !== undefined) {
+    // 상태 변경: 관리자 전체 가능, 요청자 본인은 취소만 가능 (셀프 승인/주문 처리 방지)
+    const validStatuses = ['requested','approved','ordered','delivered','cancelled']
+    if (!validStatuses.includes(raw.status)) return c.json({ error: '유효하지 않은 상태입니다' }, 400)
+    if (!isManagerLike && !(supply.requested_by === user.id && raw.status === 'cancelled')) {
+      return c.json({ error: '상태 변경은 관리자만 가능합니다 (본인 요청은 취소만 가능)' }, 403)
+    }
+  } else if (!isManagerLike && supply.requested_by !== user.id) {
+    return c.json({ error: '수정 권한이 없습니다' }, 403)
+  }
   const allowed = ['status','size','color','quantity','notes','order_date','delivery_date']
   const fields: string[] = []; const vals: any[] = []
   for (const k of allowed) {
@@ -244,6 +265,10 @@ community.put('/staff-supplies/:id', async (c) => {
 
 community.delete('/staff-supplies/:id', async (c) => {
   const user = c.get('user')!
+  // 삭제는 요청자 본인 또는 관리자만 가능
+  const supply = await c.env.DB.prepare('SELECT requested_by FROM staff_supplies WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first() as any
+  if (!supply) return c.json({ error: '주문을 찾을 수 없습니다' }, 404)
+  if (supply.requested_by !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '삭제 권한이 없습니다' }, 403)
   await c.env.DB.prepare('DELETE FROM staff_supplies WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
@@ -333,7 +358,8 @@ community.post('/checklists', async (c) => {
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
     title: { type: 'string', max: 200 },
-    checklist_type: { type: 'string', max: 50 },
+    // DB CHECK 제약과 동일한 enum — 미일치 값은 null → 'custom' 폴백 (503 방지)
+    checklist_type: { type: 'enum', values: ['daily_open','daily_close','weekly','infection','onboarding','custom'] },
     items: { type: 'json' },
   })
   if (!b.title || !b.items) return c.json({ error: '제목과 항목은 필수입니다' }, 400)
@@ -385,7 +411,8 @@ community.post('/events', async (c) => {
   const b = sanitizeBody(raw, {
     title: { type: 'string', max: 200 },
     description: { type: 'string', max: 5000 },
-    event_type: { type: 'enum', values: ['meeting','holiday','training','other'] },
+    // DB CHECK 제약과 동일한 enum (UI의 휴가/장비점검/교육이 'meeting'으로 둘갑되던 버그 수정)
+    event_type: { type: 'enum', values: ['meeting','vacation','maintenance','education','interview','other'] },
     start_date: { type: 'string', max: 30 },
     end_date: { type: 'string', max: 30 },
     all_day: { type: 'boolean' },
@@ -399,6 +426,10 @@ community.post('/events', async (c) => {
 
 community.delete('/events/:id', async (c) => {
   const user = c.get('user')!
+  // 삭제는 작성자 본인 또는 관리자만 가능
+  const ev = await c.env.DB.prepare('SELECT created_by FROM events WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first() as any
+  if (!ev) return c.json({ error: '일정을 찾을 수 없습니다' }, 404)
+  if (ev.created_by !== user.id && user.role !== 'admin' && user.role !== 'manager') return c.json({ error: '삭제 권한이 없습니다' }, 403)
   await c.env.DB.prepare('DELETE FROM events WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })
 })
