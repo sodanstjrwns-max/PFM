@@ -3,6 +3,39 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🌐 프로덕션 배포 (v5.7.0 — 2026-07-02)
+
+- **Production**: https://patient-funnel-manager.pages.dev
+- **GitHub**: https://github.com/sodanstjrwns-max/PFM
+- **크론 워커**: https://pfm-cron.sodanstjrwns.workers.dev (`*/5 * * * *` — 5분마다 `/api/cron/tick` 자동 호출)
+- **Secrets(프로덕션)**: `JWT_SECRET`, `CRON_SECRET` (wrangler pages secret)
+- **D1**: `pfm-production` (마이그레이션 0040까지 적용) / **R2**: `pfm-assets`
+
+## 🔐 v5.7.0 — 보안 강화 3종 + 테스트 기반
+
+### 1. httpOnly 쿠키 인증 (localStorage JWT 폐기)
+- 로그인/가입/합류 시 `pfm_auth` httpOnly 쿠키 발급 (Secure, SameSite=Lax, 7일)
+- authMiddleware: **쿠키 우선 + Bearer 폴백** (전환기 호환, API 클라이언트 지원)
+- `POST /api/auth/logout` (쿠키 제거) / `POST /api/auth/cookie-sync` (레거시 자동 마이그레이션)
+- 프론트: localStorage 토큰 저장 중단 → XSS로 토큰 탈취 불가
+
+### 2. Vitest 유닛 테스트 61개 (`npm test`)
+- `tests/funnel-sync.test.ts` — 온도(5)↔퍼널(10단계) 매핑 + round-trip (15)
+- `tests/totp.test.ts` — RFC 6238 표준 벡터 + Base32 + 백업코드 (24)
+- `tests/permissions.test.ts` — requireRole 매트릭스 + 금액 마스킹 + JWT 변조/만료 (14)
+- `tests/escalation.test.ts` — throttle 게이트 + L1/L2/L3 트리거 규칙 (8)
+
+### 3. CSP 인라인 스크립트 차단
+- 인라인 `<script>` 4곳 외부화 (theme-init / boot-loader / survey-page / report-print)
+- `script-src-elem`에서 `unsafe-inline` 제거 → 주입형 `<script>` 태그 차단
+- `script-src-attr`는 유지 (기존 onclick 핸들러 76곳 호환 — 점진 리팩토링 대상)
+- `base-uri 'self'` / `form-action 'self'` 추가
+
+### 4. 크론 파이프라인 완성 (1회 작업 완료)
+- 전용 워커 `pfm-cron` 배포: 5분마다 `POST /api/cron/tick` 호출
+- 예약 메시지 발송 + 에스컬레이션 스캔이 **접속자 없이도 보장**
+- `cron-worker/` 디렉토리에 소스 포함 (redeploy: `cd cron-worker && npx wrangler deploy -c wrangler.toml`)
+
 ## 🛡️ v5.5.1 — 운영 신뢰성 강화 (기능 동결, 품질 올인)
 
 > **기능 추가 없음.** 분산환경 정합성 · 스케줄링 보장 · D1 비용 절감에 집중한 hardening 릴리즈.
