@@ -454,7 +454,10 @@ export function apiCacheMiddleware(app: AppType) {
 
     const user = (c as any).get('user')
     const hospitalId = user?.hospitalId || 'anon'
-    const cacheKey = `${hospitalId}:${c.req.path}:${c.req.url.split('?')[1] || ''}`
+    // 🔒 캐시 키에 role 포함 — 역할별 권한이 다른 엔드포인트(예: /stats)에서
+    // admin의 캐시된 200 응답을 staff가 받아가는 권한 우회를 방지
+    const role = user?.role || 'anon'
+    const cacheKey = `${hospitalId}:${role}:${c.req.path}:${c.req.url.split('?')[1] || ''}`
     
     // Check cache
     const cached = _cache.get(cacheKey)

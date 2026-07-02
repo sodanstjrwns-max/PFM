@@ -23,7 +23,19 @@ community.get('/posts', async (c) => {
     c.env.DB.prepare(sql).bind(...params).all(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE hospital_id=?' + (board ? ' AND board_type=?' : '')).bind(...(board ? [user.hospitalId, board] : [user.hospitalId])).first<{c:number}>(),
   ])
-  return c.json({ data: rows.results, total: countResult?.c || 0, page, limit })
+  // 🔒 익명글 작성자 마스킹: is_anonymous 글은 API 응답에서 author 식별자 완전 제거
+  // (프론트만 가리면 개발자도구로 노출됨 — 서버에서 차단)
+  // _can_delete: 본인 글 또는 관리자/원장만 삭제 버튼 노출용 힌트
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  const data = (rows.results || []).map((p: any) => {
+    const canDelete = isManagerLike || p.author_id === user.id
+    if (p.is_anonymous) {
+      const { author_id, ...rest } = p
+      return { ...rest, author_name: null, _can_delete: canDelete }
+    }
+    return { ...p, _can_delete: canDelete }
+  })
+  return c.json({ data, total: countResult?.c || 0, page, limit })
 })
 
 community.post('/posts', async (c) => {
@@ -38,6 +50,11 @@ community.post('/posts', async (c) => {
     is_pinned: { type: 'boolean' },
   })
   if (!b.board_type || !b.title) return c.json({ error: '게시판과 제목은 필수입니다' }, 400)
+
+  // 🔒 board_type 서버 검증 (DB CHECK 제약 도달 전 400으로 차단)
+  if (!['notice', 'free', 'praise', 'mistake'].includes(b.board_type)) {
+    return c.json({ error: '유효하지 않은 게시판입니다' }, 400)
+  }
 
   // 🔒 권한 가드: 공지사항(notice)은 관리자/원장만 작성 가능
   const isManager = user.role === 'admin' || user.role === 'manager'
@@ -56,8 +73,13 @@ community.delete('/posts/:id', async (c) => {
   const user = c.get('user')!
   const postId = c.req.param('id')
   // IDOR 방지: 해당 병원의 게시글인지 먼저 확인
-  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
+  const post: any = await c.env.DB.prepare('SELECT id, author_id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
   if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
+  // 🔒 삭제 권한: 작성자 본인 또는 관리자/원장만
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  if (post.author_id !== user.id && !isManagerLike) {
+    return c.json({ error: '본인 글 또는 관리자만 삭제할 수 있습니다' }, 403)
+  }
   await c.env.DB.prepare('DELETE FROM comments WHERE post_id=?').bind(postId).run()
   await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id=?').bind(postId).run()
   await c.env.DB.prepare('DELETE FROM posts WHERE id=?').bind(postId).run()
@@ -149,9 +171,11 @@ community.put('/kanban/cards/:id', async (c) => {
   const user = c.get('user')!
   const raw = await c.req.json()
   const b = sanitizeBody(raw, {
-    status: { type: 'enum', values: ['todo','in_progress','review','completed'] },
+    // DB CHECK 제약과 동일한 enum (requested/approved/in_progress/completed/rejected)
+    status: { type: 'enum', values: ['requested','approved','in_progress','completed','rejected'] },
     actual_cost: { type: 'number', min: 0, max: 999999999 },
   })
+  if (!b.status) return c.json({ error: '유효하지 않은 상태입니다' }, 400)
   const completed = b.status === 'completed' ? new Date().toISOString() : null
   await c.env.DB.prepare('UPDATE kanban_cards SET status=?, actual_cost=COALESCE(?,actual_cost), completed_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?').bind(b.status, b.actual_cost||null, completed, c.req.param('id'), user.hospitalId).run()
   return c.json({ success: true })

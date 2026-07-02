@@ -143,6 +143,8 @@ function navigate(page) {
   try { window.PFMPolish?.pushRecent(page); } catch (e) {}
   // Stop any active polling when navigating
   if (window._pfmStopPolling) window._pfmStopPolling();
+  // 페이지 이동 시 잔존 전역 오버레이 정리 (⌘K 퀵점프 등으로 이동하면 모달이 남아 화면을 막는 문제 방지)
+  document.getElementById('weeklyInsightsOverlay')?.remove();
   // Re-render sidebar to show active state, then load page
   const nav = getNavConfig();
   const navEl = document.getElementById('sidebarNav');

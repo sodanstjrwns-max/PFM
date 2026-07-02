@@ -258,7 +258,7 @@ async function openPostDetail(postId, boardType, reload) {
         <div style="white-space:pre-line;font-size:14px;line-height:1.8;min-height:60px">${esc(post.content)}</div>
         <div style="margin-top:16px;display:flex;gap:8px">
           <button class="btn btn-secondary btn-sm" id="likeBtn">❤️ 좋아요 (${post.like_count||0})</button>
-          <button class="btn btn-danger btn-sm" id="delPostBtn" style="margin-left:auto">${ICONS.trash} 삭제</button>
+          ${post._can_delete !== false ? `<button class="btn btn-danger btn-sm" id="delPostBtn" style="margin-left:auto">${ICONS.trash} 삭제</button>` : ''}
         </div>
         <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
         <div class="section-title" style="font-size:14px">${ICONS.message}<span>댓글 (${comments.length})</span></div>
@@ -279,10 +279,12 @@ async function openPostDetail(postId, boardType, reload) {
       await api('/api/protected/posts/' + postId + '/like', { method: 'POST' });
       openPostDetail(postId, boardType, reload);
     });
-    document.getElementById('delPostBtn').addEventListener('click', async () => {
+    document.getElementById('delPostBtn')?.addEventListener('click', async () => {
       if (!confirm('삭제하시겠습니까?')) return;
-      await api('/api/protected/posts/' + postId, { method: 'DELETE' });
-      toast('삭제됨', 'success'); closeModal(); reload();
+      try {
+        await api('/api/protected/posts/' + postId, { method: 'DELETE' });
+        toast('삭제됨', 'success'); closeModal(); reload();
+      } catch(e) { toast(e.message, 'error'); }
     });
     document.getElementById('commentBtn').addEventListener('click', async () => {
       const input = document.getElementById('commentInput');
