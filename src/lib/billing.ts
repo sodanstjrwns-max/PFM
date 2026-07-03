@@ -109,3 +109,68 @@ export async function logBillingEvent(db: D1Database, hospitalId: string, eventT
     ).bind(crypto.randomUUID(), hospitalId, eventType, fields.plan || null, fields.amount ?? null, fields.paymentKey || null, fields.orderId || null, JSON.stringify(fields.detail || {})).run()
   } catch { /* fire-and-forget */ }
 }
+
+/* ═══ v5.10.0 체험 만료 게이트 ═══
+ * 정책:
+ *  - TOSS_SECRET_KEY 미설정 (= 결제 인프라 준비 전) → 게이트 비활성. 아무도 잠기지 않음.
+ *  - 결제 준비 완료 후: trial 만료 + 3일 유예(grace) 지나면 402 반환.
+ *  - founding / active / past_due(결제 재시도 중) 는 차단하지 않음.
+ *  - 허용 경로: 결제/구독 관련 + 에러 리포팅 (잠긴 상태에서도 결제는 가능해야 함)
+ */
+export const TRIAL_GRACE_DAYS = 3
+
+export function isTrialLocked(sub: SubRow | null): boolean {
+  if (!sub || sub.status !== 'trial' || !sub.trial_ends_at) return false
+  const iso = sub.trial_ends_at.includes('T') ? sub.trial_ends_at : sub.trial_ends_at.replace(' ', 'T') + 'Z'
+  const t = new Date(iso).getTime()
+  if (isNaN(t)) return false
+  return Date.now() > t + TRIAL_GRACE_DAYS * 86400000
+}
+
+/* ═══ v5.10.0 월 자동 갱신 청구 (cron tick 에서 호출) ═══
+ * 대상: status='active' AND billing_key 있음 AND current_period_end 경과
+ * 성공 → period +1개월 연장, payment_success 이벤트
+ * 실패 → status='past_due', payment_failed 이벤트 (3회 연속 실패 시 canceled 는 수동 정책으로 보류)
+ */
+export async function chargeRenewals(db: D1Database, tossSecretKey: string): Promise<{ charged: number; failed: number; skipped: number }> {
+  const result = { charged: 0, failed: 0, skipped: 0 }
+  const due = await db.prepare(`
+    SELECT s.*, h.name as hospital_name FROM subscriptions s
+    JOIN hospitals h ON h.id = s.hospital_id
+    WHERE s.status = 'active' AND s.toss_billing_key IS NOT NULL
+      AND s.monthly_price > 0
+      AND s.current_period_end IS NOT NULL
+      AND s.current_period_end < datetime('now')
+    LIMIT 20
+  `).all<SubRow & { hospital_name: string }>()
+
+  for (const sub of (due.results || [])) {
+    const orderId = `pfm-renew-${sub.hospital_id.slice(0, 8)}-${Date.now()}`
+    try {
+      const res = await tossRequest(tossSecretKey, `/billing/${sub.toss_billing_key}`, {
+        customerKey: sub.toss_customer_key,
+        amount: sub.monthly_price,
+        orderId,
+        orderName: `Patient Funnel ${PLANS[sub.plan]?.name || sub.plan} 월 구독`,
+      })
+      if (res.ok) {
+        // 갱신: current_period_end 기준 +1개월 (지연 청구여도 주기 유지)
+        await db.prepare(`
+          UPDATE subscriptions SET current_period_end = datetime(current_period_end, '+1 month'), updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(sub.id).run()
+        await logBillingEvent(db, sub.hospital_id, 'payment_success', { plan: sub.plan, amount: sub.monthly_price, paymentKey: res.data?.paymentKey, orderId })
+        result.charged++
+      } else {
+        await db.prepare(`UPDATE subscriptions SET status='past_due', updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(sub.id).run()
+        await logBillingEvent(db, sub.hospital_id, 'payment_failed', { plan: sub.plan, amount: sub.monthly_price, orderId, detail: { code: res.data?.code, message: (res.data?.message || '').slice(0, 200) } })
+        result.failed++
+      }
+    } catch (e: any) {
+      // 네트워크 오류 → 상태 변경 없이 다음 tick 재시도
+      await logBillingEvent(db, sub.hospital_id, 'payment_error', { plan: sub.plan, orderId, detail: { error: (e?.message || '').slice(0, 200) } })
+      result.skipped++
+    }
+  }
+  return result
+}

@@ -12,6 +12,9 @@ export type Bindings = {
   // ─── v5.9 구독/결제 (토스페이먼츠) ───
   TOSS_SECRET_KEY?: string            // 토스 시크릿 키 (미설정 시 결제 API 503 '준비중')
   TOSS_CLIENT_KEY?: string            // 토스 클라이언트 키 (프론트 SDK 용, status API 로 노출)
+  // ─── v5.10 이메일 발송 (Resend) ───
+  RESEND_API_KEY?: string             // Resend API 키 (미설정 시 비밀번호 재설정 503 안내)
+  EMAIL_FROM?: string                 // 발신 주소 (기본: noreply@patientfunnel.kr)
 }
 
 export type Variables = {

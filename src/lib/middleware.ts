@@ -89,6 +89,27 @@ export function authMiddleware(app: AppType) {
     // role은 항상 DB 최신값 사용 (토큰 발급 후 승격/강등 즉시 반영)
     ;(payload as any).role = live.role
     c.set('user', payload as any)
+
+    // ═══ v5.10 체험 만료 게이트 ═══
+    // 결제 인프라(TOSS_SECRET_KEY)가 준비된 경우에만 활성 — 준비 전엔 아무도 잠기지 않음.
+    // 만료 + 3일 유예 후: 결제/구독/에러리포팅 경로만 허용, 나머지는 402.
+    if (c.env.TOSS_SECRET_KEY) {
+      const path = new URL(c.req.url).pathname
+      const BILLING_ALLOWED = path.startsWith('/api/protected/billing') || path === '/api/protected/admin/errors'
+      if (!BILLING_ALLOWED) {
+        try {
+          const { getSubscription, isTrialLocked } = await import('./billing')
+          const sub = await getSubscription(c.env.DB, (payload as any).hospitalId)
+          if (isTrialLocked(sub)) {
+            return c.json({
+              error: '무료 체험이 종료되었습니다. 플랜을 구독하시면 데이터 그대로 바로 이어서 사용할 수 있습니다.',
+              reason: 'trial_expired',
+            }, 402)
+          }
+        } catch { /* 게이트 오류가 서비스를 죽이면 안 됨 — 통과 */ }
+      }
+    }
+
     await next()
   })
 }

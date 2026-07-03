@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword, signJWT, verifyJWT } from '../lib/crypto'
 import { checkRateLimitD1, recordLoginFailureD1, clearLoginAttemptsD1, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
 import { writeAudit } from '../lib/audit'
 import { createTrialSubscription } from '../lib/billing'
+import { sendEmail, passwordResetEmailHTML } from '../lib/email'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -208,6 +209,86 @@ auth.post('/cookie-sync', async (c) => {
   if (!payload) return c.json({ error: '유효하지 않은 토큰입니다' }, 401)
   setAuthCookie(c, token)
   return c.json({ success: true })
+})
+
+/* ═══ v5.10.0 비밀번호 재설정 (이메일 기반 셀프 재설정) ═══
+ * 보안 설계:
+ *  - 토큰 원문은 이메일로만 전달, DB에는 SHA-256 해시만 저장
+ *  - 30분 만료 + 1회용 (used_at 기록)
+ *  - 이메일 존재 여부를 응답으로 누설하지 않음 (계정 열거 방지)
+ *  - IP 레이트리밋 (로그인과 동일 인프라 재사용)
+ *  - RESEND_API_KEY 미설정 시 안내 메시지로 폴백 (지원팀 메일 안내)
+ */
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+auth.post('/forgot-password', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
+  const rate = await checkRateLimitD1(c.env.DB, ip)
+  if (!rate.allowed) return c.json({ error: `시도가 너무 많습니다. ${rate.retryAfter}초 후에 다시 시도해주세요.` }, 429)
+
+  const { email } = await c.req.json()
+  if (!email || !validateEmail(email)) return c.json({ error: '올바른 이메일을 입력해주세요' }, 400)
+
+  // 이메일 발송 인프라 자체가 없으면 명확히 안내 (설정 전 임시)
+  if (!c.env.RESEND_API_KEY) {
+    return c.json({ error: '자동 재설정이 아직 준비되지 않았습니다. contact@patientfunnel.kr 로 가입 이메일·병원명을 보내주시면 1영업일 내 처리해드립니다.' }, 503)
+  }
+
+  const user: any = await c.env.DB.prepare('SELECT id, name, email, hospital_id FROM users WHERE email=? AND is_active=1').bind(sanitizeString(email, 200)).first()
+  // 계정 존재 여부와 무관하게 동일 응답 (열거 방지)
+  const genericOk = { success: true, message: '해당 이메일로 가입된 계정이 있다면 재설정 링크를 보냈습니다. 메일함(스팸함 포함)을 확인해주세요.' }
+  if (!user) return c.json(genericOk)
+
+  // 토큰 생성: 32바이트 CSPRNG → hex 64자
+  const tokenBytes = crypto.getRandomValues(new Uint8Array(32))
+  const token = [...tokenBytes].map(b => b.toString(16).padStart(2, '0')).join('')
+  const tokenHash = await sha256Hex(token)
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+  // 기존 미사용 토큰 무효화 (최신 1개만 유효)
+  await c.env.DB.prepare("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL").bind(user.id).run()
+  await c.env.DB.prepare('INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .bind(crypto.randomUUID(), user.id, tokenHash, expiresAt).run()
+
+  const origin = new URL(c.req.url).origin
+  const resetUrl = `${origin}/?reset=${token}`
+  const sent = await sendEmail(c.env, user.email, '[Patient Funnel] 비밀번호 재설정', passwordResetEmailHTML(user.name || '', resetUrl))
+  if (!sent.ok) {
+    console.error('[forgot-password] email send failed:', sent.reason)
+    return c.json({ error: '메일 발송에 실패했습니다. 잠시 후 다시 시도하거나 contact@patientfunnel.kr 로 문의해주세요.' }, 502)
+  }
+  writeAudit(c.env.DB, { hospitalId: user.hospital_id || '-', actorId: user.id, actorName: user.name || '', action: 'auth.password_reset_request' as any, targetType: 'user', targetId: user.id, summary: '비밀번호 재설정 메일 발송', metadata: { ip } }).catch(() => {})
+  return c.json(genericOk)
+})
+
+auth.post('/reset-password', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
+  const rate = await checkRateLimitD1(c.env.DB, ip)
+  if (!rate.allowed) return c.json({ error: `시도가 너무 많습니다. ${rate.retryAfter}초 후에 다시 시도해주세요.` }, 429)
+
+  const { token, newPassword } = await c.req.json()
+  if (!token || typeof token !== 'string' || token.length !== 64) return c.json({ error: '재설정 링크가 올바르지 않습니다' }, 400)
+  if (!newPassword || newPassword.length < 6) return c.json({ error: '새 비밀번호는 6자 이상이어야 합니다' }, 400)
+
+  const tokenHash = await sha256Hex(token)
+  const row: any = await c.env.DB.prepare(
+    "SELECT id, user_id FROM password_reset_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at > datetime('now')"
+  ).bind(tokenHash).first()
+  if (!row) {
+    await recordLoginFailureD1(c.env.DB, ip) // 무차별 토큰 대입 차단
+    return c.json({ error: '링크가 만료되었거나 이미 사용되었습니다. 재설정을 다시 요청해주세요.' }, 400)
+  }
+
+  const hash = await hashPassword(newPassword)
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE users SET password_hash=? WHERE id=?').bind(hash, row.user_id),
+    c.env.DB.prepare('UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.id),
+  ])
+  const u: any = await c.env.DB.prepare('SELECT hospital_id, name FROM users WHERE id=?').bind(row.user_id).first()
+  writeAudit(c.env.DB, { hospitalId: u?.hospital_id || '-', actorId: row.user_id, actorName: u?.name || '', action: 'auth.password_reset_complete' as any, targetType: 'user', targetId: row.user_id, summary: '비밀번호 재설정 완료', metadata: { ip } }).catch(() => {})
+  return c.json({ success: true, message: '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.' })
 })
 
 export default auth

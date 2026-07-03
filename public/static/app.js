@@ -108,8 +108,72 @@ async function api(path, opts = {}) {
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : null; } catch(e) { throw new Error('서버 응답을 해석할 수 없습니다. 새로고침 후 다시 시도해주세요.'); }
+  // v5.10: 체험 만료(402) → 구독 안내 오버레이 (로그아웃 아님 — 결제 후 바로 이어서 사용)
+  if (res.status === 402 && data?.reason === 'trial_expired') { showTrialExpiredOverlay(); throw new Error(data.error || '무료 체험이 종료되었습니다.'); }
   if (!res.ok) throw new Error(humanizeError(res.status, data?.error));
   return data;
+}
+
+/* ─── v5.10 새 비밀번호 설정 다이얼로그 (/?reset=token 진입 시) ─── */
+function showResetPasswordDialog(token) {
+  if (document.getElementById('resetPwOverlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'resetPwOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <h2 style="margin:0 0 8px;font-size:19px;color:#0f172a">🔑 새 비밀번호 설정</h2>
+      <p style="margin:0 0 20px;font-size:13px;color:#64748b">새로 사용할 비밀번호를 입력하세요 (6자 이상)</p>
+      <input type="password" id="resetPw1" class="form-input" placeholder="새 비밀번호" style="width:100%;margin-bottom:10px" autocomplete="new-password">
+      <input type="password" id="resetPw2" class="form-input" placeholder="새 비밀번호 확인" style="width:100%;margin-bottom:14px" autocomplete="new-password">
+      <div id="resetPwErr" style="color:var(--danger);font-size:12px;margin-bottom:10px;min-height:16px"></div>
+      <button class="btn btn-primary btn-lg" id="resetPwSubmit" style="width:100%">비밀번호 변경</button>
+      <button class="btn" id="resetPwCancel" style="width:100%;margin-top:8px">취소</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const err = document.getElementById('resetPwErr');
+  document.getElementById('resetPwCancel').onclick = () => { ov.remove(); history.replaceState(null, '', '/'); };
+  document.getElementById('resetPwSubmit').onclick = async () => {
+    const p1 = document.getElementById('resetPw1').value;
+    const p2 = document.getElementById('resetPw2').value;
+    if (p1.length < 6) { err.textContent = '비밀번호는 6자 이상이어야 합니다'; return; }
+    if (p1 !== p2) { err.textContent = '비밀번호가 일치하지 않습니다'; return; }
+    const btn = document.getElementById('resetPwSubmit');
+    btn.disabled = true; btn.textContent = '변경 중...';
+    try {
+      const r = await api('/api/auth/reset-password', { method: 'POST', json: { token, newPassword: p1 } });
+      ov.remove();
+      history.replaceState(null, '', '/');
+      alert(r.message || '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
+    } catch (e) {
+      err.textContent = e.message;
+      btn.disabled = false; btn.textContent = '비밀번호 변경';
+    }
+  };
+  setTimeout(() => document.getElementById('resetPw1')?.focus(), 100);
+}
+
+/* ─── v5.10 체험 만료 오버레이 (402 수신 시) ─── */
+function showTrialExpiredOverlay() {
+  if (document.getElementById('trialExpiredOverlay')) return; // 중복 방지
+  const ov = document.createElement('div');
+  ov.id = 'trialExpiredOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:20px;max-width:440px;width:100%;padding:36px 32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:52px;margin-bottom:14px">⏰</div>
+      <h2 style="margin:0 0 10px;font-size:20px;color:#0f172a">무료 체험이 종료되었습니다</h2>
+      <p style="margin:0 0 22px;font-size:14px;line-height:1.7;color:#475569">
+        그동안 쌓으신 데이터는 <strong>그대로 안전하게 보관</strong>되고 있어요.<br>
+        플랜을 구독하시면 즉시 이어서 사용할 수 있습니다.
+      </p>
+      <a href="/pricing" class="btn btn-primary btn-lg" style="display:block;text-decoration:none;margin-bottom:10px">💳 요금제 보기 & 구독하기</a>
+      <button class="btn" id="trialExpSettings" style="width:100%">⚙️ 설정에서 결제 관리</button>
+      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8">문의: contact@patientfunnel.kr</p>
+    </div>`;
+  document.body.appendChild(ov);
+  const btn = document.getElementById('trialExpSettings');
+  if (btn) btn.onclick = () => { ov.remove(); navigate('settings'); };
 }
 
 async function apiForm(path, formData) {
@@ -523,8 +587,7 @@ function renderAuth() {
         </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="authSubmitBtn">로그인</button>
         <div id="forgotPasswordHint" style="text-align:center;margin-top:10px;font-size:12px;color:var(--text-secondary)">
-          비밀번호를 잊으셨나요? <a href="mailto:contact@patientfunnel.kr?subject=%5B비밀번호%20재설정%20요청%5D&body=가입%20이메일과%20병원명을%20적어%20보내주세요." style="color:var(--primary);font-weight:600">지원팀에 재설정 요청</a>
-          <span style="opacity:.7">(1영업일 내 처리)</span>
+          비밀번호를 잊으셨나요? <a href="#" id="forgotPasswordLink" style="color:var(--primary);font-weight:600">재설정 링크 받기</a>
         </div>
       </form>
       <div class="auth-trust-bar" role="complementary" aria-label="보안 및 신뢰 정보">
@@ -635,6 +698,31 @@ function renderAuth() {
       const regTab = app.querySelector('.auth-tab[data-tab="register"]');
       if (regTab) regTab.click();
       // URL 정리 (새로고침 시 재트리거 방지는 불필요 — 어차피 register 의도)
+    }
+  } catch (e) {}
+
+  // v5.10: 비밀번호 재설정 플로우
+  document.getElementById('forgotPasswordLink')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = (document.getElementById('authEmail')?.value || '').trim() || prompt('가입하신 이메일을 입력하세요');
+    if (!email) return;
+    const link = document.getElementById('forgotPasswordLink');
+    const orig = link.textContent;
+    link.textContent = '발송 중...';
+    try {
+      const r = await api('/api/auth/forgot-password', { method: 'POST', json: { email } });
+      alert(r.message || '재설정 링크를 보냈습니다. 메일함을 확인해주세요.');
+    } catch (err) {
+      alert(err.message);
+    }
+    link.textContent = orig;
+  });
+
+  // v5.10: /?reset=<token> 진입 → 새 비밀번호 설정 화면
+  try {
+    const resetToken = new URLSearchParams(window.location.search).get('reset');
+    if (resetToken && resetToken.length === 64) {
+      setTimeout(() => showResetPasswordDialog(resetToken), 100);
     }
   } catch (e) {}
 

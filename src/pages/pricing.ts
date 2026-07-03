@@ -180,6 +180,10 @@ ${BASE_HEAD}
       <a href="/legal/sla">서비스 수준 협약(SLA)</a>
     </div>
   </div>
+  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
+    상호: 페이션트 퍼널(Patient Funnel) · 대표: 문석준 · 사업자등록번호: 등록 준비중 · 통신판매업 신고: 준비중<br>
+    이메일: contact@patientfunnel.kr · 고객지원: 평일 10:00–18:00 (주말·공휴일 휴무)
+  </div>
 </footer>
 <script src="/static/pricing.js"></script>
 </body>
@@ -390,6 +394,10 @@ ${BASE_HEAD}
       <a href="/legal/privacy">개인정보 처리방침</a>
       <a href="/legal/sla">SLA</a>
     </div>
+  </div>
+  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
+    상호: 페이션트 퍼널(Patient Funnel) · 대표: 문석준 · 사업자등록번호: 등록 준비중 · 통신판매업 신고: 준비중<br>
+    이메일: contact@patientfunnel.kr · 고객지원: 평일 10:00–18:00 (주말·공휴일 휴무)
   </div>
 </footer>
 </body>

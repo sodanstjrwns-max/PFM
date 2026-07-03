@@ -21,6 +21,8 @@ export type AuditAction =
   | 'admin.export'
   // 구독/결제 (v5.9)
   | 'billing.card_registered' | 'billing.subscribe' | 'billing.cancel'
+  // 인증 (v5.10)
+  | 'auth.password_reset_request' | 'auth.password_reset_complete'
 
 export interface AuditEntry {
   hospitalId: string

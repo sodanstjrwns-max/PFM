@@ -3,6 +3,40 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🚀 v5.10.0 — 런칭 마감 패키지: 비번 재설정 + 체험 게이트 + 자동 갱신 청구 (2026-07-03)
+
+### 1. 비밀번호 셀프 재설정 (마이그레이션 0044 `password_reset_tokens`)
+- `POST /api/auth/forgot-password` — 이메일로 재설정 링크 발송 (Resend API, `src/lib/email.ts`)
+- `POST /api/auth/reset-password` — 토큰 검증 후 변경
+- **보안**: 토큰 SHA-256 해시만 저장 / 30분 만료 / 1회용 / 계정 열거 방지(동일 응답) / IP 레이트리밋 / 감사 로그
+- 프론트: 로그인 화면 "재설정 링크 받기" + `/?reset=<token>` 진입 시 새 비밀번호 다이얼로그
+- **RESEND_API_KEY 미설정 시**: 503 + 지원팀 메일 안내 (안전 폴백)
+
+### 2. 체험 만료 게이트 (`isTrialLocked` + authMiddleware)
+- **TOSS_SECRET_KEY 설정된 경우에만 활성** — 결제 인프라 준비 전엔 아무도 잠기지 않음
+- trial 만료 + **3일 유예** 후 → 보호 API 402 (`reason: trial_expired`)
+- 결제/구독/에러리포팅 경로는 항상 허용 (잠긴 상태에서도 결제 가능)
+- 프론트: 402 수신 → 구독 안내 오버레이 ("데이터 그대로 보관" 안심 카피 + /pricing CTA)
+
+### 3. 월 자동 갱신 청구 (`chargeRenewals` — cron tick 4단계)
+- `active` + billingKey 보유 + `current_period_end` 경과 병원 → 토스 자동 청구 (tick당 최대 20건)
+- 성공: period +1개월 연장 / 실패: `past_due` 전환 + `payment_failed` 이벤트 / 네트워크 오류: 다음 tick 재시도
+- 만료된 재설정 토큰도 cron에서 정리
+
+### 4. 전자상거래 사업자 정보 (P2)
+- /pricing + /legal footer: 상호·대표(문석준)·고객지원 시간 표기 (사업자번호는 등록 후 교체)
+
+### 이메일 발송 활성화 방법
+```bash
+# https://resend.com 가입 (무료 3,000통/월) → 도메인 인증 → API 키 발급
+npx wrangler pages secret put RESEND_API_KEY --project-name patient-funnel-manager
+npx wrangler pages secret put EMAIL_FROM --project-name patient-funnel-manager  # 선택
+```
+
+- 테스트: vitest 73/73 (billing.test.ts 12건 신규) + ui-launch-sim 12/12 + ui-pricing 13/13
+
+---
+
 ## 💳 v5.9.0 — 판매 준비 패키지: 구독/결제 + 요금제 랜딩 + 법적 문서 (2026-07-03)
 
 ### 1. 구독 시스템 (마이그레이션 0042 `subscriptions` + `billing_events`)

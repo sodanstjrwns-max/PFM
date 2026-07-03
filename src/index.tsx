@@ -190,6 +190,23 @@ app.post('/api/cron/tick', async (c) => {
     ).run()
   } catch { /* 테이블 미존재 무시 */ }
 
+  // 4) v5.10: 월 구독 자동 갱신 청구 (TOSS 준비된 경우에만)
+  if (c.env.TOSS_SECRET_KEY) {
+    try {
+      const { chargeRenewals } = await import('./lib/billing')
+      results.renewals = await chargeRenewals(c.env.DB, c.env.TOSS_SECRET_KEY)
+    } catch (e: any) {
+      results.renewals = { error: (e?.message || 'unknown').slice(0, 200) }
+    }
+  } else {
+    results.renewals = { skipped: 'toss_not_configured' }
+  }
+
+  // 5) v5.10: 만료된 비밀번호 재설정 토큰 정리
+  try {
+    await c.env.DB.prepare(`DELETE FROM password_reset_tokens WHERE expires_at < datetime('now', '-1 day')`).run()
+  } catch { /* 테이블 미존재 무시 */ }
+
   return c.json({ success: true, at: new Date().toISOString(), ...results })
 })
 
