@@ -69,6 +69,11 @@ async function renderSettings(body) {
       ` : ''}
 
       ${isAdmin ? `
+      <div class="section-title">💳 <span>구독 관리</span></div>
+      <div id="subscriptionSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
+      </div>
+
       <div class="section-title">🔎 <span>감사 로그 (Audit Trail)</span></div>
       <div id="auditLogSection" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px">
         <div style="text-align:center;padding:20px"><span class="loading-spinner"></span></div>
@@ -182,7 +187,7 @@ async function renderSettings(body) {
       renderBackup();
       renderSimulation();
     }
-    if (isAdmin) renderAuditLogs();
+    if (isAdmin) { renderAuditLogs(); renderSubscription(); }
   } catch(e) {
     document.getElementById('myProfileSection').innerHTML = `<div style="color:#ef4444;font-size:13px">로딩 실패: ${esc(e.message)}</div>`;
   }
@@ -817,6 +822,9 @@ const AUDIT_ACTION_META = {
   'leave.reject': { icon: '❌', label: '연차 반려' },
   'leave.cancel': { icon: '↩️', label: '연차 취소(타인)' },
   'admin.export': { icon: '📦', label: '데이터 내보내기' },
+  'billing.card_registered': { icon: '💳', label: '결제 카드 등록' },
+  'billing.subscribe': { icon: '🛒', label: '구독 시작' },
+  'billing.cancel': { icon: '🚫', label: '구독 해지' },
 };
 
 let _auditState = { action: '', offset: 0, limit: 30 };
@@ -882,6 +890,75 @@ async function renderAuditLogs() {
   });
   document.getElementById('auditNextBtn')?.addEventListener('click', () => {
     _auditState.offset += _auditState.limit; renderAuditLogs();
+  });
+}
+
+/* ═══ v5.9 구독 관리 (원장 전용) ═══ */
+const PLAN_LABELS = {
+  starter: { name: 'Starter', color: '#64748b' },
+  growth: { name: 'Growth', color: '#0f766e' },
+  enterprise: { name: 'Enterprise', color: '#7c3aed' },
+  founding: { name: 'Founding Member 🎉', color: '#d97706' },
+};
+const SUB_STATUS_LABELS = {
+  trial: { label: '무료 체험 중', bg: '#dbeafe', fg: '#1d4ed8' },
+  active: { label: '구독 중', bg: '#d1fae5', fg: '#047857' },
+  past_due: { label: '결제 실패', bg: '#fee2e2', fg: '#b91c1c' },
+  canceled: { label: '해지됨', bg: '#f1f5f9', fg: '#64748b' },
+};
+
+async function renderSubscription() {
+  const section = document.getElementById('subscriptionSection');
+  if (!section) return;
+  let s;
+  try { s = await api('/api/protected/billing/status'); }
+  catch(e) { section.innerHTML = `<div style="color:#ef4444;font-size:13px">구독 정보 로딩 실패: ${esc(e.message)}</div>`; return; }
+
+  if (!s.configured) {
+    section.innerHTML = `<div style="font-size:13px;color:var(--text-secondary)">구독 시스템 준비 중입니다. (마이그레이션 미적용)</div>`;
+    return;
+  }
+  const plan = PLAN_LABELS[s.plan] || { name: s.plan, color: '#64748b' };
+  const st = SUB_STATUS_LABELS[s.status] || { label: s.status, bg: '#f1f5f9', fg: '#475569' };
+  const isFounding = s.plan === 'founding';
+  const trialLine = s.status === 'trial'
+    ? `<div style="font-size:13px;margin-top:6px;color:${s.trialDaysLeft <= 3 ? '#b91c1c' : 'var(--text-secondary)'}">체험 종료까지 <b>${s.trialDaysLeft}일</b> 남았습니다${s.trialExpired ? ' — 체험이 만료되었습니다. 플랜을 선택해주세요.' : ''}</div>` : '';
+  const periodLine = s.currentPeriodEnd && !isFounding
+    ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">현재 주기 종료: ${esc((s.currentPeriodEnd || '').slice(0, 10))}</div>` : '';
+  const cardLine = s.cardSummary
+    ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">등록 카드: ${esc(s.cardSummary)}</div>` : '';
+
+  section.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:18px;font-weight:800;color:${plan.color}">${esc(plan.name)}</span>
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${st.bg};color:${st.fg}">${st.label}</span>
+      ${s.monthlyPrice > 0 ? `<span style="font-size:13px;color:var(--text-secondary)">월 ${Number(s.monthlyPrice).toLocaleString()}원</span>` : ''}
+    </div>
+    ${trialLine}${periodLine}${cardLine}
+    ${isFounding ? `<div style="margin-top:10px;font-size:12px;background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px">초기 도입 병원 파운딩 멤버 혜택으로 전 기능을 무기한 이용 중입니다. 감사합니다! 🙇</div>` : `
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <a class="btn btn-outline btn-sm" href="/pricing" target="_blank">📋 요금제 보기</a>
+      ${s.paymentsReady
+        ? `<button class="btn btn-primary btn-sm" id="subUpgradeBtn">💳 ${s.status === 'active' ? '플랜 변경' : '구독 시작'}</button>`
+        : `<button class="btn btn-secondary btn-sm" id="subContactBtn">📬 도입 문의 (결제 준비중)</button>`}
+      ${s.status === 'active' ? `<button class="btn btn-outline btn-sm" id="subCancelBtn" style="color:#b91c1c;border-color:#fca5a5">구독 해지</button>` : ''}
+    </div>`}
+  `;
+
+  document.getElementById('subContactBtn')?.addEventListener('click', () => {
+    location.href = 'mailto:contact@patientfunnel.kr?subject=Patient%20Funnel%20OS%20도입%20문의';
+  });
+  document.getElementById('subUpgradeBtn')?.addEventListener('click', () => {
+    toast('요금제 페이지에서 플랜을 선택한 뒤 도입 문의를 남겨주세요. 카드 자동결제는 공식 오픈 시 활성화됩니다.', 'info');
+    window.open('/pricing', '_blank');
+  });
+  document.getElementById('subCancelBtn')?.addEventListener('click', async () => {
+    if (!confirm('구독을 해지하시겠습니까? 현재 결제 주기 종료일까지 이용 가능합니다.')) return;
+    try {
+      const r = await api('/api/protected/billing/cancel', { method: 'POST', json: {} });
+      toast(r.message || '해지되었습니다', 'info');
+      renderSubscription();
+    } catch(e) { toast('오류: ' + e.message, 'error'); }
   });
 }
 

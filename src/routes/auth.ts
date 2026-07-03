@@ -4,6 +4,7 @@ import type { Bindings, Variables } from '../lib/types'
 import { hashPassword, verifyPassword, signJWT, verifyJWT } from '../lib/crypto'
 import { checkRateLimitD1, recordLoginFailureD1, clearLoginAttemptsD1, validateEmail, validateRequired, sanitizeString, getJwtSecret } from '../lib/middleware'
 import { writeAudit } from '../lib/audit'
+import { createTrialSubscription } from '../lib/billing'
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -44,6 +45,8 @@ auth.post('/register', async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO users (id, hospital_id, email, password_hash, name, role, is_doctor, position, team, phone, hire_date, work_schedule) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(uid, hid, sanitizeString(email, 200), hash, sanitizeString(name, 100), 'admin', 1, 'doctor', 'clinical', sanitizeString(phone||'', 20), hireDate, defaultSchedule).run()
+  // v5.9: 신규 병원 = Growth 14일 무료 체험 시작 (fire-and-forget 아님 — 가입 직후 상태 필요)
+  await createTrialSubscription(c.env.DB, hid)
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' }, secret)
   setAuthCookie(c, token)

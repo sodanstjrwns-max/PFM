@@ -19,6 +19,8 @@ export type AuditAction =
   | 'leave.approve' | 'leave.reject' | 'leave.cancel'
   // 관리자
   | 'admin.export'
+  // 구독/결제 (v5.9)
+  | 'billing.card_registered' | 'billing.subscribe' | 'billing.cancel'
 
 export interface AuditEntry {
   hospitalId: string

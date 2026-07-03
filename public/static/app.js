@@ -893,6 +893,7 @@ function renderApp() {
           <span class="chat-header-badge" id="chatUnreadBadge" style="display:none">0</span>
         </button>
       </header>
+      <div id="trialBanner"></div>
       <div class="main-body" id="mainBody"></div>
     </div>
   </div>
@@ -919,6 +920,9 @@ function renderApp() {
   });
   // Init chat (unread badge polling)
   setTimeout(() => { if (window.PFM.modules.chat) window.PFM.modules.chat.initChat(); }, 1000);
+
+  // v5.9: 구독/체험 상태 배너 (세션당 1회, 실패해도 앱 동작 무지장)
+  renderTrialBanner();
 
   // User popup menu
   const userEl = document.getElementById('sidebarUser');
@@ -986,6 +990,36 @@ function renderApp() {
   menuToggle.addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('open');
   });
+}
+
+/* ═══ v5.9 체험/구독 상태 배너 ═══
+ * trial: 남은 일수 표시 (3일 이하 강조) · past_due: 결제 실패 경고.
+ * 세션 캐시로 페이지 이동 시 재요청 안 함. 실패해도 조용히 무시. */
+async function renderTrialBanner() {
+  const el = document.getElementById('trialBanner');
+  if (!el) return;
+  try {
+    if (!window.__pfmSubStatus) {
+      window.__pfmSubStatus = await api('/api/protected/billing/status');
+    }
+    const s = window.__pfmSubStatus;
+    if (!s || !s.configured) return;
+    let html = '';
+    if (s.status === 'trial') {
+      const urgent = (s.trialDaysLeft ?? 99) <= 3;
+      html = `<div style="display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;flex-wrap:wrap;
+        background:${urgent ? '#fef2f2' : '#eff6ff'};color:${urgent ? '#b91c1c' : '#1d4ed8'};border-bottom:1px solid ${urgent ? '#fecaca' : '#bfdbfe'}">
+        <span>${urgent ? '⏰' : '✨'}</span>
+        <span><b>Growth 무료 체험 중</b> — ${s.trialExpired ? '체험이 만료되었습니다. 플랜을 선택해주세요.' : `종료까지 <b>${s.trialDaysLeft}일</b> 남았습니다.`}</span>
+        <a href="/pricing" target="_blank" style="margin-left:auto;font-weight:700;color:inherit;text-decoration:underline">요금제 보기 →</a>
+      </div>`;
+    } else if (s.status === 'past_due') {
+      html = `<div style="display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;background:#fef2f2;color:#b91c1c;border-bottom:1px solid #fecaca">
+        <span>⚠️</span><span><b>결제에 실패했습니다.</b> 설정 > 구독 관리에서 결제 수단을 확인해주세요.</span>
+      </div>`;
+    }
+    el.innerHTML = html;
+  } catch (e) { /* 배너 실패는 무시 — 앱 동작에 영향 없음 */ }
 }
 
 function renderSidebar(nav) {

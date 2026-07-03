@@ -3,6 +3,37 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 💳 v5.9.0 — 판매 준비 패키지: 구독/결제 + 요금제 랜딩 + 법적 문서 (2026-07-03)
+
+### 1. 구독 시스템 (마이그레이션 0042 `subscriptions` + `billing_events`)
+- **플랜**: Starter 19.9만 / Growth 39.9만 / Enterprise 79.9만~ (연납 15% 할인) — 2026-07 시장조사 기반 가치·경쟁 앵커링
+- **기존 병원 무중단 보장**: 백필로 전원 `founding`(파운딩 멤버, 무료 active) 처리
+- **신규 가입 = Growth 14일 무료 체험** 자동 시작 (`createTrialSubscription`)
+- `src/lib/billing.ts` — 플랜 카탈로그 + 토스페이먼츠 빌링 헬퍼 (SQLite datetime 파싱 안전처리)
+
+### 2. 빌링 API (`src/routes/billing.ts`)
+- 공개: `GET /api/billing/plans` — 요금제 카탈로그
+- 보호: `GET /api/protected/billing/status`(전체), `POST issue-key`/`subscribe`/`cancel`, `GET history`(admin)
+- **토스페이먼츠 자동결제 스캐폴드**: `TOSS_SECRET_KEY` 미설정 시 503 '준비중' — 키만 넣으면 즉시 활성화
+- 결제 행위 전부 감사 로그 (`billing.card_registered`/`subscribe`/`cancel`) + `billing_events` 이력
+
+### 3. 공개 페이지 (`src/pages/pricing.ts`, CSP 준수)
+- `/pricing` — 요금제 랜딩 (월/연 토글 `public/static/pricing.js`, 수강생 파운딩 배너, FAQ)
+- `/legal/privacy` · `/legal/terms` · `/legal/sla` — 개인정보 처리방침(수탁자 구조 명시)/이용약관/SLA(가용성 99.5~99.9% + 크레딧)
+
+### 4. 인앱 UI
+- 앱 상단 **체험 배너** (`#trialBanner`): trial 남은 일수 / 3일 이하 강조 / past_due 경고 — 세션 캐시, 실패 무지장
+- 설정 > **구독 관리** 섹션 (원장 전용): 플랜/상태 배지, 체험 D-day, 해지, 파운딩 멤버 안내
+- 테스트: `tests/ui-pricing.mjs` 13/13 통과 (토글·법적문서·구독섹션·체험배너·CSP 0건) + vitest 61/61
+
+### 결제 활성화 방법 (공식 오픈 시)
+```bash
+npx wrangler pages secret put TOSS_SECRET_KEY   # 토스 시크릿 키
+npx wrangler pages secret put TOSS_CLIENT_KEY   # 토스 클라이언트 키
+```
+
+---
+
 ## 🔐 v5.8.0 — 감사 로그(Audit Trail) + CSP 전면 봉인 (2026-07-02)
 
 ### 1. 시스템 전역 감사 로그 (마이그레이션 0041 `audit_logs`)

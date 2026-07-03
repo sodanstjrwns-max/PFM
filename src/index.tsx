@@ -41,6 +41,8 @@ import pfIndexRoute from './routes/pf-index'
 import knowledgeRoute from './routes/knowledge'
 import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
+import billing, { billingPublic } from './routes/billing'
+import { getPricingHTML, getLegalHTML } from './pages/pricing'
 // ─── Patient Chat 통합 v5.5.0 Phase B ───
 import messengerChannelsRoute from './routes/messenger/channels'
 import messengerMessagesRoute from './routes/messenger/messages'
@@ -194,6 +196,7 @@ app.post('/api/cron/tick', async (c) => {
 /* ═══ Route Registration ═══ */
 // Auth (public)
 app.route('/api/auth', auth)
+app.route('/api/billing', billingPublic)  // v5.9 공개 요금제 카탈로그
 
 // Protected routes
 app.route('/api/protected/hr', hr)
@@ -230,6 +233,7 @@ app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스
 app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (원장님 6권 노하우 카드)
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
+app.route('/api/protected/billing', billing)           // v5.9 구독/결제 (토스페이먼츠)
 
 // ─── Patient Chat 통합 v5.5.0 Phase B — Messenger Core ───
 // 모든 메신저 라우트는 `/api/protected/messenger` 한 베이스 아래에 마운트.
@@ -347,6 +351,14 @@ app.get('/api/survey/:token', async (c) => {
 
 app.get('/survey/:token', (c) => {
   return c.html(getSurveyHTML())
+})
+
+/* ═══ v5.9 공개 페이지: 요금제 랜딩 + 약관/방침/SLA ═══ */
+app.get('/pricing', (c) => c.html(getPricingHTML()))
+app.get('/legal/:doc', (c) => {
+  const doc = c.req.param('doc')
+  if (!['privacy', 'terms', 'sla'].includes(doc)) return c.notFound()
+  return c.html(getLegalHTML(doc as 'privacy' | 'terms' | 'sla'))
 })
 
 app.post('/api/survey/:token/submit', async (c) => {

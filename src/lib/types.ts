@@ -9,6 +9,9 @@ export type Bindings = {
   OPENAI_API_KEY?: string             // GPT-4o-mini (v5.4.0 부터 사용)
   ALLOWED_ORIGINS?: string            // CORS 화이트리스트 (production)
   CRON_SECRET?: string                // 외부 크론 호출 인증 (v5.5.1 — 예약발송/에스컬레이션)
+  // ─── v5.9 구독/결제 (토스페이먼츠) ───
+  TOSS_SECRET_KEY?: string            // 토스 시크릿 키 (미설정 시 결제 API 503 '준비중')
+  TOSS_CLIENT_KEY?: string            // 토스 클라이언트 키 (프론트 SDK 용, status API 로 노출)
 }
 
 export type Variables = {
