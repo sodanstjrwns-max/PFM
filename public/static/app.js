@@ -16,6 +16,9 @@ const h = escapeHtml;
 // Make globally available for modules
 window.escapeHtml = escapeHtml;
 window.h = h;
+// emptyState는 아래에서 정의되지만 (function hoisting) 모듈들이 bare 참조하므로 전역 노출 필수
+// (빈 DB 신규 병원에서 환자/컴플레인/콜 페이지가 ReferenceError로 죽던 P0 버그 수정)
+window.emptyState = function(opts) { return emptyState(opts); };
 
 /* ─── Icons (SVG inline) ─── */
 const ICONS = {
@@ -508,7 +511,21 @@ function renderAuth() {
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px" id="scheduleGrid">
           </div>
         </div>
+        <div class="form-group hidden" id="regConsentField" style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;line-height:1.5;margin-bottom:8px">
+            <input type="checkbox" id="agreeTerms" style="margin-top:2px">
+            <span>(필수) <a href="/legal/terms" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline">이용약관</a>에 동의합니다</span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;line-height:1.5">
+            <input type="checkbox" id="agreePrivacy" style="margin-top:2px">
+            <span>(필수) <a href="/legal/privacy" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline">개인정보 처리방침</a>에 동의합니다</span>
+          </label>
+        </div>
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="authSubmitBtn">로그인</button>
+        <div id="forgotPasswordHint" style="text-align:center;margin-top:10px;font-size:12px;color:var(--text-secondary)">
+          비밀번호를 잊으셨나요? <a href="mailto:contact@patientfunnel.kr?subject=%5B비밀번호%20재설정%20요청%5D&body=가입%20이메일과%20병원명을%20적어%20보내주세요." style="color:var(--primary);font-weight:600">지원팀에 재설정 요청</a>
+          <span style="opacity:.7">(1영업일 내 처리)</span>
+        </div>
       </form>
       <div class="auth-trust-bar" role="complementary" aria-label="보안 및 신뢰 정보">
         <span class="trust-item">🔒 엔드투엔드 암호화</span>
@@ -595,6 +612,9 @@ function renderAuth() {
       toggle('regAddressField', mode === 'register');
       toggle('regNameField', mode !== 'login');
       toggle('regPhoneField', mode === 'register');
+      toggle('regConsentField', mode === 'register');
+      const forgotHint = document.getElementById('forgotPasswordHint');
+      if (forgotHint) forgotHint.style.display = mode === 'login' ? '' : 'none';
       toggle('inviteCodeField', mode === 'join');
       toggle('joinPhoneField', mode === 'join');
       toggle('joinPositionTeam', mode === 'join');
@@ -607,6 +627,16 @@ function renderAuth() {
       if (mode === 'join') buildScheduleGrid();
     });
   });
+
+  // /pricing CTA → /?mode=register 진입 시 병원등록 탭 자동 선택 (런칭 퍼널 필수)
+  try {
+    const urlMode = new URLSearchParams(window.location.search).get('mode');
+    if (urlMode === 'register') {
+      const regTab = app.querySelector('.auth-tab[data-tab="register"]');
+      if (regTab) regTab.click();
+      // URL 정리 (새로고침 시 재트리거 방지는 불필요 — 어차피 register 의도)
+    }
+  } catch (e) {}
 
   // 사업자등록번호 자동 포맷 (000-00-00000)
   document.getElementById('regBusinessNumber')?.addEventListener('input', (e) => {
@@ -676,8 +706,14 @@ function renderAuth() {
         }});
         saveAuth(data.token, data.user);
       } else {
+        // 약관 동의 선검증 (서버에서도 검증하지만 UX를 위해 먼저 안내)
+        if (!document.getElementById('agreeTerms')?.checked || !document.getElementById('agreePrivacy')?.checked) {
+          throw new Error('이용약관과 개인정보 처리방침에 모두 동의해주세요');
+        }
         const data = await api('/api/auth/register', { method: 'POST', json: {
           hospitalName: document.getElementById('regHospital').value,
+          agreeTerms: true,
+          agreePrivacy: true,
           email: document.getElementById('authEmail').value,
           password: document.getElementById('authPassword').value,
           name: document.getElementById('regName').value,
@@ -1516,6 +1552,30 @@ window.PFM = {
   // Module registry
   modules: {},
 };
+
+/* ─── 전역 에러 수집 → 서버 error_logs (런칭 후 실사용 문제 조기 감지) ─── */
+(function setupGlobalErrorReporting() {
+  let sent = 0;
+  const MAX_PER_SESSION = 10; // 무한 루프 폭주 방지
+  const report = (message, stack, source) => {
+    if (sent >= MAX_PER_SESSION || !state.user) return;
+    sent++;
+    try {
+      fetch('/api/protected/admin/errors', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(state.token ? { Authorization: 'Bearer ' + state.token } : {}) },
+        body: JSON.stringify({ source: source || 'frontend', level: 'error', message: String(message).slice(0, 1500), stack: String(stack || '').slice(0, 4000), path: state.currentPage || location.pathname, method: 'JS' }),
+      }).catch(() => {});
+    } catch (e) {}
+  };
+  window.addEventListener('error', (e) => report(e.message, e.error && e.error.stack, 'window.onerror'));
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason || {};
+    // 사용자에게 이미 toast로 안내되는 API 오류는 제외 (노이즈 방지)
+    if (r && r.message && /로그인|세션|인터넷 연결/.test(r.message)) return;
+    report(r.message || String(r), r.stack, 'unhandledrejection');
+  });
+})();
 
 /* ─── Init ─── */
 // 모듈 로드 완료 후 실행 (DOMContentLoaded에서 호출)

@@ -59,7 +59,7 @@ const p2 = await ctx2.newPage();
 await p2.goto(BASE, { waitUntil: 'networkidle' });
 const reg = await p2.evaluate(async (ts) => {
   const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hospitalName: 'UI체험치과' + ts, email: `uitrial${ts}@t.com`, password: 'test1234', name: 'UI원장' }) });
+    body: JSON.stringify({ hospitalName: 'UI체험치과' + ts, email: `uitrial${ts}@t.com`, password: 'test1234', name: 'UI원장', agreeTerms: true, agreePrivacy: true }) });
   return await r.json();
 }, ts);
 ok('register: 신규 병원 생성', !!reg.user);

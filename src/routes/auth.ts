@@ -28,9 +28,11 @@ function setAuthCookie(c: any, token: string) {
 
 /* ─── Hospital Registration ─── */
 auth.post('/register', async (c) => {
-  const { hospitalName, email, password, name, phone, hospitalPhone, hospitalAddress, businessNumber } = await c.req.json()
+  const { hospitalName, email, password, name, phone, hospitalPhone, hospitalAddress, businessNumber, agreeTerms, agreePrivacy } = await c.req.json()
   const missing = validateRequired({ hospitalName, email, password, name }, ['hospitalName', 'email', 'password', 'name'])
   if (missing) return c.json({ error: '모든 필드를 입력해주세요' }, 400)
+  // v5.9.1: 약관/개인정보 동의 필수 (개인정보보호법 준수)
+  if (!agreeTerms || !agreePrivacy) return c.json({ error: '이용약관과 개인정보 처리방침에 동의해주세요' }, 400)
   if (!validateEmail(email)) return c.json({ error: '올바른 이메일 형식이 아닙니다' }, 400)
   if (password.length < 6) return c.json({ error: '비밀번호는 6자 이상이어야 합니다' }, 400)
 
@@ -47,6 +49,15 @@ auth.post('/register', async (c) => {
   ).bind(uid, hid, sanitizeString(email, 200), hash, sanitizeString(name, 100), 'admin', 1, 'doctor', 'clinical', sanitizeString(phone||'', 20), hireDate, defaultSchedule).run()
   // v5.9: 신규 병원 = Growth 14일 무료 체험 시작 (fire-and-forget 아님 — 가입 직후 상태 필요)
   await createTrialSubscription(c.env.DB, hid)
+  // v5.9.1: 동의 기록 영구 보존 (법적 증빙 — 실패해도 가입은 막지 않음)
+  try {
+    const consentIp = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || ''
+    const stmt = c.env.DB.prepare('INSERT INTO consent_logs (id, user_id, hospital_id, doc_type, doc_version, ip) VALUES (?,?,?,?,?,?)')
+    await c.env.DB.batch([
+      stmt.bind(crypto.randomUUID(), uid, hid, 'terms', 'v1-2026-07', consentIp),
+      stmt.bind(crypto.randomUUID(), uid, hid, 'privacy', 'v1-2026-07', consentIp),
+    ])
+  } catch { /* 기록 실패가 가입을 막지는 않음 */ }
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: uid, hospitalId: hid, email, name, role: 'admin' }, secret)
   setAuthCookie(c, token)
