@@ -157,17 +157,21 @@ poll.get('/poll', async (c) => {
   // ─── 2~5) 4개 SELECT 병렬 실행 ───
   const [unreadRes, urgentRes, statusRes, pendingRes] = await Promise.all([
     // 2) 채널별 unread_count
+    //    v5.11: 카운트를 100에서 캅 — UI는 99+로 표시하므로 정확한 대수 불필요.
+    //    오래 안 읽은 멤버가 채널당 수천 행을 매 폴링마다 스캔하던 것 방지 (D1 rows_read 과금 절감)
     c.env.DB.prepare(`
       SELECT
         c.id AS channel_id,
         c.name AS channel_name,
         c.type AS channel_type,
-        (SELECT COUNT(*) FROM messages m
-         WHERE m.channel_id = c.id
-           AND m.is_deleted = 0
-           AND m.user_id != ?
-           AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')
-        ) AS unread_count,
+        (SELECT COUNT(*) FROM (
+          SELECT 1 FROM messages m
+          WHERE m.channel_id = c.id
+            AND m.is_deleted = 0
+            AND m.user_id != ?
+            AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')
+          LIMIT 100
+        )) AS unread_count,
         (SELECT MAX(m.created_at) FROM messages m
          WHERE m.channel_id = c.id AND m.is_deleted = 0
         ) AS last_message_at
@@ -270,16 +274,19 @@ poll.get('/poll/badge', async (c) => {
   const hospitalId = user.hospitalId
 
   const [unreadRes, urgentRes, confirmRes] = await Promise.all([
+    // v5.11: 채널당 100 캅 — 배지는 99+ 표시용이므로 정밀 카운트 불필요 (rows_read 절감)
     c.env.DB.prepare(`
       SELECT COALESCE(SUM(uc), 0) AS total_unread
       FROM (
         SELECT
-          (SELECT COUNT(*) FROM messages m
-           WHERE m.channel_id = c.id
-             AND m.is_deleted = 0
-             AND m.user_id != ?
-             AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')
-          ) AS uc
+          (SELECT COUNT(*) FROM (
+            SELECT 1 FROM messages m
+            WHERE m.channel_id = c.id
+              AND m.is_deleted = 0
+              AND m.user_id != ?
+              AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')
+            LIMIT 100
+          )) AS uc
         FROM channels c
         JOIN channel_members cm ON c.id = cm.channel_id AND cm.user_id = ?
         WHERE c.hospital_id = ?
