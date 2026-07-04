@@ -475,6 +475,7 @@ function renderChannelList() {
  * ═══════════════════════════════════════════════ */
 async function openChannel(channel) {
   mState.currentChannel = channel;
+  resetPollBackoff(); // v5.11: 채널 전환 = 활동 중 → 3초 주기 복귀
 
   // 헤더 갱신
   const header = document.getElementById('msgHeader');
@@ -652,6 +653,7 @@ async function sendMessage() {
     if (urgent) document.getElementById('msgChkUrgent').checked = false;
     if (confirm) document.getElementById('msgChkConfirm').checked = false;
     autoResize(inp);
+    resetPollBackoff(); // v5.11: 발신 직후 상대 응답 빠르게 수신
     await loadMessages(true);
   } catch (e) {
     toast(e.message, 'error');
@@ -697,27 +699,65 @@ async function deleteMessage(msgId) {
 /* ═══════════════════════════════════════════════
  * 폴링
  * ═══════════════════════════════════════════════ */
-/* v5.5.1: 백그라운드 탭은 3초 → 15초로 완화 (D1 부하 절감) */
+/* v5.5.1: 백그라운드 탭은 3초 → 15초로 완화 (D1 부하 절감)
+ * v5.11: 적응형 백오프 — 변화 없는 응답이 이어지면 3초 → 최대 12초로 점진 완화.
+ *        새 메시지 수신/발신, 타이핑, 탭 복귀 시 즉시 3초로 복귀.
+ *        수백 명 동시 접속 시 유휴 폴링 QPS를 최대 1/4로 절감. */
 const POLL_INTERVAL_ACTIVE = 3000;
 const POLL_INTERVAL_HIDDEN = 15000;
+const POLL_INTERVAL_MAX = 12000;
+const POLL_BACKOFF_AFTER = 5; // unchanged 5회 연속부터 백오프 시작
+
+function currentPollInterval() {
+  if (document.hidden) return POLL_INTERVAL_HIDDEN;
+  const idle = Math.max(0, (mState.idleStreak || 0) - POLL_BACKOFF_AFTER);
+  // 5회 이후 매회 +1.5초, 최대 12초
+  return Math.min(POLL_INTERVAL_ACTIVE + idle * 1500, POLL_INTERVAL_MAX);
+}
+
+function scheduleNextPoll() {
+  if (!mState._pollActive) return;
+  mState.pollTimer = setTimeout(async () => {
+    await pollOnce();
+    scheduleNextPoll();
+  }, currentPollInterval());
+}
+
+/* 활동 감지 → 백오프 즉시 리셋 (메시지 발신/타이핑/채널 전환 시 호출) */
+function resetPollBackoff() {
+  if (!mState._pollActive) return;
+  const wasIdle = (mState.idleStreak || 0) > POLL_BACKOFF_AFTER;
+  mState.idleStreak = 0;
+  if (wasIdle && mState.pollTimer) {
+    clearTimeout(mState.pollTimer);
+    scheduleNextPoll();
+  }
+}
 
 function startPolling() {
   stopPolling();
+  mState._pollActive = true;
+  mState.idleStreak = 0;
   mState.lastPollAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  const interval = document.hidden ? POLL_INTERVAL_HIDDEN : POLL_INTERVAL_ACTIVE;
-  mState.pollTimer = setInterval(pollOnce, interval);
+  scheduleNextPoll();
   if (!mState._visListener) {
     mState._visListener = () => {
-      if (!mState.pollTimer) return;
-      clearInterval(mState.pollTimer);
-      mState.pollTimer = setInterval(pollOnce, document.hidden ? POLL_INTERVAL_HIDDEN : POLL_INTERVAL_ACTIVE);
-      if (!document.hidden) { mState.pollCount = 0; pollOnce(); } // 탭 복귀 즉시 full 동기화
+      if (!mState._pollActive) return;
+      if (mState.pollTimer) clearTimeout(mState.pollTimer);
+      if (!document.hidden) {
+        mState.pollCount = 0; // 탭 복귀 즉시 full 동기화
+        mState.idleStreak = 0;
+        pollOnce().finally(scheduleNextPoll);
+      } else {
+        scheduleNextPoll();
+      }
     };
     document.addEventListener('visibilitychange', mState._visListener);
   }
 }
 function stopPolling() {
-  if (mState.pollTimer) clearInterval(mState.pollTimer);
+  mState._pollActive = false;
+  if (mState.pollTimer) clearTimeout(mState.pollTimer);
   mState.pollTimer = null;
   // 페이지 이탈 시 디렉토리 폴링 + heartbeat 도 함께 정리 (타이머 누수 방지)
   if (mState.dirInterval) { clearInterval(mState.dirInterval); mState.dirInterval = null; }
@@ -735,12 +775,16 @@ async function pollOnce() {
     const res = await api(`/api/protected/messenger/poll?${q.toString()}`);
     mState.lastPollAt = res.serverTime || mState.lastPollAt;
 
-    // fast-path: 변화 없음 — 타이핑만 갱신하고 종료
+    // fast-path: 변화 없음 — 타이핑만 갱신하고 종료 (v5.11: 백오프 카운트)
     if (res.unchanged) {
       mState.typing = res.typing || [];
+      // 누군가 타이핑 중이면 백오프 유보 (메시지 임박)
+      if (mState.typing.length > 0) mState.idleStreak = 0;
+      else mState.idleStreak = (mState.idleStreak || 0) + 1;
       renderTyping();
       return;
     }
+    mState.idleStreak = 0; // 변화 감지 → 즉시 3초 주기 복귀
 
     // 새 메시지가 있으면 현재 채널 갱신
     if (res.newMessages && res.newMessages.length > 0 && mState.currentChannel) {
@@ -841,6 +885,7 @@ function bindMessengerEvents() {
       handleQrAutocomplete(inp);
       // 타이핑 신호 (debounce 1초)
       if (mState.currentChannel) {
+        resetPollBackoff(); // v5.11: 입력 중 = 활동 중
         clearTimeout(inp._typingTimer);
         inp._typingTimer = setTimeout(() => {
           api(`/api/protected/messenger/channels/${mState.currentChannel.id}/typing`,

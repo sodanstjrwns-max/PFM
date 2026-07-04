@@ -12,7 +12,7 @@
  */
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole } from '../lib/middleware'
+import { requireRole, invalidateSubscriptionCache } from '../lib/middleware'
 import { PLANS, type PlanId, getSubscription, trialDaysLeft, isTrialExpired, tossRequest, logBillingEvent } from '../lib/billing'
 import { auditFromCtx } from '../lib/audit'
 
@@ -25,6 +25,7 @@ billingPublic.get('/plans', (c) => {
     monthlyPrice: p.monthlyPrice, yearlyMonthly: p.yearlyMonthly,
     maxStaff: p.maxStaff, features: p.features,
   }))
+  c.header('Cache-Control', 'public, max-age=300') // v5.11: 정적 카탈로그 — 엣지/브라우저 캐시
   return c.json({ plans, trialDays: 14 })
 })
 
@@ -105,6 +106,7 @@ billing.post('/subscribe', requireRole('admin'), async (c) => {
   await c.env.DB.prepare(
     `UPDATE subscriptions SET plan=?, status='active', monthly_price=?, current_period_end=?, trial_ends_at=NULL, canceled_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE hospital_id=?`
   ).bind(plan.id, yearly ? plan.yearlyMonthly : plan.monthlyPrice, periodEnd, user.hospitalId).run()
+  invalidateSubscriptionCache(user.hospitalId) // v5.11: 구독 즉시 잠금 해제 반영
   logBillingEvent(c.env.DB, user.hospitalId, 'payment_success', { plan: plan.id, amount, paymentKey: r.data?.paymentKey, orderId })
   auditFromCtx(c, 'billing.subscribe', { summary: `구독 시작: ${plan.name} ${yearly ? '연간' : '월간'} (${amount.toLocaleString()}원)` })
   return c.json({ success: true, plan: plan.id, amount, periodEnd })
@@ -119,6 +121,7 @@ billing.post('/cancel', requireRole('admin'), async (c) => {
   await c.env.DB.prepare(
     `UPDATE subscriptions SET status='canceled', canceled_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE hospital_id=?`
   ).bind(user.hospitalId).run()
+  invalidateSubscriptionCache(user.hospitalId)
   logBillingEvent(c.env.DB, user.hospitalId, 'cancel', { plan: sub.plan })
   auditFromCtx(c, 'billing.cancel', { summary: `구독 해지 (${sub.plan})` })
   return c.json({ success: true, message: '구독이 해지되었습니다. 현재 결제 주기 종료일까지 이용 가능합니다.' })

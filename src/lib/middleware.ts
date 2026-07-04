@@ -60,6 +60,55 @@ export function securityHeaders(app: AppType) {
   })
 }
 
+/* ═══ Auth User-State Cache (v5.11 수평확장 최적화) ═══
+ * 문제: 보호 API 요청마다 users 단건 조회 1회 → 동시 사용자 수천 명이
+ *       3초 폴링을 돌리면 인증 검증만으로 초당 수백 쿼리가 D1에 적중.
+ * 해법: isolate 로컬 30초 TTL 캐시. 보안 성질은 유지하되 전파 지연만 허용:
+ *   - 퇴사/비활성/강등 반영이 "즉시" → "최대 30초"로 완화 (기존 JWT 7일 박제 대비 여전히 압도적 개선)
+ *   - 같은 isolate 내 변경은 invalidateUserAuthCache() 로 즉시 반영
+ *   - 비밀번호/토큰 검증과 무관 (상태 필드만 캐시) → 세션 탈취 표면 증가 없음
+ */
+type LiveUserState = { role: string; is_active: number; work_status: string; hospital_id: string }
+const _authCache = new Map<string, { v: LiveUserState; exp: number }>()
+const AUTH_CACHE_TTL = 30_000
+const AUTH_CACHE_MAX = 10_000
+
+export function invalidateUserAuthCache(userId?: string) {
+  if (userId) _authCache.delete(userId)
+  else _authCache.clear()
+}
+
+async function getLiveUserState(db: D1Database, userId: string): Promise<LiveUserState | null> {
+  const now = Date.now()
+  const hit = _authCache.get(userId)
+  if (hit && hit.exp > now) return hit.v
+  const live = await db.prepare(
+    'SELECT role, is_active, work_status, hospital_id FROM users WHERE id=?'
+  ).bind(userId).first<LiveUserState>()
+  if (live) {
+    if (_authCache.size >= AUTH_CACHE_MAX) {
+      // 만료분 정리 → 그래도 크면 전체 리셋 (isolate 메모리 보호)
+      for (const [k, v] of _authCache) { if (v.exp <= now) _authCache.delete(k) }
+      if (_authCache.size >= AUTH_CACHE_MAX) _authCache.clear()
+    }
+    _authCache.set(userId, { v: live, exp: now + AUTH_CACHE_TTL })
+  }
+  // 음성 결과(미존재 계정)는 캐시하지 않음 — 신규 가입 직후 레이스 방지
+  return live || null
+}
+
+/* ═══ Subscription Gate Cache (v5.11) ═══
+ * 체험 만료 게이트가 요청마다 subscriptions 조회 → 병원 단위 60초 캐시.
+ * 결제/해지 직후엔 invalidateSubscriptionCache() 로 즉시 반영.
+ */
+const _subGateCache = new Map<string, { locked: boolean; exp: number }>()
+const SUB_GATE_TTL = 60_000
+
+export function invalidateSubscriptionCache(hospitalId?: string) {
+  if (hospitalId) _subGateCache.delete(hospitalId)
+  else _subGateCache.clear()
+}
+
 /* ═══ Auth Middleware (v5.7: httpOnly 쿠키 우선 + Bearer 폴백) ═══ */
 export function authMiddleware(app: AppType) {
   app.use('/api/protected/*', async (c, next) => {
@@ -73,12 +122,9 @@ export function authMiddleware(app: AppType) {
     const secret = getJwtSecret(c.env.JWT_SECRET)
     const payload = await verifyJWT(token, secret)
     if (!payload) return c.json({ error: '토큰이 만료되었거나 유효하지 않습니다' }, 401)
-    // 🔒 토큰 role 박제 방지: DB에서 현재 상태 실시간 확인
+    // 🔒 토큰 role 박제 방지: DB 현재 상태 확인 (v5.11: 30초 캐시로 D1 부하 절감)
     //    (퇴사/비활성 직원의 발급済 토큰 7일 유효 문제 + 강등된 관리자가 admin 권한 유지하는 문제 차단)
-    //    PK 단건 조회라 비용 미미 (~1 row read/request)
-    const live: any = await c.env.DB.prepare(
-      'SELECT role, is_active, work_status, hospital_id FROM users WHERE id=?'
-    ).bind((payload as any).id).first()
+    const live = await getLiveUserState(c.env.DB, (payload as any).id)
     if (!live) return c.json({ error: '존재하지 않는 계정입니다' }, 401)
     if (live.is_active === 0 || live.work_status === 'resigned') {
       return c.json({ error: '비활성화되었거나 퇴사 처리된 계정입니다' }, 401)
@@ -90,7 +136,7 @@ export function authMiddleware(app: AppType) {
     ;(payload as any).role = live.role
     c.set('user', payload as any)
 
-    // ═══ v5.10 체험 만료 게이트 ═══
+    // ═══ v5.10 체험 만료 게이트 (v5.11: 병원 단위 60초 캐시) ═══
     // 결제 인프라(TOSS_SECRET_KEY)가 준비된 경우에만 활성 — 준비 전엔 아무도 잠기지 않음.
     // 만료 + 3일 유예 후: 결제/구독/에러리포팅 경로만 허용, 나머지는 402.
     if (c.env.TOSS_SECRET_KEY) {
@@ -98,9 +144,20 @@ export function authMiddleware(app: AppType) {
       const BILLING_ALLOWED = path.startsWith('/api/protected/billing') || path === '/api/protected/admin/errors'
       if (!BILLING_ALLOWED) {
         try {
-          const { getSubscription, isTrialLocked } = await import('./billing')
-          const sub = await getSubscription(c.env.DB, (payload as any).hospitalId)
-          if (isTrialLocked(sub)) {
+          const hid = (payload as any).hospitalId as string
+          const now = Date.now()
+          let locked: boolean
+          const cached = _subGateCache.get(hid)
+          if (cached && cached.exp > now) {
+            locked = cached.locked
+          } else {
+            const { getSubscription, isTrialLocked } = await import('./billing')
+            const sub = await getSubscription(c.env.DB, hid)
+            locked = isTrialLocked(sub)
+            if (_subGateCache.size > 5000) _subGateCache.clear()
+            _subGateCache.set(hid, { locked, exp: now + SUB_GATE_TTL })
+          }
+          if (locked) {
             return c.json({
               error: '무료 체험이 종료되었습니다. 플랜을 구독하시면 데이터 그대로 바로 이어서 사용할 수 있습니다.',
               reason: 'trial_expired',

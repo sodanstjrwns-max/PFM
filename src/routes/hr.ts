@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody, invalidateUserAuthCache } from '../lib/middleware'
 import { auditFromCtx } from '../lib/audit'
 
 const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
@@ -132,6 +132,8 @@ hr.put('/staff/:id', async (c) => {
   }
   fields.push('updated_at = CURRENT_TIMESTAMP'); vals.push(targetId, user.hospitalId)
   await c.env.DB.prepare(`UPDATE users SET ${fields.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
+  // v5.11: 인증 상태 캐시 즉시 무효화 (같은 isolate에서 role/재직상태 변경 즉시 반영)
+  if (changedSensitive.length > 0) invalidateUserAuthCache(targetId)
   if (changedSensitive.length > 0 && before) {
     const isRole = body.role !== undefined && body.role !== before.role
     auditFromCtx(c, isRole ? 'hr.role_change' : 'hr.status_change', {

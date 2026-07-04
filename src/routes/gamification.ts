@@ -96,6 +96,10 @@ gamification.post('/update-progress', requireRole('admin', 'manager'), async (c)
   const mission: any = await c.env.DB.prepare('SELECT * FROM gamification_missions WHERE id=? AND hospital_id=?').bind(mission_id, user.hospitalId).first()
   if (!mission) return c.json({ error: '미션을 찾을 수 없습니다' }, 404)
 
+  // 🔒 멀티테넌트 격리: 대상 직원이 같은 병원 소속인지 검증
+  const targetUser = await c.env.DB.prepare('SELECT 1 FROM users WHERE id=? AND hospital_id=?').bind(user_id, user.hospitalId).first()
+  if (!targetUser) return c.json({ error: '같은 병원의 직원이 아닙니다' }, 404)
+
   const now = new Date()
   let periodKey = ''
   if (mission.period === 'daily') periodKey = now.toISOString().slice(0, 10)

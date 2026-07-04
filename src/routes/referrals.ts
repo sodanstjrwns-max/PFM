@@ -519,8 +519,8 @@ export async function recalculateFanLevel(
   // 3) 환자 본인 정보
   const patient = await db.prepare(`
     SELECT visit_count, last_visit_date
-    FROM patients WHERE id = ?
-  `).bind(patientId).first() as any
+    FROM patients WHERE id = ? AND hospital_id = ?
+  `).bind(patientId, hospitalId).first() as any
 
   // 4) 누적 결제 (consult_records 치료확정 'O' 합)
   const paid = await db.prepare(`

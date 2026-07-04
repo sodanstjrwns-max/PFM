@@ -183,7 +183,7 @@ meetings.post('/:id/minutes/upload', async (c) => {
   await c.env.R2.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } })
   const existing = await c.env.DB.prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ?').bind(meetingId).first() as any
   if (existing) { await c.env.DB.prepare('UPDATE meeting_minutes SET file_url = ?, file_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(key, sanitizeString(file.name, 200), existing.id).run() }
-  else { const id = 'mm-' + crypto.randomUUID().slice(0,8); await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, file_url, file_name, written_by) VALUES (?,?,?,?,?)').bind(id, meetingId, key, sanitizeString(file.name, 200), user.id).run() }
+  else { const id = 'mm-' + crypto.randomUUID().slice(0,8); await c.env.DB.prepare('INSERT INTO meeting_minutes (id, meeting_id, file_url, file_name, written_by, hospital_id) VALUES (?,?,?,?,?,?)').bind(id, meetingId, key, sanitizeString(file.name, 200), user.id, user.hospitalId).run() }
   return c.json({ success: true, file_url: key, file_name: file.name })
 })
 

@@ -67,6 +67,11 @@ chat.post('/rooms/dm', async (c) => {
   if (!targetUserId) return c.json({ error: '대상 사용자를 선택해주세요' }, 400)
   if (targetUserId === user.id) return c.json({ error: '자기 자신과 대화할 수 없습니다' }, 400)
 
+  // 🔒 멀티테넌트 격리: 대상이 같은 병원 소속인지 검증 (교차 병원 DM 차단)
+  const targetOk = await c.env.DB.prepare('SELECT 1 FROM users WHERE id=? AND hospital_id=? AND is_active=1')
+    .bind(targetUserId, user.hospitalId).first()
+  if (!targetOk) return c.json({ error: '같은 병원의 사용자가 아닙니다' }, 404)
+
   // 기존 DM 방이 있는지 확인
   const existing = await c.env.DB.prepare(`
     SELECT cr.id FROM chat_rooms cr
@@ -103,8 +108,19 @@ chat.post('/rooms/group', async (c) => {
   if (!name) return c.json({ error: '그룹명을 입력해주세요' }, 400)
   if (memberIds.length < 1) return c.json({ error: '최소 1명 이상의 멤버를 선택해주세요' }, 400)
 
+  // 🔒 멀티테넌트 격리: 같은 병원 소속 사용자만 그룹 멤버로 허용
+  const uniqueIds = [...new Set(memberIds.filter(id => id !== user.id))].slice(0, 100)
+  let validMemberIds: string[] = []
+  if (uniqueIds.length > 0) {
+    const ph = uniqueIds.map(() => '?').join(',')
+    const valid = await c.env.DB.prepare(`SELECT id FROM users WHERE hospital_id=? AND is_active=1 AND id IN (${ph})`)
+      .bind(user.hospitalId, ...uniqueIds).all()
+    validMemberIds = ((valid.results || []) as any[]).map(r => r.id)
+  }
+  if (validMemberIds.length < 1) return c.json({ error: '같은 병원의 사용자만 초대할 수 있습니다' }, 400)
+
   const roomId = 'room-' + crypto.randomUUID().slice(0, 8)
-  const allMembers = [user.id, ...memberIds.filter(id => id !== user.id)]
+  const allMembers = [user.id, ...validMemberIds]
 
   const stmts = [
     c.env.DB.prepare('INSERT INTO chat_rooms (id, hospital_id, type, name, created_by) VALUES (?,?,?,?,?)')

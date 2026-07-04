@@ -190,6 +190,19 @@ app.post('/api/cron/tick', async (c) => {
     ).run()
   } catch { /* 테이블 미존재 무시 */ }
 
+  // 3.5) v5.11 로그 테이블 보존 정책 — 무한 증식 방지 (수백 병원 스케일 대비)
+  //      error_logs 90일 / audit_logs 1년 / message_reads 는 메시지 CASCADE 로 자체 관리.
+  //      배치당 상한을 둬 단일 tick 이 무거워지지 않게 (다음 tick 이 이어서 처리).
+  try {
+    const r1 = await c.env.DB.prepare(
+      `DELETE FROM error_logs WHERE id IN (SELECT id FROM error_logs WHERE created_at < datetime('now', '-90 days') LIMIT 500)`
+    ).run()
+    const r2 = await c.env.DB.prepare(
+      `DELETE FROM audit_logs WHERE id IN (SELECT id FROM audit_logs WHERE created_at < datetime('now', '-365 days') LIMIT 500)`
+    ).run()
+    results.log_retention = { error_logs: r1.meta.changes || 0, audit_logs: r2.meta.changes || 0 }
+  } catch { /* 테이블 미존재 무시 */ }
+
   // 4) v5.10: 월 구독 자동 갱신 청구 (TOSS 준비된 경우에만)
   if (c.env.TOSS_SECRET_KEY) {
     try {

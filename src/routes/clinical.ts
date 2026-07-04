@@ -81,9 +81,13 @@ clinical.post('/doctors/on-duty/add', async (c) => {
     date: { type: 'string', max: 10 },
   })
   if (!b.doctor_id) return c.json({ error: '원장을 선택해주세요' }, 400)
+  // 🔒 멀티테넌트 격리: 대상 원장이 같은 병원 소속인지 검증
+  const doctorOk = await c.env.DB.prepare('SELECT 1 FROM users WHERE id=? AND hospital_id=?')
+    .bind(b.doctor_id, user.hospitalId).first()
+  if (!doctorOk) return c.json({ error: '같은 병원의 원장이 아닙니다' }, 404)
   const date = b.date || new Date().toISOString().slice(0, 10)
-  // Check if attendance already exists
-  const existing = await c.env.DB.prepare('SELECT id FROM attendance WHERE user_id=? AND date=?').bind(b.doctor_id, date).first()
+  // Check if attendance already exists (hospital_id 조건 포함)
+  const existing = await c.env.DB.prepare('SELECT id FROM attendance WHERE user_id=? AND date=? AND hospital_id=?').bind(b.doctor_id, date, user.hospitalId).first()
   if (existing) {
     // Update to present
     await c.env.DB.prepare('UPDATE attendance SET status=?, check_in=? WHERE id=?').bind('present', new Date().toISOString(), (existing as any).id).run()
