@@ -69,7 +69,7 @@ let state = {
   currentPage: 'dashboard',
   categories: {},
   sidebarOpen: true,
-  openGroups: { management: true },
+  openGroups: {},
 };
 
 /* ─── API Helper ─── */
@@ -1025,9 +1025,9 @@ function renderApp() {
   <div id="toastContainer" class="toast-container"></div>
   <div id="presentationOverlay"></div>`;
 
-  // v5.6: 사이드바 그룹 열림 상태 복원 (localStorage)
+  // v5.6: 사이드바 그룹 열림 상태 복원 (localStorage) — 기본은 모두 접힌 상태, 사용자가 연 이력만 기억
   try {
-    if (window.PFMPolish) state.openGroups = Object.assign({ management: true }, window.PFMPolish.loadGroups());
+    if (window.PFMPolish) state.openGroups = window.PFMPolish.loadGroups() || {};
   } catch (e) {}
 
   renderSidebar(nav);
