@@ -236,6 +236,7 @@ async function showWeeklyInsightsModal(auto) {
 
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
   overlay.tabIndex = -1;
+  overlay.onkeydown = (e) => { if (e.key === 'Escape') closeModal(); }; // 다른 모달들과 동일하게 ESC로 닫기 지원
   setTimeout(() => overlay.querySelector('#weeklyDismiss')?.focus(), 100);
 
   // 🔔 브라우저 알림 발송 (권한 있으면)
