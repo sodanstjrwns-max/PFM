@@ -1455,6 +1455,12 @@ body.app-loaded {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-card);
+  z-index: 1;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: 0 -4px 8px -4px rgba(0,0,0,0.06);
 }
 .form-grid {
   display: grid;
