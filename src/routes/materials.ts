@@ -51,62 +51,6 @@ materials.delete('/materials/:id', async (c) => {
   return c.json({ success: true })
 })
 
-/* ─── Pricing ─── */
-materials.get('/pricing', async (c) => {
-  const user = c.get('user')!
-  const cat = sanitizeString(c.req.query('category') || '', 100)
-  let sql = 'SELECT p.*, c.name as category_name FROM pricing p JOIN categories c ON p.category_id=c.id WHERE p.hospital_id=?'
-  const params: any[] = [user.hospitalId]
-  if (cat) { sql += ' AND p.category_id=?'; params.push(cat) }
-  sql += ' ORDER BY c.sort_order, p.sort_order LIMIT 500'
-  const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
-})
-
-materials.post('/pricing', async (c) => {
-  const user = c.get('user')!
-  const raw = await c.req.json()
-  const b = sanitizeBody(raw, {
-    category_id: { type: 'string', max: 100 },
-    procedure_name: { type: 'string', max: 200 },
-    price_min: { type: 'number', min: 0, max: 999999999 },
-    price_max: { type: 'number', min: 0, max: 999999999 },
-    description: { type: 'string', max: 2000 },
-  })
-  if (!b.category_id || !b.procedure_name) return c.json({ error: '필수 항목을 입력해주세요' }, 400)
-  const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO pricing (id, hospital_id, category_id, procedure_name, price_min, price_max, description) VALUES (?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.category_id, b.procedure_name, b.price_min || null, b.price_max || null, b.description || '').run()
-  return c.json({ id })
-})
-
-materials.put('/pricing/:id', async (c) => {
-  const user = c.get('user')!
-  const id = c.req.param('id')
-  const raw = await c.req.json()
-  const b = sanitizeBody(raw, {
-    procedure_name: { type: 'string', max: 200 },
-    price_min: { type: 'number', min: 0, max: 999999999 },
-    price_max: { type: 'number', min: 0, max: 999999999 },
-    description: { type: 'string', max: 2000 },
-    is_active: { type: 'number', min: 0, max: 1 },
-  })
-  // 부분 업데이트: 전달된 필드만 변경 (undefined bind → D1_TYPE_ERROR 방지)
-  const sets: string[] = []; const vals: any[] = []
-  for (const key of ['procedure_name', 'price_min', 'price_max', 'description', 'is_active']) {
-    if (b[key] !== undefined && b[key] !== null) { sets.push(`${key}=?`); vals.push(b[key]) }
-  }
-  if (!sets.length) return c.json({ error: '변경 사항 없음' }, 400)
-  vals.push(id, user.hospitalId)
-  await c.env.DB.prepare(`UPDATE pricing SET ${sets.join(',')} WHERE id=? AND hospital_id=?`).bind(...vals).run()
-  return c.json({ success: true })
-})
-
-materials.delete('/pricing/:id', async (c) => {
-  const user = c.get('user')!
-  await c.env.DB.prepare('DELETE FROM pricing WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).run()
-  return c.json({ success: true })
-})
-
 /* ─── Cases ─── */
 materials.get('/cases', async (c) => {
   const user = c.get('user')!

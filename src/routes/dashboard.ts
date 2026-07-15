@@ -28,7 +28,7 @@ dashboard.get('/dashboard', async (c) => {
     // Q1: Content counts (5→1 using UNION ALL)
     c.env.DB.prepare(`
       SELECT 'materials' as k, COUNT(*) as v FROM materials WHERE hospital_id=? OR hospital_id IS NULL
-      UNION ALL SELECT 'pricing', COUNT(*) FROM pricing WHERE hospital_id=?
+      UNION ALL SELECT 'pricing', COUNT(*) FROM fee_items WHERE hospital_id=?
       UNION ALL SELECT 'cases', COUNT(*) FROM cases WHERE hospital_id=?
       UNION ALL SELECT 'posts', COUNT(*) FROM posts WHERE hospital_id=?
     `).bind(hid, hid, hid, hid).all(),

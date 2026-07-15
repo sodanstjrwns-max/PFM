@@ -320,32 +320,6 @@ community.post('/marketing/records', async (c) => {
   return c.json({ id })
 })
 
-/* ─── Reviews ─── */
-community.get('/reviews', async (c) => {
-  const user = c.get('user')!
-  const page = sanitizeNumber(c.req.query('page'), 1, 1, 1000)
-  const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
-  const offset = (page - 1) * limit
-  const rows = await c.env.DB.prepare('SELECT id, platform, reviewer_name, rating, content, reply, review_date, created_at FROM reviews WHERE hospital_id=? ORDER BY review_date DESC, created_at DESC LIMIT ? OFFSET ?').bind(user.hospitalId, limit, offset).all()
-  return c.json({ data: rows.results, page, limit })
-})
-
-community.post('/reviews', async (c) => {
-  const user = c.get('user')!
-  const raw = await c.req.json()
-  const b = sanitizeBody(raw, {
-    platform: { type: 'string', max: 50 },
-    reviewer_name: { type: 'string', max: 100 },
-    rating: { type: 'number', min: 1, max: 5, default: 5 },
-    content: { type: 'string', max: 5000 },
-    reply: { type: 'string', max: 5000 },
-    review_date: { type: 'string', max: 20 },
-  })
-  const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO reviews (id, hospital_id, platform, reviewer_name, rating, content, reply, review_date) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.platform||'manual', b.reviewer_name||'', b.rating||5, b.content||'', b.reply||'', b.review_date||new Date().toISOString().split('T')[0]).run()
-  return c.json({ id })
-})
-
 /* ─── Checklists ─── */
 community.get('/checklists', async (c) => {
   const user = c.get('user')!

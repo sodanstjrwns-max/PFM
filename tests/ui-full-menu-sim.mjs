@@ -12,15 +12,15 @@ import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:3000';
 
-// getNavConfig()에서 추출한 실제 리프 페이지 62개 (그룹 헤더 제외) — v5.12 그룹 재설계 반영
+// getNavConfig()에서 추출한 실제 리프 페이지 59개 (그룹 헤더 제외) — v5.13 reviews/pricing 통합 정리 반영
 const LEAF_PAGES = [
   'dashboard','clinical_board',
   'patients','patients_stats','ltv_ranking','funnel','recall','consult_records','consult_dashboard',
   'complaints','complaints_stats','reservations','reservation_stats','wait_times','wait_time_stats',
   'calls_inbound','calls_outbound','calls_stats',
-  'fee_schedule','materials','pricing','cases','scripts',
+  'fee_schedule','materials','cases','scripts',
   'kpi_dashboard','kpi_stats','kpi_benchmark','kpi_daily','kpi_targets','reports',
-  'marketing','heatmap','review_mgmt','reviews','surveys','kakao',
+  'marketing','heatmap','review_mgmt','surveys','kakao',
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
   'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies','parking','parking_stats',
   'free','praise','mistake','feedback_notes',
@@ -31,7 +31,7 @@ const LEAF_PAGES = [
 // getNavConfig()에서 isManager(admin/manager)만 사이드바에 노출되는 항목들.
 // staff 계정은 이 메뉴 버튼 자체가 렌더되지 않으므로 정상 UX 흐름상 도달 불가 →
 // staff 순회 시 제외해야 오탐(false positive)이 나지 않음.
-const MANAGER_ONLY_PAGES = new Set(['fee_schedule', 'weekly_insights', 'kpi_targets', 'kakao']);
+const MANAGER_ONLY_PAGES = new Set(['weekly_insights', 'kpi_targets', 'kakao']);
 
 let pass = 0, fail = 0, warn = 0;
 const issues = [];

@@ -43,10 +43,10 @@ const CHUNK_FILES = [
 
 // Module-to-page mapping (which pages need which module)
 const MODULE_PAGE_MAP = {
-  'modules/management.js': ['materials', 'pricing', 'cases'],
+  'modules/management.js': ['materials', 'cases'],
   'modules/scripts.js': ['scripts'],
   'modules/community.js': ['notice', 'free', 'praise', 'mistake', 'kanban_purchase', 'kanban_repair'],
-  'modules/operations.js': ['staff_supplies', 'checklists', 'calendar', 'marketing', 'reviews'],
+  'modules/operations.js': ['staff_supplies', 'checklists', 'calendar', 'marketing'],
   'modules/hire.js': ['hire_postings', 'hire_applicants', 'hire_interviews', 'hire_onboarding'],
   'modules/hr.js': ['hr_dashboard', 'hr_staff'],
   'modules/clinical.js': ['clinical_board'],

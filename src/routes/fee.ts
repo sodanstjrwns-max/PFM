@@ -3,7 +3,7 @@ import type { Bindings, Variables } from '../lib/types'
 import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
 const fee = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-fee.get('/categories', requireRole('admin','manager'), async (c) => {
+fee.get('/categories', async (c) => {
   const user = c.get('user')!
   const rows = await c.env.DB.prepare('SELECT * FROM fee_categories WHERE hospital_id=? ORDER BY sort_order, name').bind(user.hospitalId).all()
   return c.json(rows.results)
@@ -29,7 +29,7 @@ fee.delete('/categories/:id', requireRole('admin','manager'), async (c) => {
   return c.json({ success: true })
 })
 
-fee.get('/items', requireRole('admin','manager'), async (c) => {
+fee.get('/items', async (c) => {
   const user = c.get('user')!
   const catId = sanitizeString(c.req.query('category_id') || '', 100)
   let sql = 'SELECT fi.*, fc.name as category_name, fc.icon as category_icon FROM fee_items fi JOIN fee_categories fc ON fi.category_id=fc.id WHERE fi.hospital_id=?'

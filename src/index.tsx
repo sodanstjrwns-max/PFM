@@ -230,8 +230,8 @@ app.route('/api/billing', billingPublic)  // v5.9 공개 요금제 카탈로그
 
 // Protected routes
 app.route('/api/protected/hr', hr)
-app.route('/api/protected', materials)       // categories, materials, pricing, cases, files, scripts
-app.route('/api/protected', community)       // posts, kanban, staff-supplies, marketing, reviews, checklists, events
+app.route('/api/protected', materials)       // categories, materials, cases, files, scripts
+app.route('/api/protected', community)       // posts, kanban, staff-supplies, marketing, checklists, events
 app.route('/api/protected', clinical)        // chairs, doctors, treatment-board
 app.route('/api/protected/consult-records', consult)
 app.route('/api/protected/leave', leave)

@@ -65,7 +65,7 @@ async function computeObjective(db: D1Database, hospitalId: string) {
     `).bind(hospitalId, monthStart).first<any>(),
     db.prepare(`SELECT COUNT(*) AS c FROM call_records WHERE hospital_id = ? AND call_date >= ?`)
       .bind(hospitalId, monthStart).first<any>(),
-    db.prepare(`SELECT COUNT(*) AS c FROM reviews WHERE hospital_id = ? AND created_at >= ?`)
+    db.prepare(`SELECT COUNT(*) AS c FROM review_management WHERE hospital_id = ? AND created_at >= ?`)
       .bind(hospitalId, monthStart).first<any>(),
   ])
 

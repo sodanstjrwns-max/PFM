@@ -225,73 +225,6 @@ async function renderMarketing(body, actions) {
   });
 }
 
-/* ─── Reviews (후기 관리) ─── */
-async function renderReviews(body, actions) {
-  actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addReviewBtn">${ICONS.plus} 후기 등록</button>`;
-  body.innerHTML = `<div id="reviewContent" style="max-width:800px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
-
-  async function loadReviews() {
-    const container = document.getElementById('reviewContent');
-    try {
-      const res = await api('/api/protected/reviews');
-      const reviews = Array.isArray(res) ? res : (res.data || []);
-      const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+(r.rating||0),0)/reviews.length).toFixed(1) : '0.0';
-      const platformIcons = { naver:'🟢', google:'🔵', kakao:'🟡', manual:'⚪' };
-
-      container.innerHTML = `
-        <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap">
-          <div class="stat-card" style="flex:1;min-width:200px"><div class="stat-card-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706">${ICONS.star}</div><div class="stat-card-body"><div class="stat-card-label">평균 별점</div><div class="stat-card-value">${avgRating} ⭐</div></div></div>
-          <div class="stat-card" style="flex:1;min-width:200px"><div class="stat-card-icon blue">${ICONS.message}</div><div class="stat-card-body"><div class="stat-card-label">총 후기</div><div class="stat-card-value">${reviews.length}</div></div></div>
-        </div>
-        ${reviews.length ? reviews.map(r => `
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span>${platformIcons[r.platform]||'⚪'}</span>
-              <span style="font-weight:600">${esc(r.reviewer_name||'익명')}</span>
-              <span style="color:var(--accent)">${'⭐'.repeat(r.rating)}</span>
-              <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${r.review_date||''}</span>
-            </div>
-            <div style="font-size:13px;color:var(--text-secondary)">${esc(r.content)}</div>
-            ${r.reply ? `<div style="margin-top:8px;padding:8px 12px;background:var(--primary-bg);border-radius:var(--radius-sm);font-size:12px"><strong>답글:</strong> ${esc(r.reply)}</div>` : ''}
-          </div>
-        `).join('') : `<div class="empty-state">${ICONS.star}<h3>등록된 후기가 없습니다</h3></div>`}`;
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3></div>`; }
-  }
-  loadReviews();
-
-  document.getElementById('addReviewBtn').addEventListener('click', () => {
-    const modal = document.getElementById('modalContent');
-    modal.innerHTML = `
-      <div class="modal-header"><h3>⭐ 후기 등록</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
-      <div class="modal-body"><form class="auth-form">
-        <div class="form-grid">
-          <div class="form-group"><label>플랫폼</label><select class="form-input" id="rvPlatform"><option value="naver">네이버</option><option value="google">구글</option><option value="kakao">카카오</option><option value="manual">직접입력</option></select></div>
-          <div class="form-group"><label>별점</label><select class="form-input" id="rvRating"><option value="5">⭐⭐⭐⭐⭐</option><option value="4">⭐⭐⭐⭐</option><option value="3">⭐⭐⭐</option><option value="2">⭐⭐</option><option value="1">⭐</option></select></div>
-        </div>
-        <div class="form-group"><label>작성자</label><input class="form-input" id="rvName" placeholder="닉네임 또는 이름"></div>
-        <div class="form-group"><label>후기 내용</label><textarea class="form-input" id="rvContent" rows="3" placeholder="후기 내용"></textarea></div>
-        <div class="form-group"><label>답글</label><textarea class="form-input" id="rvReply" rows="2" placeholder="답글 (선택)"></textarea></div>
-      </form></div>
-      <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="rvSubmitBtn">등록</button></div>`;
-    showModal();
-    document.getElementById('modalClose').addEventListener('click', closeModal);
-    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
-    document.getElementById('rvSubmitBtn').addEventListener('click', async () => {
-      try {
-        await api('/api/protected/reviews', { method:'POST', json:{
-          platform: document.getElementById('rvPlatform').value,
-          rating: parseInt(document.getElementById('rvRating').value),
-          reviewer_name: document.getElementById('rvName').value,
-          content: document.getElementById('rvContent').value,
-          reply: document.getElementById('rvReply').value,
-        }});
-        toast('후기 등록 완료!', 'success'); closeModal(); loadReviews();
-      } catch(e) { toast(e.message, 'error'); }
-    });
-  });
-}
-
-
 /* ─── Staff Supplies Kanban Board (직원용품 칸반보드) ─── */
 async function renderStaffSupplies(body, actions) {
   const isAdmin = PFM.canManage();
@@ -547,5 +480,5 @@ async function renderStaffSupplies(body, actions) {
 }
 
 
-PFM.modules.operations = { renderChecklists, renderCalendar, renderMarketing, renderReviews, renderStaffSupplies };
+PFM.modules.operations = { renderChecklists, renderCalendar, renderMarketing, renderStaffSupplies };
 })(window.PFM);

@@ -876,9 +876,8 @@ function getNavConfig() {
     {
       id: 'clinical_materials', label: '🏥 진료 자료', icon: ICONS.folder,
       children: [
-        ...(isManager ? [{ id: 'fee_schedule', label: '수가표', icon: ICONS.pricing }] : []),
+        { id: 'fee_schedule', label: '수가표', icon: ICONS.pricing },
         { id: 'materials', label: '설명자료', icon: ICONS.materials },
-        { id: 'pricing', label: '비용 안내', icon: ICONS.pricing },
         { id: 'cases', label: '케이스 사진', icon: ICONS.cases },
         { id: 'scripts', label: '상담 스크립트', icon: ICONS.play },
       ]
@@ -905,7 +904,6 @@ function getNavConfig() {
         { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
         { id: 'heatmap', label: '유입 히트맵', icon: ICONS.chart },
         { id: 'review_mgmt', label: '리뷰 관리', icon: ICONS.star },
-        { id: 'reviews', label: '후기 관리', icon: ICONS.star },
         ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
         ...(isManager ? [{ id: 'kakao', label: '카카오 알림톡', icon: ICONS.message }] : []),
       ]
@@ -1385,7 +1383,6 @@ async function renderPage() {
   const titles = {
     dashboard: ['대시보드', ICONS.dashboard],
     materials: ['설명자료 관리', ICONS.materials],
-    pricing: ['비용 안내', ICONS.pricing],
     cases: ['케이스 사진', ICONS.cases],
     scripts: ['상담 스크립트', ICONS.play],
     notice: ['공지사항', ICONS.folder],
@@ -1400,7 +1397,6 @@ async function renderPage() {
     checklists: ['체크리스트', ICONS.checklist],
     calendar: ['일정 관리', ICONS.calendar],
     marketing: ['마케팅 유입 분석', ICONS.chart],
-    reviews: ['후기 관리', ICONS.star],
     hire_postings: ['채용 공고', ICONS_HIRE.briefcase],
     hire_applicants: ['지원자 관리', ICONS_HIRE.userPlus],
     hire_interviews: ['인터뷰', ICONS.message],
@@ -1450,7 +1446,6 @@ async function renderPage() {
   switch (state.currentPage) {
     case 'dashboard': M.dashboard.renderDashboard(body); break;
     case 'materials': M.management.renderMaterials(body, actions); break;
-    case 'pricing': M.management.renderPricing(body, actions); break;
     case 'cases': M.management.renderCases(body, actions); break;
     case 'scripts': M.scripts.renderScripts(body, actions); break;
     case 'notice': case 'free': case 'praise': case 'mistake':
@@ -1463,7 +1458,6 @@ async function renderPage() {
     case 'checklists': M.operations.renderChecklists(body, actions); break;
     case 'calendar': M.operations.renderCalendar(body, actions); break;
     case 'marketing': M.operations.renderMarketing(body, actions); break;
-    case 'reviews': M.operations.renderReviews(body, actions); break;
     case 'hire_postings': M.hire.renderHirePostings(body, actions); break;
     case 'hire_applicants': M.hire.renderHireApplicants(body, actions); break;
     case 'hire_interviews': M.hire.renderHireInterviews(body, actions); break;

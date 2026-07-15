@@ -3,6 +3,42 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🔀 v5.11.3 — 레거시 시스템 통합: 리뷰/수가표 데이터 병합 (2026-07-15)
+
+v5.11.2에서 "프로덕션 데이터 위험"으로 별도 작업으로 미뤄뒀던 2개 중복 시스템을 실제 통합 완료. (앱이 아직 실서비스 전이라 백업 없이 바로 진행)
+
+### 1. 리뷰 관리 통합: `reviews` → `review_management`
+- 레거시 `reviews`(단순 CRUD, 85 rows) 데이터를 서바이버 시스템 `review_management`(감정분석/응답추적/태그/고정 지원)로 전량 이전
+- 이전 시 `review-management.ts`의 긍정/부정 키워드 알고리즘을 그대로 재사용해 `sentiment` 산출, `reply` 존재 여부로 `response_status`(completed/pending) 결정
+- 신규 ID는 `rv-lg<원본UUID 앞10자리>` 규칙으로 충돌 없이 생성(로컬+프로덕션 통합 102개 ID 전수 유일성 확인)
+- 백엔드 `/reviews` 라우트(`community.ts`) 제거, 프론트 `renderReviews`(`operations.js`) 제거, nav/titles/switch-case 전부 정리
+- **프로덕션 결과**: `review_management` 530 → **615 rows** (원본 `reviews` 테이블은 삭제하지 않고 그대로 보존 — 롤백 안전장치)
+
+### 2. 수가표 통합: `pricing` → `fee_items`/`fee_categories`
+- 레거시 `pricing`(전 직원 열람 가능, 만원 단위 최소~최대 range, 14 rows)을 서바이버 시스템 `fee_items`(원 단위 base/discount point price)로 이전
+- 단위 변환: `base_price = price_max × 10000`, `discount_price = price_min × 10000`(최소=최대인 경우 NULL)
+- 카테고리는 `(hospital_id, name)` 완전 일치 시 기존 `fee_categories` 재사용, 불일치 시 신규 생성(아이콘/컬러는 `fee-schedule.js`의 팔레트에서 순환 할당)
+- **권한 모델 충돌 해결**: `pricing`은 전 직원 열람 가능이었으나 `fee_schedule`은 관리자 전용이었음 → `fee.ts`의 GET `/categories`, `/items`에서 `requireRole('admin','manager')` 제거(쓰기 라우트는 관리자 전용 유지). 프론트 `fee-schedule.js`는 `isManager`가 원래 쓰기 버튼만 가렸을 뿐 데이터 조회는 이미 전 역할 공통이었어서 변경 불필요
+- 백엔드 `/pricing` 라우트(`materials.ts`) 제거, 프론트 `renderPricing`/`openAddPricingModal`(`management.js`) 제거, nav/titles/switch-case 정리(단, `fee_schedule` nav 항목의 관리자 전용 노출 제한도 함께 해제)
+- **프로덕션 결과**: `fee_items` 12 → **26 rows**, `fee_categories` 2 → **7 rows** (원본 `pricing` 테이블 보존)
+
+### 3. 2차 참조 수정
+- `pf-index.ts`: `computeObjective()`의 `FROM reviews` → `FROM review_management`
+- `dashboard.ts`: Q1 집계 쿼리 `FROM pricing` → `FROM fee_items` (프론트 호환을 위해 응답 JSON 키명 `pricing`은 유지)
+- `bundle-frontend.cjs`: `MODULE_PAGE_MAP`에서 `management.js`의 `pricing`, `operations.js`의 `reviews` 청크 매핑 제거
+- `index.tsx` 라우트 마운트 주석에서 stale `reviews`/`pricing` 언급 정리
+
+### 검증
+- `npx vitest run` **73/73 통과**
+- `tests/ui-full-menu-sim.mjs` **487/487 통과** (admin 59/59 리프, staff 57/57 리프 — `pricing`/`reviews` 제거로 61→59, `fee_schedule`을 `MANAGER_ONLY_PAGES`에서 제외해 staff 노출 페이지 +1)
+- `tests/ui-data-act.mjs` **7/7 통과**
+- API 레벨 직접 검증: 신규 가입→샘플 데이터 주입→대시보드 조회 시 `fee_items` 기반 `pricing` 카운트 정상 반영 확인
+- `tests/ui-sweep-csp.mjs`/`ui-value-loop.mjs`: 이번 병합과 무관한 기존 산발적 플레이키(랜덤 페이지 pageerror, git stash로 구버전에서도 동일 재현) 확인 — 병합 범위 밖 이슈로 별도 트래킹 필요
+
+### 남은 저위험 작업 (선택)
+- `scripts/gen_demo_seed.cjs`: dev용 시드 생성기가 여전히 `pricing` 테이블을 시딩하는 코드 포함 — 런타임에 실행되지 않는 개발 도구이므로 낮은 우선순위로 보류
+- `tools/seed-boards.sql`, `scripts/mega-seed.sql`: `reviews` INSERT 문 잔존 — 개발용 1회성 시드 스크립트, 낮은 우선순위로 보류
+
 ## 🗂️ v5.11.2 — 사이드바 9그룹 재설계 + 모달 하단 버튼 전역 수정 (2026-07-15)
 
 ### 1. 모달 하단 등록/취소 버튼 사라짐 버그 전역 수정
@@ -31,7 +67,7 @@
 **아이콘 폴백 버그 수정 (약 10곳):**
 - `ICONS.monitor || ICONS.dashboard`, `ICONS.phone || ICONS.message`, `ICONS.clock || ICONS.calendar` 등 — 존재하지 않는 아이콘 키를 참조해 매번 조용히 폴백만 타던 죽은 코드를 전부 정리, 유효한 키로 직접 지정
 
-**명시적 범위 제외 (프로덕션 데이터 위험으로 별도 작업 예정):**
+**명시적 범위 제외 (프로덕션 데이터 위험으로 별도 작업 예정, → v5.11.3에서 완료):**
 - 리뷰(`reviews`)/리뷰 통합 관리(`review_mgmt`) 데이터 병합 — 85/530 rows
 - 수가표(`pricing`)/진료 자료 수가표(`fee_schedule`) 데이터 병합 — 14/12 rows
 
