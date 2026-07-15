@@ -838,8 +838,11 @@ function renderAuth() {
 function getNavConfig() {
   const isManager = ['admin','manager'].includes(state.user?.role);
   const nav = [
+    // ── 홈 (그룹 아닌 최상위 바로가기) ──
     { id: 'dashboard', label: '🏠 대시보드', icon: ICONS.dashboard },
-    { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.monitor || ICONS.dashboard },
+    { id: 'clinical_board', label: '📡 진료보드', icon: ICONS.dashboard },
+
+    // 1) 👥 환자 관리
     {
       id: 'patient_group', label: '👥 환자 관리', icon: ICONS.users,
       children: [
@@ -847,27 +850,31 @@ function getNavConfig() {
         { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
         { id: 'ltv_ranking', label: '👑 LTV 랭킹', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
-        { id: 'recall', label: '리콜 자동화', icon: ICONS.phone || ICONS.message },
+        { id: 'recall', label: '리콜 자동화', icon: ICONS.message },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
         { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
         { id: 'complaints_stats', label: '컴플레인 통계', icon: ICONS.chart },
         { id: 'reservations', label: '예약 관리', icon: ICONS.calendar },
         { id: 'reservation_stats', label: '예약 통계', icon: ICONS.chart },
-        { id: 'wait_times', label: '대기시간 관리', icon: ICONS.clock || ICONS.calendar },
+        { id: 'wait_times', label: '대기시간 관리', icon: ICONS.calendar },
         { id: 'wait_time_stats', label: '대기시간 통계', icon: ICONS.chart },
       ]
     },
+
+    // 2) 📞 콜 관리
     {
-      id: 'calls_group', label: '📞 콜 관리', icon: ICONS.phone || ICONS.message,
+      id: 'calls_group', label: '📞 콜 관리', icon: ICONS.message,
       children: [
-        { id: 'calls_inbound', label: '인바운드', icon: ICONS.phone || ICONS.message },
-        { id: 'calls_outbound', label: '아웃바운드', icon: ICONS.phone || ICONS.message },
+        { id: 'calls_inbound', label: '인바운드', icon: ICONS.message },
+        { id: 'calls_outbound', label: '아웃바운드', icon: ICONS.message },
         { id: 'calls_stats', label: '콜 통계', icon: ICONS.chart },
       ]
     },
+
+    // 3) 🏥 진료 자료 (구 '진료 관리' — 상담/설명에 쓰는 자료 모음이라는 성격을 명확히)
     {
-      id: 'management', label: '🏥 진료 관리', icon: ICONS.folder,
+      id: 'clinical_materials', label: '🏥 진료 자료', icon: ICONS.folder,
       children: [
         ...(isManager ? [{ id: 'fee_schedule', label: '수가표', icon: ICONS.pricing }] : []),
         { id: 'materials', label: '설명자료', icon: ICONS.materials },
@@ -876,6 +883,8 @@ function getNavConfig() {
         { id: 'scripts', label: '상담 스크립트', icon: ICONS.play },
       ]
     },
+
+    // 4) 📊 분석/KPI
     {
       id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
       children: [
@@ -885,9 +894,11 @@ function getNavConfig() {
         { id: 'kpi_benchmark', label: '벤치마킹', icon: ICONS.chart },
         { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
         ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
-        { id: 'reports', label: '월간 보고서', icon: ICONS.edit || ICONS.folder },
+        { id: 'reports', label: '월간 보고서', icon: ICONS.folder },
       ]
     },
+
+    // 5) 📈 마케팅
     {
       id: 'marketing_group', label: '📈 마케팅', icon: ICONS.chart,
       children: [
@@ -899,8 +910,10 @@ function getNavConfig() {
         ...(isManager ? [{ id: 'kakao', label: '카카오 알림톡', icon: ICONS.message }] : []),
       ]
     },
+
+    // 6) 💼 HR/성장
     {
-      id: 'hr', label: '💼 HR', icon: ICONS_HIRE.briefcase,
+      id: 'hr', label: '💼 HR/성장', icon: ICONS_HIRE.briefcase,
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
@@ -912,6 +925,8 @@ function getNavConfig() {
         { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
       ]
     },
+
+    // 7) 🏢 병원 운영 (staff_supplies 정식 편입)
     {
       id: 'operations', label: '🏢 병원 운영', icon: ICONS.settings,
       children: [
@@ -921,23 +936,35 @@ function getNavConfig() {
         { id: 'checklists', label: '체크리스트', icon: ICONS.checklist },
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
+        { id: 'staff_supplies', label: '직원용품 주문', icon: ICONS.cart },
         { id: 'parking', label: '주차권 관리', icon: ICONS.cart },
         { id: 'parking_stats', label: '주차권 통계', icon: ICONS.chart },
       ]
     },
+
+    // 8) 💬 커뮤니티
     {
       id: 'community', label: '💬 커뮤니티', icon: ICONS.users,
       children: [
         { id: 'free', label: '자유게시판', icon: ICONS.edit },
         { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
         { id: 'mistake', label: '실수노트 (자진신고)', icon: ICONS.shield },
-        { id: 'feedback_notes', label: '피드백 노트 (학습자산)', icon: ICONS.edit || ICONS.message },
+        { id: 'feedback_notes', label: '피드백 노트 (학습자산)', icon: ICONS.message },
       ]
     },
-    { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
-    { id: 'pf_index', label: '📊 페이션트 인덱스', icon: ICONS.chart || ICONS.dashboard },
-    { id: 'knowledge', label: '📚 PF 지식베이스', icon: ICONS.materials || ICONS.folder },
-    { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users || ICONS.chart },
+
+    // 9) 📚 지식/네트워크 (기존 최상위 고립 항목들을 그룹으로 통합)
+    {
+      id: 'knowledge_group', label: '📚 지식/네트워크', icon: ICONS.materials,
+      children: [
+        { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
+        { id: 'pf_index', label: '페이션트 인덱스', icon: ICONS.chart },
+        { id: 'knowledge', label: 'PF 지식베이스', icon: ICONS.materials },
+        { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users },
+      ]
+    },
+
+    // ── 설정 (계정/시스템 — 그룹과 별도로 최하단 독립 유지) ──
     { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
   ];
   return nav;
@@ -1388,8 +1415,8 @@ async function renderPage() {
     ltv_ranking: ['👑 LTV 랭킹', ICONS.chart],
     complaints: ['⚠️ 컴플레인 기록', ICONS.edit],
     complaints_stats: ['📊 컴플레인 통계', ICONS.chart],
-    calls_inbound: ['📞 인바운드 콜', ICONS.phone || ICONS.message],
-    calls_outbound: ['📱 아웃바운드 콜', ICONS.phone || ICONS.message],
+    calls_inbound: ['📞 인바운드 콜', ICONS.message],
+    calls_outbound: ['📱 아웃바운드 콜', ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
     kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
     weekly_insights: ['📊 주간 인사이트', ICONS.chart],
@@ -1399,7 +1426,7 @@ async function renderPage() {
     kpi_targets: ['🎯 목표 설정', ICONS.star],
     reservations: ['📅 예약 관리', ICONS.calendar],
     reservation_stats: ['📅 예약 통계', ICONS.chart],
-    wait_times: ['⏱️ 대기시간 관리', ICONS.clock || ICONS.calendar],
+    wait_times: ['⏱️ 대기시간 관리', ICONS.calendar],
     wait_time_stats: ['⏱️ 대기시간 통계', ICONS.chart],
     parking: ['🅿️ 주차권 관리', ICONS.cart],
     parking_stats: ['🅿️ 주차권 통계', ICONS.chart],
@@ -1407,14 +1434,13 @@ async function renderPage() {
     meetings: ['📝 회의록', ICONS.edit],
     surveys: ['📋 만족도 설문', ICONS.star],
     heatmap: ['🗺️ 환자 유입 히트맵', ICONS.chart],
-    briefing: ['📋 일일 브리핑', ICONS.dashboard],
     gamification: ['🏆 성과 게이미피케이션', ICONS.star],
     review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
     messenger: ['💬 원내 메신저', ICONS.message],
-    pf_index: ['📊 페이션트 인덱스', ICONS.chart || ICONS.dashboard],
-    knowledge: ['📚 PF 지식베이스', ICONS.materials || ICONS.folder],
-    referrals: ['🌌 소개 갤럭시', ICONS.users || ICONS.chart],
-    feedback_notes: ['📚 피드백 노트', ICONS.edit || ICONS.message],
+    pf_index: ['📊 페이션트 인덱스', ICONS.chart],
+    knowledge: ['📚 PF 지식베이스', ICONS.materials],
+    referrals: ['🌌 소개 갤럭시', ICONS.users],
+    feedback_notes: ['📚 피드백 노트', ICONS.message],
     settings: ['설정', ICONS.settings],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
@@ -1486,7 +1512,6 @@ async function renderPage() {
     case 'parking_stats': M.parking.renderParkingStats(body, actions); break;
     case 'surveys': M.surveys.renderSurveys(body, actions); break;
     case 'heatmap': M.heatmap.renderHeatmap(body, actions); break;
-    case 'briefing': M.briefing.renderBriefing(body, actions); break;
     case 'gamification': M.gamification.renderGamification(body, actions); break;
     case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;

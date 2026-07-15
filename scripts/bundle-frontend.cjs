@@ -28,7 +28,7 @@ const CHUNK_FILES = [
   'modules/funnel.js', 'modules/kpi.js', 'modules/kpi-stats.js',
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
   'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
-  'modules/heatmap.js', 'modules/briefing.js', 'modules/gamification.js', 'modules/reviews.js',
+  'modules/heatmap.js', 'modules/gamification.js', 'modules/reviews.js',
   'modules/chat.js',
   'modules/messenger.js',
   'modules/onboarding.js',
@@ -69,7 +69,6 @@ const MODULE_PAGE_MAP = {
   'modules/surveys.js': ['surveys'],
   'modules/settings.js': ['settings'],
   'modules/heatmap.js': ['heatmap'],
-  'modules/briefing.js': ['briefing'],
   'modules/gamification.js': ['gamification'],
   'modules/reviews.js': ['review_mgmt'],
   'modules/chat.js': [],  // v5.5.0: 레거시 (Phase F 에서 제거 예정)

@@ -6,7 +6,7 @@ const PAGES = [
   'dashboard','patients','patients_stats','funnel','consult_records','consult_dashboard',
   'calls_inbound','calls_outbound','kpi_daily','kpi_dashboard','kpi_targets',
   'leave','meetings','feedback','knowledge','pf_index','referrals','reservations',
-  'wait_times','parking','complaints','surveys','gamification','briefing',
+  'wait_times','parking','complaints','surveys','gamification','staff_supplies',
   'recall','reports','settings','hr','hire','community','clinical','messenger'
 ];
 

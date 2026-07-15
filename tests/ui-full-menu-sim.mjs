@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:3000';
 
-// getNavConfig()에서 추출한 실제 리프 페이지 61개 (그룹 헤더 제외)
+// getNavConfig()에서 추출한 실제 리프 페이지 62개 (그룹 헤더 제외) — v5.12 그룹 재설계 반영
 const LEAF_PAGES = [
   'dashboard','clinical_board',
   'patients','patients_stats','ltv_ranking','funnel','recall','consult_records','consult_dashboard',
@@ -22,7 +22,7 @@ const LEAF_PAGES = [
   'kpi_dashboard','kpi_stats','kpi_benchmark','kpi_daily','kpi_targets','reports',
   'marketing','heatmap','review_mgmt','reviews','surveys','kakao',
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
-  'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','parking','parking_stats',
+  'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies','parking','parking_stats',
   'free','praise','mistake','feedback_notes',
   'messenger','pf_index','knowledge','referrals','settings',
 ];

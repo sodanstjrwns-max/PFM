@@ -3,6 +3,44 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🗂️ v5.11.2 — 사이드바 9그룹 재설계 + 모달 하단 버튼 전역 수정 (2026-07-15)
+
+### 1. 모달 하단 등록/취소 버튼 사라짐 버그 전역 수정
+- **증상**: 필드가 많은 모달(예: 🦷 환자 등록)에서 하단 등록/취소 버튼이 스크롤 없이 보이지 않음
+- **원인**: `.modal-header`는 `position: sticky`였지만 `.modal-footer`는 고정되지 않아, 본문이 길어지면 footer가 뷰포트 밖으로 밀려남
+- **수정**: `public/static/style.css` `.modal-footer`에 `position: sticky; bottom: 0` + 배경/그림자 추가 — **앱 전체 26개 모달(8개 파일)에 동시 적용**
+- 검증: `tests/verify-modal-footer-fix.mjs`(신규, 9/9) — 환자 등록 모달 + 비품 주문 모달 스팟체크, sticky 동작(스크롤 위/아래 모두 footer 노출) 확인
+
+### 2. 사이드바 메뉴 3단계 전수조사 → 9그룹 재설계
+전체 메뉴 계층을 3단계로 전수조사한 결과 발견된 구조적 문제(8개 평면 그룹 + 4개 최상위 고립 항목, 아이콘 폴백 버그 다수, orphan 페이지 2건)를 근본적으로 재설계.
+
+**신구조 (8그룹→9그룹, `public/static/app.js` `getNavConfig()`):**
+- 🏠 대시보드 / 📡 진료보드 (그룹 아닌 최상위 바로가기, 기존 유지)
+- 👥 환자 관리 · 📞 콜 관리 · 📊 분석/KPI · 📈 마케팅 (기존 유지)
+- 🏥 진료 자료 — 구 '진료 관리'에서 성격을 명확히 하기 위해 개명
+- 💼 HR/성장 — 구 'HR'에서 라벨 보강
+- 🏢 병원 운영 — **직원용품 주문(staff_supplies) 신규 편입**
+- 💬 커뮤니티 (기존 유지)
+- 📚 지식/네트워크 — **신규 그룹**. 기존 최상위에 고립되어 있던 메신저/페이션트 인덱스/PF 지식베이스/소개 갤럭시 4개를 그룹으로 통합
+- ⚙️ 설정 (계정/시스템, 최하단 독립 유지)
+
+**Orphan 페이지 정리:**
+- **`staff_supplies` (직원용품 주문)**: 백엔드·모듈(`operations.js`)·번들 청크 매핑까지 이미 완성되어 있었으나 사이드바 nav 항목이 없어 접근 불가능했던 것을 발견 → 병원 운영 그룹에 정식 편입
+- **`briefing` (일일 브리핑)**: nav 항목 없이 고립된 모듈이었고, 대시보드(`dashboard.js`의 `renderBriefingSection()`)에 내용이 이미 중복 구현되어 있던 것을 확인 → 모듈 파일(`modules/briefing.js`) 삭제 + 번들 청크 매핑/스위치 케이스/타이틀 항목 전부 제거. **백엔드 `/api/protected/briefing` API는 대시보드가 그대로 사용 중이므로 변경 없음**
+
+**아이콘 폴백 버그 수정 (약 10곳):**
+- `ICONS.monitor || ICONS.dashboard`, `ICONS.phone || ICONS.message`, `ICONS.clock || ICONS.calendar` 등 — 존재하지 않는 아이콘 키를 참조해 매번 조용히 폴백만 타던 죽은 코드를 전부 정리, 유효한 키로 직접 지정
+
+**명시적 범위 제외 (프로덕션 데이터 위험으로 별도 작업 예정):**
+- 리뷰(`reviews`)/리뷰 통합 관리(`review_mgmt`) 데이터 병합 — 85/530 rows
+- 수가표(`pricing`)/진료 자료 수가표(`fee_schedule`) 데이터 병합 — 14/12 rows
+
+**검증 (전체 회귀 통과):**
+- `tests/ui-full-menu-sim.mjs` **499/499** (admin 61 leaf + staff 58 leaf, briefing 제거·staff_supplies 추가 반영)
+- `tests/ui-sweep-csp.mjs` **32/32**, `tests/ui-data-act.mjs` **7/7**, `npx vitest run` **73/73**, `tests/ui-launch-sim.mjs` **12/12** ("메뉴 62개 발견" 확인)
+- `tests/verify-sidebar-redesign.mjs`(신규) **5/5** — 그룹 9개+id 일치, 새로고침 시 전 그룹 닫힘 유지(이전 강제-열림 버그 재발 방지), staff_supplies 존재, briefing 제거 확인
+- Playwright 스크린샷으로 9그룹 전체 육안 확인 (그룹별 하위 항목 순서/라벨 정확성 확인 후 삭제 — 검증용 임시 아티팩트)
+
 ## 🧪 v5.11.1 — 전 메뉴 실사용 시뮬레이션 재검증 + 버그 1건 수정 (2026-07-14)
 
 ### 검증 범위 (`tests/ui-full-menu-sim.mjs`, 신규)
@@ -574,4 +612,8 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 - **Frontend**: Vanilla JS + Tailwind CSS + Glassmorphism UI
 - **Cache**: Service Worker pfm-v4.8.1
 
-## 🔥 Last Updated: 2026-07-01 (v5.5.1 운영 신뢰성 강화)
+## 📋 남은 작업 / Next Steps
+- 리뷰(reviews/review_mgmt), 수가표(pricing/fee_schedule) 데이터 병합 — 프로덕션 데이터 위험으로 별도 세션에서 신중히 진행 예정
+- 사이드바 9그룹 구조에 대한 사용자 실사용 피드백 수집 후 그룹/라벨 미세조정
+
+## 🔥 Last Updated: 2026-07-15 (v5.11.2 사이드바 9그룹 재설계 + 모달 하단 버튼 전역 수정)
