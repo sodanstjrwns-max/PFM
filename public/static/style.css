@@ -1894,7 +1894,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   font-size: 10px;
   font-weight: 600;
   background: color-mix(in srgb, var(--badge-color, #6366f1) 15%, transparent);
-  color: var(--badge-color, #6366f1);
+  /* WCAG AA 명암비 확보를 위해 원색 대신 어둡게 섞은 색상 사용 (밝은 배경 위 저대비 방지) */
+  color: color-mix(in srgb, var(--badge-color, #6366f1) 60%, black);
 }
 .kb-card-info {
   color: var(--text-muted);
@@ -2579,6 +2580,19 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .pfm-install-text strong { font-size: 14px; color: #0f172a; }
 .pfm-install-text span { font-size: 12px; color: #64748b; margin-top: 2px; }
 .pfm-install-actions { display: flex; gap: 4px; flex-shrink: 0; }
+/* 배너 배경은 테마와 무관하게 항상 흰색 고정인데, 다크 테마에서 .btn-ghost가
+   글래스 다크 스타일(반투명 남색 배경 + 밝은 회색 글씨)을 그대로 물려받아
+   흰 배경 위에서 명암비가 무너짐(2.69:1) → 배너 안 버튼은 항상 라이트 스타일로 고정 */
+.pfm-install-actions .btn-ghost {
+  background: transparent !important;
+  color: #334155 !important;
+  border: 1px solid transparent !important;
+  backdrop-filter: none !important;
+}
+.pfm-install-actions .btn-ghost:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
 
 /* Mobile adjustments */
 @media (max-width: 640px) {

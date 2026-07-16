@@ -60,7 +60,7 @@ async function renderMyProgress(el) {
   const completedCount = missions.filter(m => m.completed).length;
 
   el.innerHTML = `
-    <div class="card" style="padding:24px;background:linear-gradient(135deg,#0f766e,#0d9488,#14b8a6);color:#fff;border-radius:16px;margin-bottom:16px">
+    <div class="card" style="padding:24px;background:linear-gradient(135deg,#0f766e,#0d9488,#14b8a6) !important;color:#fff !important;border-radius:16px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="font-size:11px;opacity:0.8">나의 등급</div>

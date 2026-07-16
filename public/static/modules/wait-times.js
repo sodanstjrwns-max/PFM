@@ -71,9 +71,9 @@ async function renderWaitTimes(body, actions) {
     if(pg.length===0) html += '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--text-muted)">기록이 없습니다</td></tr>';
     pg.forEach(function(r){
       var dowLabel = DOW[r.day_of_week]||'-';
-      var avgColor = r.avg_wait_minutes<=15?'#22c55e':r.avg_wait_minutes<=20?'#f59e0b':'#ef4444';
+      var avgColor = r.avg_wait_minutes<=15?'#0f7a3d':r.avg_wait_minutes<=20?'#92400e':'#b91c1c';
       var statusLabel = r.avg_wait_minutes<=15?'양호':r.avg_wait_minutes<=20?'주의':'위험';
-      var statusBg = r.avg_wait_minutes<=15?'#22c55e':r.avg_wait_minutes<=20?'#f59e0b':'#ef4444';
+      var statusBg = r.avg_wait_minutes<=15?'#0f7a3d':r.avg_wait_minutes<=20?'#92400e':'#b91c1c';
       html += '<tr class="wt-row" data-id="'+esc(r.id)+'" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" data-act-over="this.style.background=\'var(--bg-hover)\'" data-act-out="this.style.background=\'\'">';
       html += '<td style="padding:10px 12px;font-size:11px;white-space:nowrap">'+esc(r.record_date||'-')+'</td>';
       html += '<td style="padding:10px 8px;font-size:11px;font-weight:600">'+esc(dowLabel)+'</td>';
@@ -164,11 +164,11 @@ async function renderWaitTimeStats(body, actions) {
     html += '<button class="btn btn-primary btn-sm" id="wsApply">조회</button></div></div>';
 
     var t=d.total||{};
-    var avgColor=(t.overall_avg||0)<=15?'#22c55e':(t.overall_avg||0)<=20?'#f59e0b':'#ef4444';
+    var avgColor=(t.overall_avg||0)<=15?'#0f7a3d':(t.overall_avg||0)<=20?'#92400e':'#b91c1c';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:16px">';
     html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">전체 평균</div><div style="font-size:28px;font-weight:900;color:'+avgColor+'">'+(t.overall_avg||0)+'<span style="font-size:14px">분</span></div></div>';
-    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최대 평균</div><div style="font-size:28px;font-weight:900;color:#ef4444">'+(t.max_avg||0)+'<span style="font-size:14px">분</span></div></div>';
-    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최소 평균</div><div style="font-size:28px;font-weight:900;color:#22c55e">'+(t.min_avg||0)+'<span style="font-size:14px">분</span></div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최대 평균</div><div style="font-size:28px;font-weight:900;color:#b91c1c">'+(t.max_avg||0)+'<span style="font-size:14px">분</span></div></div>';
+    html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">최소 평균</div><div style="font-size:28px;font-weight:900;color:#0f7a3d">'+(t.min_avg||0)+'<span style="font-size:14px">분</span></div></div>';
     html += '<div style="'+cardS()+';text-align:center"><div class="mod-muted-xs-bold">데이터 일수</div><div style="font-size:28px;font-weight:900;color:var(--text)">'+fmt(t.cnt)+'</div></div>';
     html += '</div>';
 
@@ -179,11 +179,12 @@ async function renderWaitTimeStats(body, actions) {
       var dowMap={};d.byDow.forEach(function(r){dowMap[r.dow]=r;});
       DOW_ORDER.forEach(function(dw){
         var r=dowMap[dw]; if(!r)return;
-        var c=r.avg_wait<=15?'#22c55e':r.avg_wait<=20?'#f59e0b':'#ef4444';
+        var barColor=r.avg_wait<=15?'#22c55e':r.avg_wait<=20?'#f59e0b':'#ef4444';
+        var c=r.avg_wait<=15?'#0f7a3d':r.avg_wait<=20?'#92400e':'#b91c1c';
         var w=maxW>0?Math.max(Math.round(r.avg_wait/maxW*100),3):3;
         html += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px">';
         html += '<span style="min-width:30px;font-weight:600;color:'+DOW_COLORS[dw]+'">'+DOW[dw]+'</span>';
-        html += '<div style="flex:1;background:var(--bg);border-radius:4px;height:20px;overflow:hidden"><div style="height:100%;background:'+c+';border-radius:4px;width:'+w+'%"></div></div>';
+        html += '<div style="flex:1;background:var(--bg);border-radius:4px;height:20px;overflow:hidden"><div style="height:100%;background:'+barColor+';border-radius:4px;width:'+w+'%"></div></div>';
         html += '<span style="min-width:60px;text-align:right;font-weight:700;color:'+c+'">'+r.avg_wait+'분</span></div>';
       });
       html += '</div>';
@@ -196,11 +197,12 @@ async function renderWaitTimeStats(body, actions) {
       html += '<div style="display:flex;gap:2px;align-items:flex-end;min-height:140px;padding-bottom:28px">';
       d.monthlyTrend.forEach(function(m){
         var h=maxM>0?Math.max(Math.round(m.avg_wait/maxM*120),5):5;
-        var c=m.avg_wait<=15?'#22c55e':m.avg_wait<=20?'#f59e0b':'#ef4444';
+        var barColor=m.avg_wait<=15?'#22c55e':m.avg_wait<=20?'#f59e0b':'#ef4444';
+        var c=m.avg_wait<=15?'#0f7a3d':m.avg_wait<=20?'#92400e':'#b91c1c';
         var lb=m.month.length>=7?m.month.slice(2):m.month;
         html += '<div style="flex:1;min-width:10px;display:flex;flex-direction:column;align-items:center;gap:2px">';
         html += '<span style="font-size:8px;font-weight:700;color:'+c+'">'+m.avg_wait+'</span>';
-        html += '<div style="width:100%;max-width:32px;height:'+h+'px;background:'+c+';border-radius:3px 3px 0 0;opacity:.85"></div>';
+        html += '<div style="width:100%;max-width:32px;height:'+h+'px;background:'+barColor+';border-radius:3px 3px 0 0;opacity:.85"></div>';
         html += '<span style="font-size:7px;color:var(--text-muted);white-space:nowrap;transform:rotate(-45deg);transform-origin:top left;margin-top:2px">'+esc(lb)+'</span></div>';
       });
       html += '</div></div>';

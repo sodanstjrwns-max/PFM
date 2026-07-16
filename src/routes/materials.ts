@@ -8,7 +8,7 @@ const materials = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 materials.get('/categories/:module', async (c) => {
   const mod = sanitizeString(c.req.param('module'), 50)
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT id, name, module, hospital_id, sort_order, created_at FROM categories WHERE module=? AND (hospital_id IS NULL OR hospital_id=?) ORDER BY sort_order').bind(mod, user.hospitalId).all()
+  const rows = await c.env.DB.prepare('SELECT id, name, icon, module, hospital_id, sort_order, created_at FROM categories WHERE module=? AND (hospital_id IS NULL OR hospital_id=?) ORDER BY sort_order').bind(mod, user.hospitalId).all()
   return c.json(rows.results)
 })
 

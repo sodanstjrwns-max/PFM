@@ -88,7 +88,7 @@
   --text-strong:  #0b1220;
   --text-primary: #1e293b;
   --text-body:    #334155;
-  --text-muted:   #64748b;
+  --text-muted:   #556577;
   --text-subtle:  #94a3b8;
   --text-inverse: #ffffff;
 
@@ -177,7 +177,6 @@
   --bg-sidebar-active: rgba(20, 184, 166, 0.15);
   --text: var(--text-primary);
   --text-secondary: var(--text-muted);
-  --text-muted: var(--text-subtle);
   --text-sidebar: var(--sidebar-text);
   --text-sidebar-active: var(--sidebar-text-active);
   --border: var(--border-default);
@@ -1190,6 +1189,47 @@ input::placeholder, textarea::placeholder {
 [data-theme="dark"] .quick-link-card {
   background: var(--surface-card) !important;
   border-color: var(--border-default) !important;
+}
+
+/* 캘린더 이벤트 칩: 다크 테마에서 원색 그대로 쓰면 어두운 배경 위 명암비 부족(4.13:1) →
+   글씨는 흰색에 가깝게, 배경은 살짝 더 진하게 보정해 WCAG AA 확보 */
+[data-theme="dark"] .cal-event-chip {
+  background: color-mix(in srgb, var(--chip-color, #14b8a6) 30%, transparent) !important;
+  color: color-mix(in srgb, var(--chip-color, #14b8a6) 55%, white) !important;
+}
+
+/* 진료보드 LIVE 인디케이터: 밝은 초록(#22c55e) 원색은 라이트/다크 배경 모두에서
+   명암비 미달 → 테마별로 충분히 어둡거나 밝은 초록으로 분리 */
+.live-indicator { color: #15803d; }
+[data-theme="dark"] .live-indicator { color: #4ade80; }
+
+/* 자료실/케이스 카테고리 탭 버튼: 다크 테마에서 var(--text-secondary)가 배경과
+   충분히 분리되지 않는 경우가 있어(측정 3.34:1) 탭 배경/글씨를 명시적으로 고정 */
+[data-theme="dark"] .category-tab {
+  background: var(--surface-card) !important;
+  color: var(--text-body) !important;
+  border-color: var(--border-default) !important;
+}
+[data-theme="dark"] .category-tab:hover {
+  border-color: var(--primary-light) !important;
+  color: var(--primary-light) !important;
+}
+[data-theme="dark"] .category-tab.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+}
+
+/* 빈 상태(empty-state) 안내문: 다크 테마에서 배경과 글씨 명암비가 낮게 측정되는
+   경우(측정 3.37:1)를 방지하기 위해 다크 테마 전용으로 더 밝은 회색 고정 */
+[data-theme="dark"] .empty-state,
+[data-theme="dark"] .mod-empty,
+[data-theme="dark"] .pfm-empty-state {
+  color: var(--text-body) !important;
+}
+[data-theme="dark"] .empty-state h3,
+[data-theme="dark"] .empty-state-title {
+  color: var(--text-strong) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════

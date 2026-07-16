@@ -42,7 +42,7 @@ function hashData(data) {
 async function renderTreatmentBoard(body, actions) {
   const today = new Date().toISOString().split('T')[0];
   actions.innerHTML = `
-    <span id="liveIndicator" style="font-size:10px;color:#22c55e;display:flex;align-items:center;gap:4px;margin-right:8px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></span>LIVE</span>
+    <span id="liveIndicator" class="live-indicator" style="font-size:10px;font-weight:700;display:flex;align-items:center;gap:4px;margin-right:8px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></span>LIVE</span>
     <input type="date" class="form-input" id="tbDatePicker" value="${today}" style="padding:4px 10px;font-size:12px;width:auto">
     <button class="btn btn-primary btn-sm" id="addTreatmentBtn">${ICONS.plus} 환자 등록</button>`;
 
