@@ -88,8 +88,8 @@ async function renderMyProgress(el) {
     ${missions.length === 0 ? `
     <div class="card" style="padding:40px;text-align:center">
       <div style="font-size:48px;margin-bottom:12px">🎯</div>
-      <h3 style="font-size:16px;font-weight:700;color:#374151;margin-bottom:6px">아직 등록된 미션이 없어요</h3>
-      <p style="font-size:13px;color:#94a3b8">${canManage() ? '미션 관리 탭에서 미션을 추가해주세요!' : '관리자가 미션을 등록하면 여기에 표시됩니다.'}</p>
+      <h3 style="font-size:16px;font-weight:700;color:var(--text-strong, #374151);margin-bottom:6px">아직 등록된 미션이 없어요</h3>
+      <p style="font-size:13px;color:var(--text-muted, #94a3b8)">${canManage() ? '미션 관리 탭에서 미션을 추가해주세요!' : '관리자가 미션을 등록하면 여기에 표시됩니다.'}</p>
     </div>` : `
     <div style="display:grid;gap:12px">
       ${missions.map(m => {

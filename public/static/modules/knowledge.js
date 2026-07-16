@@ -144,7 +144,7 @@
           style="padding:8px 14px;border-radius:20px;border:1.5px solid ${active ? '#0f766e' : '#e5e7eb'};
                  background:${active ? '#0f766e' : '#fff'};color:${active ? '#fff' : '#475569'};
                  font-size:13px;font-weight:${active ? '700' : '500'};cursor:pointer;transition:all 0.15s">
-          ${c.icon} ${esc(c.label)} <span style="opacity:0.7">(${c.count})</span>
+          ${c.icon} ${esc(c.label)} <span style="opacity:${active ? '0.92' : '0.7'}">(${c.count})</span>
         </button>
       `;
     }).join('');
@@ -183,7 +183,7 @@
     }
     if (_state.book) filterDesc.push(`📖 ${esc(_state.book)}`);
     el.innerHTML = `
-      <div><b>${_state.total}</b>개 카드 ${filterDesc.length ? `· ${filterDesc.join(' · ')}` : ''}</div>
+      <div style="color:#44536a"><b>${_state.total}</b>개 카드 ${filterDesc.length ? `· ${filterDesc.join(' · ')}` : ''}</div>
       ${(_state.q || _state.category || _state.book)
         ? `<button data-act="PFMKnowledge.resetFilters()" style="background:none;border:none;color:#0f766e;cursor:pointer;font-size:12px"><i class="fas fa-times"></i> 필터 초기화</button>`
         : ''}
@@ -196,8 +196,8 @@
     if (!el) return;
     if (!_state.cards.length) {
       el.innerHTML = `
-        <div style="grid-column:1/-1;padding:60px;text-align:center;color:#94a3b8">
-          <div style="font-size:48px;margin-bottom:12px">📭</div>
+        <div style="grid-column:1/-1;padding:60px;text-align:center;color:#5c6b7e">
+          <div style="font-size:48px;margin-bottom:12px;opacity:.7">📭</div>
           <div style="font-size:15px">검색 결과가 없습니다</div>
         </div>
       `;

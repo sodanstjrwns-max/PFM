@@ -37,7 +37,7 @@ async function renderHirePostings(body, actions) {
         <div class="hire-posting-card" data-id="${jp.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:var(--transition);border-left:4px solid ${statusColors[jp.status]||'#94a3b8'}">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-weight:700;font-size:16px;flex:1">${esc(jp.title)}</span>
-            <span style="font-size:11px;padding:3px 10px;border-radius:12px;background:${statusColors[jp.status]}22;color:${statusColors[jp.status]};font-weight:600">${statusLabels[jp.status]||jp.status}</span>
+            <span class="status-chip" style="--chip-color:${statusColors[jp.status]||'#94a3b8'};font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600">${statusLabels[jp.status]||jp.status}</span>
           </div>
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
             <span class="meta-pill">👤 ${positionLabels[jp.position_type]||jp.position_type}</span>
@@ -394,7 +394,7 @@ async function renderHireInterviews(body, actions) {
         <div class="hire-interview-card" data-id="${iv.id}" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;cursor:pointer;border-left:4px solid ${statusColors[iv.status]||'#3b82f6'}">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-weight:700;font-size:15px">${esc(iv._applicant_name||'')}</span>
-            <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${statusColors[iv.status]}22;color:${statusColors[iv.status]};font-weight:600">${statusLabels[iv.status]||iv.status}</span>
+            <span class="status-chip" style="--chip-color:${statusColors[iv.status]||'#3b82f6'};font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">${statusLabels[iv.status]||iv.status}</span>
             <span class="meta-pill">${typeLabels[iv.interview_type]||iv.interview_type}</span>
             ${iv.score!=null ? `<span style="font-size:12px;font-weight:700;color:var(--primary)">점수: ${iv.score}/100</span>` : ''}
           </div>
@@ -551,7 +551,7 @@ async function renderHireOnboarding(body, actions) {
                       ${t.due_date ? `<span>📅 ${t.due_date}</span>` : ''}
                     </div>
                   </div>
-                  <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:${statusColors[t.status]}22;color:${statusColors[t.status]};font-weight:600">${statusLabels[t.status]}</span>
+                  <span class="status-chip" style="--chip-color:${statusColors[t.status]||'#94a3b8'};font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600">${statusLabels[t.status]}</span>
                 </div>
               `).join('')}
             </div>

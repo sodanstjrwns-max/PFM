@@ -1897,6 +1897,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   /* WCAG AA 명암비 확보를 위해 원색 대신 어둡게 섞은 색상 사용 (밝은 배경 위 저대비 방지) */
   color: color-mix(in srgb, var(--badge-color, #6366f1) 60%, black);
 }
+/* 상태 뱃지 공용 클래스 (인터뷰/공고/체크리스트 등): --chip-color만 지정하면
+   원색+22 hex-alpha 대신 색상혼합으로 WCAG AA 명암비를 보장 */
+.status-chip {
+  background: color-mix(in srgb, var(--chip-color, #6366f1) 15%, transparent);
+  color: color-mix(in srgb, var(--chip-color, #6366f1) 60%, black);
+}
+[data-theme="dark"] .status-chip {
+  background: color-mix(in srgb, var(--chip-color, #6366f1) 30%, transparent);
+  color: color-mix(in srgb, var(--chip-color, #6366f1) 55%, white);
+}
 .kb-card-info {
   color: var(--text-muted);
   font-size: 11px;
