@@ -649,7 +649,8 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
-- **Latest Build**: https://535bf6be.patient-funnel-manager.pages.dev (v5.5.0 Phase F.2 — 알림 설정 + Quiet Hours)
+- **Latest Build**: https://680b8e0e.patient-funnel-manager.pages.dev (v5.11.4 — 명암비 전체 점검 + axe-core 회귀 테스트)
+- **Phase F.2 Build**: https://535bf6be.patient-funnel-manager.pages.dev (v5.5.0 — 알림 설정 + Quiet Hours)
 - **Phase F.1 Build**: https://c0a8d2e2.patient-funnel-manager.pages.dev
 - **Phase E Build**: https://20976dbb.patient-funnel-manager.pages.dev
 - **Demo Login**: admin@demo.pf / demo1234
@@ -672,4 +673,4 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 - 리뷰(reviews/review_mgmt), 수가표(pricing/fee_schedule) 데이터 병합 — 프로덕션 데이터 위험으로 별도 세션에서 신중히 진행 예정
 - 사이드바 9그룹 구조에 대한 사용자 실사용 피드백 수집 후 그룹/라벨 미세조정
 
-## 🔥 Last Updated: 2026-07-15 (v5.11.2 사이드바 9그룹 재설계 + 모달 하단 버튼 전역 수정)
+## 🔥 Last Updated: 2026-07-21 (v5.11.4 명암비 전체 점검 + axe-core 자동 회귀 테스트 도입, 프로덕션 배포 완료)
