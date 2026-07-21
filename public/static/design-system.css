@@ -1191,8 +1191,12 @@ input::placeholder, textarea::placeholder {
   border-color: var(--border-default) !important;
 }
 
-/* 캘린더 이벤트 칩: 다크 테마에서 원색 그대로 쓰면 어두운 배경 위 명암비 부족(4.13:1) →
-   글씨는 흰색에 가깝게, 배경은 살짝 더 진하게 보정해 WCAG AA 확보 */
+/* 캘린더 이벤트 칩: 원색을 배경/글씨 그대로 쓰면 라이트(측정 3.15:1)·다크(4.13:1)
+   테마 모두에서 명암비 부족 → 라이트는 검정 혼합, 다크는 흰색 혼합으로 WCAG AA 확보 */
+.cal-event-chip {
+  background: color-mix(in srgb, var(--chip-color, #14b8a6) 15%, transparent);
+  color: color-mix(in srgb, var(--chip-color, #14b8a6) 65%, black);
+}
 [data-theme="dark"] .cal-event-chip {
   background: color-mix(in srgb, var(--chip-color, #14b8a6) 30%, transparent) !important;
   color: color-mix(in srgb, var(--chip-color, #14b8a6) 55%, white) !important;

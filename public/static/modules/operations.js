@@ -103,7 +103,7 @@ async function renderCalendar(body, actions) {
       const dow = (firstDay + d - 1) % 7;
       calHtml += `<div style="background:var(--bg-card);padding:6px;min-height:80px;${isToday?'outline:2px solid var(--primary);outline-offset:-2px;border-radius:2px':''}">
         <div style="font-size:12px;font-weight:${isToday?'700':'500'};color:${dow===0?'var(--danger)':dow===6?'var(--info)':'var(--text)'};margin-bottom:4px">${d}</div>
-        ${dayEvents.slice(0,3).map(e => `<div class="cal-event-chip" style="--chip-color:${e.color||'#0f766e'};font-size:10px;padding:1px 4px;border-radius:3px;background:${e.color||'#0f766e'}22;color:${e.color||'#0f766e'};margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(e.title)}">${esc(e.title)}</div>`).join('')}
+        ${dayEvents.slice(0,3).map(e => `<div class="cal-event-chip" style="--chip-color:${e.color||'#0f766e'};font-size:10px;padding:1px 4px;border-radius:3px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(e.title)}">${esc(e.title)}</div>`).join('')}
         ${dayEvents.length>3?`<div style="font-size:9px;color:var(--text-muted)">+${dayEvents.length-3}개</div>`:''}
       </div>`;
     }

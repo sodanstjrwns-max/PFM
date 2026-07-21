@@ -671,20 +671,20 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
       
       <!-- 진료시간 현황 -->
       <div style="background:linear-gradient(135deg,#f0f9ff,#ede9fe);border:1px solid #c7d2fe;border-radius:14px;padding:18px;margin-bottom:16px">
-        <div style="font-weight:800;font-size:13px;color:#3730a3;margin-bottom:12px">🕐 ${displayMonth} 진료시간 현황 <span style="font-size:11px;font-weight:500;color:#6366f1">(설정 > 진료시간에서 변경)</span></div>
+        <div style="font-weight:800;font-size:13px;color:#3730a3;margin-bottom:12px">🕐 ${displayMonth} 진료시간 현황 <span style="font-size:11px;font-weight:500;color:#4338ca">(설정 > 진료시간에서 변경)</span></div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:12px">
           ${dowInfo.map(d => {
             const isOff = d.hours === 0;
             const bg = isOff ? '#f1f5f9' : d.dow === 'sat' ? '#dbeafe' : d.dow === 'sun' ? '#fee2e2' : '#f0fdf4';
-            const color = isOff ? '#94a3b8' : d.dow === 'sat' ? '#1d4ed8' : d.dow === 'sun' ? '#dc2626' : '#166534';
+            const color = isOff ? '#475569' : d.dow === 'sat' ? '#1d4ed8' : d.dow === 'sun' ? '#991b1b' : '#166534';
             return `<div style="text-align:center;padding:10px 4px;background:${bg};border-radius:10px;border:1px solid ${isOff ? '#e2e8f0' : color}22">
               <div style="font-size:13px;font-weight:800;color:${color}">${d.label}</div>
               <div style="font-size:16px;font-weight:900;color:${color};margin:2px 0">${isOff ? '휴' : d.hours + 'h'}</div>
-              <div style="font-size:10px;color:${color}88">${isOff ? '휴진' : d.days + '일'}</div>
+              <div style="font-size:10px;color:${color}">${isOff ? '휴진' : d.days + '일'}</div>
             </div>`;
           }).join('')}
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding:8px 12px;background:white;border-radius:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding:8px 12px;background:white;border-radius:8px;color:#1e293b">
           <span>총 진료일: <strong>${workingDays}일</strong></span>
           <span>총 진료시간: <strong>${totalHours}시간</strong></span>
         </div>
@@ -734,7 +734,7 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
             <div>
               <span style="font-weight:700">${t.year_month.replace('-','년 ')}월</span>
             </div>
-            <div style="font-weight:800;color:#3b82f6">${fmtNum(t.target_revenue)}만</div>
+            <div style="font-weight:800" class="kpi-history-amount">${fmtNum(t.target_revenue)}만</div>
           </div>
         `).join('')}
       </div>` : ''}
@@ -760,16 +760,16 @@ function renderTargetForm(body, target, targetList, month, reload, hospitalConfi
           const dayTarget = totalHours > 0 ? Math.round(rev * d.hours / totalHours) : 0;
           const isOff = d.hours === 0;
           return `<div style="text-align:center;padding:8px 2px;background:${isOff ? '#f8fafc' : 'white'};border-radius:8px;border:1px solid ${isOff ? '#e2e8f0' : '#c7d2fe'}">
-            <div style="font-size:12px;font-weight:800;color:${isOff ? '#94a3b8' : '#3730a3'}">${d.label}</div>
-            <div style="font-size:14px;font-weight:900;color:${isOff ? '#cbd5e1' : '#3b82f6'};margin:2px 0">${isOff ? '-' : fmtNum(dayTarget)+'만'}</div>
-            <div style="font-size:9px;color:#64748b">${isOff ? '휴진' : d.hours + 'h × ' + d.days + '일'}</div>
+            <div style="font-size:12px;font-weight:800;color:${isOff ? '#475569' : '#3730a3'}">${d.label}</div>
+            <div style="font-size:14px;font-weight:900;color:${isOff ? '#475569' : '#1e40af'};margin:2px 0">${isOff ? '-' : fmtNum(dayTarget)+'만'}</div>
+            <div style="font-size:9px;color:#475569">${isOff ? '휴진' : d.hours + 'h × ' + d.days + '일'}</div>
           </div>`;
         }).join('')}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;background:white;border-radius:8px">
-        <div>시간당 목표: <strong style="color:#3b82f6">${fmtNum(Math.round(hourlyTarget))}만</strong></div>
-        <div>보험 목표: <strong style="color:#3b82f6">${fmtNum(Math.round(insTarget))}만</strong></div>
-        <div>비급여 목표: <strong style="color:#8b5cf6">${fmtNum(Math.round(rev - insTarget))}만</strong></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;background:white;border-radius:8px;color:#1e293b">
+        <div>시간당 목표: <strong style="color:#1e40af">${fmtNum(Math.round(hourlyTarget))}만</strong></div>
+        <div>보험 목표: <strong style="color:#1e40af">${fmtNum(Math.round(insTarget))}만</strong></div>
+        <div>비급여 목표: <strong style="color:#6d28d9">${fmtNum(Math.round(rev - insTarget))}만</strong></div>
         <div>총 진료: <strong>${totalHours}시간 / ${workingDays}일</strong></div>
       </div>
     `;

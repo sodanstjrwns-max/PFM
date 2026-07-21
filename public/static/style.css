@@ -1907,6 +1907,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
   background: color-mix(in srgb, var(--chip-color, #6366f1) 30%, transparent);
   color: color-mix(in srgb, var(--chip-color, #6366f1) 55%, white);
 }
+
+/* KPI 목표 이력 금액: 라이트/다크 테마에서 각각 var(--bg-card) 배경 위 충분한
+   명암비를 갖도록 색상을 분리 지정 (기존 고정 #3b82f6은 다크 카드 배경에서
+   측정 3.66:1로 위반, 라이트 카드 배경에서도 3.68:1로 근소하게 위반) */
+.kpi-history-amount {
+  color: #1e40af;
+}
+[data-theme="dark"] .kpi-history-amount {
+  color: #60a5fa;
+}
 .kb-card-info {
   color: var(--text-muted);
   font-size: 11px;
