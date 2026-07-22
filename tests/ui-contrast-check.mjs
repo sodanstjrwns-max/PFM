@@ -27,7 +27,7 @@ const LEAF_PAGES = [
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
   'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies','parking','parking_stats',
   'free','praise','mistake','feedback_notes',
-  'messenger','pf_index','knowledge','referrals','settings',
+  'pf_index','knowledge','referrals','settings',
 ];
 
 let totalViolations = 0;

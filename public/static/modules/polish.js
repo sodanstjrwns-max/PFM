@@ -15,7 +15,6 @@
   const PAGES = [
     ['dashboard', '🏠', '대시보드', '메인'],
     ['clinical_board', '📡', '진료보드', '메인'],
-    ['messenger', '💬', '메신저', '메인'],
     ['patients', '👥', '환자 DB', '환자 관리'],
     ['patients_stats', '📊', '환자 통계', '환자 관리'],
     ['ltv_ranking', '👑', 'LTV 랭킹', '환자 관리'],

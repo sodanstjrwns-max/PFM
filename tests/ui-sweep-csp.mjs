@@ -9,7 +9,7 @@ const PAGES = [
   'wait_times','parking','complaints','surveys','gamification','staff_supplies',
   'recall','reports','settings','hr_dashboard','hr_staff',
   'hire_postings','hire_applicants','hire_interviews','hire_onboarding',
-  'free','praise','mistake','clinical_board','messenger','help'
+  'free','praise','mistake','clinical_board','help'
 ];
 
 const browser = await chromium.launch();

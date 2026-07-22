@@ -955,7 +955,6 @@ function getNavConfig() {
     {
       id: 'knowledge_group', label: '📚 지식/네트워크', icon: ICONS.materials,
       children: [
-        { id: 'messenger', label: '💬 메신저', icon: ICONS.message },
         { id: 'pf_index', label: '페이션트 인덱스', icon: ICONS.chart },
         { id: 'knowledge', label: 'PF 지식베이스', icon: ICONS.materials },
         { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users },
@@ -1434,7 +1433,6 @@ async function renderPage() {
     heatmap: ['🗺️ 환자 유입 히트맵', ICONS.chart],
     gamification: ['🏆 성과 게이미피케이션', ICONS.star],
     review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
-    messenger: ['💬 원내 메신저', ICONS.message],
     pf_index: ['📊 페이션트 인덱스', ICONS.chart],
     knowledge: ['📚 PF 지식베이스', ICONS.materials],
     referrals: ['🌌 소개 갤럭시', ICONS.users],
@@ -1479,10 +1477,6 @@ async function renderPage() {
     case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
     case 'knowledge': M.knowledge && M.knowledge.renderKnowledge && M.knowledge.renderKnowledge(body, actions); break;
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
-    case 'messenger': // 신형 메신저(v5.x) 우선, 부재 시 구형 chat 폴백
-      if (M.messenger && M.messenger.renderMessenger) M.messenger.renderMessenger(body, actions);
-      else if (M.chat && M.chat.renderMessenger) M.chat.renderMessenger(body, actions);
-      break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
     case 'ltv_ranking': M.patientsStats.renderLtvRanking(body, actions); break;

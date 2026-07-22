@@ -24,7 +24,7 @@ const LEAF_PAGES = [
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
   'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies','parking','parking_stats',
   'free','praise','mistake','feedback_notes',
-  'messenger','pf_index','knowledge','referrals','settings',
+  'pf_index','knowledge','referrals','settings',
 ];
 // weekly_insights 는 대시보드 모달로 별도 흐름이라 제외 (기존 스위트에서 처리)
 

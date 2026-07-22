@@ -29,8 +29,6 @@ const CHUNK_FILES = [
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
   'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
   'modules/heatmap.js', 'modules/gamification.js', 'modules/reviews.js',
-  'modules/chat.js',
-  'modules/messenger.js',
   'modules/onboarding.js',
   'modules/recall.js',   // v3.2 환자 리콜 자동화
   'modules/kakao.js',    // v3.3 카카오 알림톡
@@ -72,8 +70,6 @@ const MODULE_PAGE_MAP = {
   'modules/heatmap.js': ['heatmap'],
   'modules/gamification.js': ['gamification'],
   'modules/reviews.js': ['review_mgmt'],
-  'modules/chat.js': [],  // v5.5.0: 레거시 (Phase F 에서 제거 예정)
-  'modules/messenger.js': ['messenger'],  // v5.5.0 Phase B
   'modules/onboarding.js': ['onboarding'],
   'modules/recall.js': ['recall'],
   'modules/kakao.js': ['kakao'],

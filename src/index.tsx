@@ -28,7 +28,6 @@ import surveys from './routes/surveys'
 import briefing from './routes/briefing'
 import gamification from './routes/gamification'
 import reviewMgmt from './routes/review-management'
-import chat from './routes/chat'
 import onboarding from './routes/onboarding'
 import admin from './routes/admin'
 import recall from './routes/recall'
@@ -43,21 +42,6 @@ import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
 import billing, { billingPublic } from './routes/billing'
 import { getPricingHTML, getLegalHTML } from './pages/pricing'
-// ─── Patient Chat 통합 v5.5.0 Phase B ───
-import messengerChannelsRoute from './routes/messenger/channels'
-import messengerMessagesRoute from './routes/messenger/messages'
-import messengerPollRoute from './routes/messenger/poll'
-import messengerInitRoute from './routes/messenger/init'
-import messengerPatientThreadsRoute from './routes/messenger/patient-threads'
-import messengerUrgentRoute from './routes/messenger/urgent'
-import messengerEscalationsRoute from './routes/messenger/escalations'
-import messengerAttachmentsRoute from './routes/messenger/attachments'
-import messengerThreadAIRoute from './routes/messenger/thread-ai'
-import messengerDirectoryRoute from './routes/messenger/directory'
-import messengerNotificationsRoute from './routes/messenger/notifications'
-import messengerQuickRepliesRoute from './routes/messenger/quick-replies'
-import messengerScheduledRoute from './routes/messenger/scheduled'
-import messengerOpsRoute from './routes/messenger/ops'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -155,34 +139,6 @@ app.post('/api/cron/tick', async (c) => {
 
   const results: Record<string, any> = {}
 
-  // 1) 예약 메시지 전체 발송 (접속자 무관)
-  try {
-    const { dispatchAllDue } = await import('./routes/messenger/scheduled')
-    results.scheduled = await dispatchAllDue(c.env.DB)
-  } catch (e: any) {
-    results.scheduled = { error: (e?.message || 'unknown').slice(0, 200) }
-  }
-
-  // 2) 전 병원 에스컬레이션 스캔 (활성 병원만 — 최근 24h 내 confirm-required 메시지 존재)
-  try {
-    const { scanAndEscalate } = await import('./lib/escalation-engine')
-    const hospitals = await c.env.DB.prepare(`
-      SELECT DISTINCT ch.hospital_id
-      FROM messages m JOIN channels ch ON ch.id = m.channel_id
-      WHERE m.confirm_required = 1 AND m.is_deleted = 0
-        AND m.created_at > datetime('now', '-24 hours')
-      LIMIT 100
-    `).all<{ hospital_id: string }>()
-    let totalTriggered = 0
-    for (const h of hospitals.results || []) {
-      const t = await scanAndEscalate(c.env.DB, h.hospital_id)
-      totalTriggered += t.length
-    }
-    results.escalations = { hospitals_scanned: (hospitals.results || []).length, triggered: totalTriggered }
-  } catch (e: any) {
-    results.escalations = { error: (e?.message || 'unknown').slice(0, 200) }
-  }
-
   // 3) 오래된 레이트리밋 행 정리 (하루 1회 수준으로 가볍게)
   try {
     await c.env.DB.prepare(
@@ -250,7 +206,6 @@ app.route('/api/protected/surveys', surveys) // 설문 CRUD + 발송 + 분석
 app.route('/api/protected/briefing', briefing)       // 일일 브리핑
 app.route('/api/protected/gamification', gamification) // 게이미피케이션
 app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
-app.route('/api/protected/chat', chat)               // 원내 메신저
 app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
 app.route('/api/protected/admin', admin)             // 관리자 콘솔/에러로그/데이터내보내기
 app.route('/api/protected/recall', recall)           // v3.2 환자 리콜 자동화
@@ -264,35 +219,6 @@ app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (�
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
 app.route('/api/protected/billing', billing)           // v5.9 구독/결제 (토스페이먼츠)
-
-// ─── Patient Chat 통합 v5.5.0 Phase B — Messenger Core ───
-// 모든 메신저 라우트는 `/api/protected/messenger` 한 베이스 아래에 마운트.
-// 각 라우트 파일이 자체적으로 sub-path 를 정의 (/init, /me, /poll, /channels/... 등).
-//
-//   init.ts     → /init, /me, /settings, /me/notifications
-//   poll.ts     → /poll, /poll/badge, /poll/presence  (※ 라우트 내부에서 /poll prefix 명시)
-//   channels.ts → /channels, /channels/:id, /channels/:id/members,
-//                  /channels/:id/typing, /channels/:id/read, /channels/dm,
-//                  /channels/users/directory
-//   messages.ts → /channels/:id/messages, /messages/:id, /messages/:id/{pin,read,confirm,
-//                  reaction,thread,forward,remind,reads}, /search
-//
-// 등록 순서가 곧 매칭 우선순위 (Hono 는 first-match-wins).
-// init/poll/channels 를 messages 보다 먼저 마운트해서 specific path 가 우선되게 함.
-app.route('/api/protected/messenger', messengerInitRoute)
-app.route('/api/protected/messenger', messengerPollRoute)
-app.route('/api/protected/messenger', messengerChannelsRoute)
-app.route('/api/protected/messenger', messengerMessagesRoute)
-app.route('/api/protected/messenger', messengerPatientThreadsRoute)
-app.route('/api/protected/messenger', messengerUrgentRoute)
-app.route('/api/protected/messenger', messengerEscalationsRoute)
-app.route('/api/protected/messenger', messengerAttachmentsRoute)
-app.route('/api/protected/messenger', messengerThreadAIRoute)
-app.route('/api/protected/messenger', messengerDirectoryRoute)
-app.route('/api/protected/messenger', messengerNotificationsRoute)
-app.route('/api/protected/messenger', messengerQuickRepliesRoute)
-app.route('/api/protected/messenger', messengerScheduledRoute)
-app.route('/api/protected/messenger', messengerOpsRoute)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness
