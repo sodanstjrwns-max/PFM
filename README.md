@@ -3,6 +3,13 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 📖 사용설명서 (Manual)
+
+가입부터 전체 메뉴 사용법까지 원장님/실장님/데스크 직원 누구나 따라할 수 있는 **PFM 사용 설명서(A4, 24p)**를 제공합니다.
+
+- **다운로드(PDF)**: [PFM 사용설명서.pdf](https://www.genspark.ai/api/files/s/SzM6C8bG?token=Z0FBQUFBQnFZQ0U3cTVxMlhpUDV3cDB2Y2hKbzlkNF92NllwVjNCTFZQQTE2ajNaMTJpcW1GOV9KbkhUR1VzY3pqSEVVYVBTZkcwenpjOFcxelJzSkJoSG8tSlE0RzdtREJCSm9seUlqSDdwdkQ3aTJfR3NhbVlfZGp4WkZjQjMxcFZFLXJLN09UbXpWaFpCVlBJbEFlWUUyNkR5TEhBV3lBVHVaSmJ0dUJyR3pnTDZJNlZZUlVZMGxxSGYyWnE3MU0wbWh0MU5UelFSd05qM2ppdm9PRGpVSC1Pa0JTYmNXOTh6SnJnc2tSby02SjNXako3eHA5SGNzSVdwbHJVMmhYN0pBYTFvTHI5QVkzODhXMTVqVGUxaVpfV3FET2owenc9PQ)
+- 목차: ① PFM 소개 ② 회원가입(원장/직원) ③ 6단계 초기설정 마법사 ④ 화면 둘러보기 ⑤ 전체 메뉴 가이드(9개 그룹) ⑥ 권한 등급(admin/manager/staff) ⑦ 핵심 기능 빠른 시작 ⑧ 직원 초대코드 발급 ⑨ 보안/데이터 안전 ⑩ FAQ ⑪ 문의처
+
 ## ♿ v5.11.4 — 명암비(Contrast) 전체 점검 + axe-core 자동 회귀 테스트 도입 (2026-07-21)
 
 "화이트 버전에서 글씨가 잘 안 보인다"는 신고를 계기로, 기존 UI 시뮬레이션 스위트가 "기능 동작"만 검증하고 "글씨가 실제로 보이는지(명암비)"는 전혀 체크하지 않는다는 구조적 공백을 발견. axe-core(W3C 표준 접근성 엔진) 기반 자동 회귀 테스트를 신설하고, 라이트/다크 테마 59개 리프 페이지 전체를 6차에 걸쳐 스캔하며 발견된 명암비 위반을 전부 수정.
@@ -649,11 +656,17 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 
 ## 🚀 URLs
 - **Production**: https://patient-funnel-manager.pages.dev
+- **사용설명서(PDF)**: https://www.genspark.ai/api/files/s/SzM6C8bG?token=Z0FBQUFBQnFZQ0U3cTVxMlhpUDV3cDB2Y2hKbzlkNF92NllwVjNCTFZQQTE2ajNaMTJpcW1GOV9KbkhUR1VzY3pqSEVVYVBTZkcwenpjOFcxelJzSkJoSG8tSlE0RzdtREJCSm9seUlqSDdwdkQ3aTJfR3NhbVlfZGp4WkZjQjMxcFZFLXJLN09UbXpWaFpCVlBJbEFlWUUyNkR5TEhBV3lBVHVaSmJ0dUJyR3pnTDZJNlZZUlVZMGxxSGYyWnE3MU0wbWh0MU5UelFSd05qM2ppdm9PRGpVSC1Pa0JTYmNXOTh6SnJnc2tSby02SjNXako3eHA5SGNzSVdwbHJVMmhYN0pBYTFvTHI5QVkzODhXMTVqVGUxaVpfV3FET2owenc9PQ (24p, 가입~전체메뉴 사용법)
 - **Latest Build**: https://680b8e0e.patient-funnel-manager.pages.dev (v5.11.4 — 명암비 전체 점검 + axe-core 회귀 테스트)
 - **Phase F.2 Build**: https://535bf6be.patient-funnel-manager.pages.dev (v5.5.0 — 알림 설정 + Quiet Hours)
 - **Phase F.1 Build**: https://c0a8d2e2.patient-funnel-manager.pages.dev
 - **Phase E Build**: https://20976dbb.patient-funnel-manager.pages.dev
 - **Demo Login**: admin@demo.pf / demo1234
+
+## 📖 사용설명서 (User Manual)
+- **PFM 사용설명서 (PDF, A4 24페이지)**: [다운로드 링크](https://www.genspark.ai/api/files/s/SzM6C8bG?token=Z0FBQUFBQnFZQ0U3cTVxMlhpUDV3cDB2Y2hKbzlkNF92NllwVjNCTFZQQTE2ajNaMTJpcW1GOV9KbkhUR1VzY3pqSEVVYVBTZkcwenpjOFcxelJzSkJoSG8tSlE0RzdtREJCSm9seUlqSDdwdkQ3aTJfR3NhbVlfZGp4WkZjQjMxcFZFLXJLN09UbXpWaFpCVlBJbEFlWUUyNkR5TEhBV3lBVHVaSmJ0dUJyR3pnTDZJNlZZUlVZMGxxSGYyWnE3MU0wbWh0MU5UelFSd05qM2ppdm9PRGpVSC1Pa0JTYmNXOTh6SnJnc2tSby02SjNXako3eHA5SGNzSVdwbHJVMmhYN0pBYTFvTHI5QVkzODhXMTVqVGUxaVpfV3FET2owenc9PQ)
+- 대상: 원장/실장/데스크 직원 등 전체 사용자 — 가입(병원 등록/직원 초대)부터 9개 메뉴 그룹, 권한별 기능, 핵심 업무 빠른 시작 가이드, FAQ까지 포함
+- 병원 데스크에 인쇄해서 비치 가능한 형태로 제작됨
 
 ## 📊 시스템 현황 (서울비디치과 데모 데이터)
 - 환자 200명, 소개 관계 139건, 누적 소개 매출 5.76억원
