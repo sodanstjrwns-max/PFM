@@ -686,4 +686,4 @@ PFM 환자 1명 = 메신저 스레드 1줄. "환자 카드 + 채팅 + 타임라�
 - 리뷰(reviews/review_mgmt), 수가표(pricing/fee_schedule) 데이터 병합 — 프로덕션 데이터 위험으로 별도 세션에서 신중히 진행 예정
 - 사이드바 9그룹 구조에 대한 사용자 실사용 피드백 수집 후 그룹/라벨 미세조정
 
-## 🔥 Last Updated: 2026-07-21 (v5.11.4 명암비 전체 점검 + axe-core 자동 회귀 테스트 도입, 프로덕션 배포 완료)
+## 🔥 Last Updated: 2026-07-22 (사용설명서(PDF, 24p) 제작 및 README 반영 + ui-sweep-csp.mjs stale 페이지 id 정리)
