@@ -39,6 +39,7 @@ const CHUNK_FILES = [
   'modules/pf-index.js', // v4.6 페이션트 인덱스 (매주 월요일 경영 설문)
   'modules/knowledge.js', // v4.7 PF 지식베이스 (원장님 6권 노하우 카드)
   'modules/referrals.js', // v4.8 소개 갤럭시 (3D 시각화 + 팬 등급)
+  'modules/help.js', // 앱 내 사용설명서 (가입~FAQ)
 ];
 
 // Module-to-page mapping (which pages need which module)
@@ -81,6 +82,7 @@ const MODULE_PAGE_MAP = {
   'modules/pf-index.js': ['pf_index'],
   'modules/knowledge.js': ['knowledge'],
   'modules/referrals.js': ['referrals'],
+  'modules/help.js': ['help'],
 };
 
 // Reverse map: page → chunk file

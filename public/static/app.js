@@ -964,6 +964,8 @@ function getNavConfig() {
 
     // ── 설정 (계정/시스템 — 그룹과 별도로 최하단 독립 유지) ──
     { id: 'settings', label: '⚙️ 설정', icon: ICONS.settings },
+    // ── 사용설명서 (전체 역할 공개, 최하단 독립) ──
+    { id: 'help', label: '📖 사용설명서', icon: ICONS.materials },
   ];
   return nav;
 }
@@ -1438,6 +1440,7 @@ async function renderPage() {
     referrals: ['🌌 소개 갤럭시', ICONS.users],
     feedback_notes: ['📚 피드백 노트', ICONS.message],
     settings: ['설정', ICONS.settings],
+    help: ['📖 사용설명서', ICONS.materials],
   };
   const [title, icon] = titles[state.currentPage] || ['페이지', ''];
   document.getElementById('headerTitle').innerHTML = `${icon}<span>${title}</span>`;
@@ -1509,6 +1512,7 @@ async function renderPage() {
     case 'gamification': M.gamification.renderGamification(body, actions); break;
     case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
+    case 'help': M.help.renderHelp(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';
   }
 }

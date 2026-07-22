@@ -3,13 +3,13 @@
 > 페이션트 퍼널 운영체제 — PFM(분석/AI) + Patient Chat(메신저/케이스) 통합 플랫폼
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
-## 📖 사용설명서 (Manual)
+## 📖 사용설명서 (앱 내 페이지)
 
-가입부터 전체 메뉴 사용법까지 원장님/실장님/데스크 직원 누구나 따라할 수 있는 **PFM 사용 설명서(A4, 24p)**를 제공합니다.
+가입부터 전체 메뉴 사용법까지 원장님/실장님/데스크 직원 누구나 볼 수 있는 **사용설명서가 앱 안에 내장**되어 있습니다. (외부 PDF 다운로드가 아니라 로그인 후 바로 열리는 실제 페이지입니다.)
 
-- **다운로드(PDF)**: [PFM 사용설명서.pdf](https://www.genspark.ai/api/files/s/SzM6C8bG?token=Z0FBQUFBQnFZQ0U3cTVxMlhpUDV3cDB2Y2hKbzlkNF92NllwVjNCTFZQQTE2ajNaMTJpcW1GOV9KbkhUR1VzY3pqSEVVYVBTZkcwenpjOFcxelJzSkJoSG8tSlE0RzdtREJCSm9seUlqSDdwdkQ3aTJfR3NhbVlfZGp4WkZjQjMxcFZFLXJLN09UbXpWaFpCVlBJbEFlWUUyNkR5TEhBV3lBVHVaSmJ0dUJyR3pnTDZJNlZZUlVZMGxxSGYyWnE3MU0wbWh0MU5UelFSd05qM2ppdm9PRGpVSC1Pa0JTYmNXOTh6SnJnc2tSby02SjNXako3eHA5SGNzSVdwbHJVMmhYN0pBYTFvTHI5QVkzODhXMTVqVGUxaVpfV3FET2owenc9PQ)
-- **대상**: 원장/실장/데스크 직원 등 전체 사용자 — 병원 데스크에 인쇄해서 비치 가능한 형태로 제작됨
-- **목차**: ① PFM 소개 ② 회원가입(원장/직원) ③ 6단계 초기설정 마법사 ④ 화면 둘러보기 ⑤ 전체 메뉴 가이드(9개 그룹) ⑥ 권한 등급(admin/manager/staff) ⑦ 핵심 기능 빠른 시작 ⑧ 직원 초대코드 발급 ⑨ 보안/데이터 안전 ⑩ FAQ ⑪ 문의처
+- **접속 경로**: 로그인 후 사이드바 최하단 **📖 사용설명서** 메뉴 클릭 (모든 역할(admin/manager/staff)에서 접근 가능)
+- **내용**: ① PFM 소개 ② 회원가입 2가지 방법(병원 등록/직원 초대코드) ③ 6단계 초기설정 마법사 ④ 전체 메뉴 투어(9개 그룹) ⑤ 권한별 기능 차이(admin/manager/staff) ⑥ 핵심 업무 빠른 시작 가이드(환자·상담·KPI) ⑦ 직원 초대코드 발급 절차 ⑧ 보안/데이터 안전 ⑨ FAQ
+- **구현**: `public/static/modules/help.js` 모듈, 사이드바 `help` 페이지로 등록 (다른 모든 메뉴처럼 지연로딩되는 청크)
 
 ## ♿ v5.11.4 — 명암비(Contrast) 전체 점검 + axe-core 자동 회귀 테스트 도입 (2026-07-21)
 
