@@ -22,7 +22,7 @@ const LEAF_PAGES = [
   'kpi_dashboard','kpi_stats','kpi_benchmark','kpi_daily','kpi_targets','reports',
   'marketing','heatmap','review_mgmt','surveys','kakao',
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
-  'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies','parking','parking_stats',
+  'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies',
   'free','praise','mistake','feedback_notes',
   'pf_index','knowledge','referrals','settings',
 ];

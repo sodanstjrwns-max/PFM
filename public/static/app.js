@@ -935,8 +935,6 @@ function getNavConfig() {
         { id: 'kanban_purchase', label: '물품 구매', icon: ICONS.cart },
         { id: 'kanban_repair', label: '수리/정비', icon: ICONS.wrench },
         { id: 'staff_supplies', label: '직원용품 주문', icon: ICONS.cart },
-        { id: 'parking', label: '주차권 관리', icon: ICONS.cart },
-        { id: 'parking_stats', label: '주차권 통계', icon: ICONS.chart },
       ]
     },
 
@@ -1425,8 +1423,6 @@ async function renderPage() {
     reservation_stats: ['📅 예약 통계', ICONS.chart],
     wait_times: ['⏱️ 대기시간 관리', ICONS.calendar],
     wait_time_stats: ['⏱️ 대기시간 통계', ICONS.chart],
-    parking: ['🅿️ 주차권 관리', ICONS.cart],
-    parking_stats: ['🅿️ 주차권 통계', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     surveys: ['📋 만족도 설문', ICONS.star],
@@ -1499,8 +1495,6 @@ async function renderPage() {
     case 'reservation_stats': M.reservations.renderReservationStats(body, actions); break;
     case 'wait_times': M.waitTimes.renderWaitTimes(body, actions); break;
     case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
-    case 'parking': M.parking.renderParking(body, actions); break;
-    case 'parking_stats': M.parking.renderParkingStats(body, actions); break;
     case 'surveys': M.surveys.renderSurveys(body, actions); break;
     case 'heatmap': M.heatmap.renderHeatmap(body, actions); break;
     case 'gamification': M.gamification.renderGamification(body, actions); break;

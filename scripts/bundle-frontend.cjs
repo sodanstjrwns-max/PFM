@@ -27,7 +27,7 @@ const CHUNK_FILES = [
   'modules/leave.js', 'modules/meetings.js', 'modules/fee-schedule.js',
   'modules/funnel.js', 'modules/kpi.js', 'modules/kpi-stats.js',
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
-  'modules/parking.js', 'modules/surveys.js', 'modules/settings.js',
+  'modules/surveys.js', 'modules/settings.js',
   'modules/heatmap.js', 'modules/gamification.js', 'modules/reviews.js',
   'modules/onboarding.js',
   'modules/recall.js',   // v3.2 환자 리콜 자동화
@@ -64,7 +64,6 @@ const MODULE_PAGE_MAP = {
   'modules/complaints.js': ['complaints', 'complaints_stats'],
   'modules/reservations.js': ['reservations', 'reservation_stats'],
   'modules/wait-times.js': ['wait_times', 'wait_time_stats'],
-  'modules/parking.js': ['parking', 'parking_stats'],
   'modules/surveys.js': ['surveys'],
   'modules/settings.js': ['settings'],
   'modules/heatmap.js': ['heatmap'],

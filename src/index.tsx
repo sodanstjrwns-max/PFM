@@ -200,7 +200,7 @@ app.route('/api/protected/patients', patients)
 app.route('/api/protected/hire', hire)
 app.route('/api/protected/hospital', hospital)
 app.route('/api/protected/complaints', complaints)
-app.route('/api/protected', operations)      // reservations, wait-times, parking
+app.route('/api/protected', operations)      // reservations, wait-times
 app.route('/api/protected', dashboard)       // dashboard stats
 app.route('/api/protected/surveys', surveys) // 설문 CRUD + 발송 + 분석
 app.route('/api/protected/briefing', briefing)       // 일일 브리핑
