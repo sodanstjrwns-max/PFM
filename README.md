@@ -4,6 +4,41 @@
 > (※ v5.5.0에서 도입되었던 원내 메신저 기능은 이후 버전에서 완전히 제거되었습니다. 아래 히스토리는 과거 기록입니다.)
 > 서울비디치과 + 페이션트 퍼널(PF) 6,000명 대표원장 교육의 노하우를 시스템화한 치과 경영 솔루션.
 
+## 🛡️ v5.12 — 실사용 시뮬레이션 기반 3대 결함 수정 (2026-07-25)
+
+Claude Opus 5 기념 전기능 실사용 시뮬레이션에서 발견된 결함을 우선순위대로 수정. 기존 UI 스위트가 "화면이 뜨는가"만 보던 사각지대를 API 퍼징·동시성·권한 범위 관점에서 메웠다.
+
+**[P0] 잘못된 날짜 입력이 서버를 죽이던 문제 — 500 × 27건 → 0건**
+- 원인: `new Date(x + 'T00:00:00').getDay()`가 `NaN` → 요일 배열 인덱싱이 `undefined` → D1 `bind()`에서 `D1_TYPE_ERROR` → HTTP 500
+- `'2026/07/24'`(슬래시)처럼 데스크에서 실제로 칠 수 있는 형식도 포함돼 있어 이론상 결함이 아닌 실사용 사고였음
+- `src/lib/middleware.ts`에 `isValidDateString` / `sanitizeDate` / `isValidMonthString` / `safeDayOfWeek` 공용 헬퍼 추가 후 `kpi`·`briefing`·`leave`·`clinical`·`hr` 호출부 치환 → 400 반환
+- `kpi/bulk-import`는 잘못된 행만 건너뛰고 `skipped_invalid_dates`로 보고 (한 줄 오타로 배치 전체가 죽지 않도록)
+- 깨진 JSON body도 `onError`에서 `SyntaxError`를 분기해 500 → 400
+
+**[P1] 직원 1명의 비밀번호 오타가 병원 전체를 잠그던 문제**
+- 원인: 레이트리밋 키가 IP 단독 → 공용 IP를 쓰는 병원에서 데스크 직원이 5회 틀리면 원장·실장까지 5분간 로그인 불가 (시뮬레이션에서 실제 재현)
+- 키를 **IP+이메일 2단 구조**로 변경: 계정 단위 5회 / IP 단위 30회
+- 개인 오타는 본인만 잠기고, 여러 계정을 훑는 스프레이 공격은 IP 상한이 여전히 차단 (검증: 26번째 시도에서 429)
+
+**[P1] KPI 부분 수정이 미전송 필드를 0으로 날리던 문제**
+- 원인: `sanitizeNumber(undefined, 0)` → `0`이 그대로 UPDATE되어 "신규환자 숫자만 고치려다 그날 매출이 소실"되는 사고 가능
+- 요청 본문에 실제로 포함된 필드만 갱신하는 PATCH 시맨틱으로 변경 (명시적 `0`은 정상 반영)
+
+**[P2] 환자 등록 연타로 중복 환자 5건 생성**
+- `(hospital_id, chart_number)` UNIQUE 부분 인덱스 추가 (`migrations/0047`, 빈 차트번호는 제외)
+- 사전 조회 + UNIQUE 위반 캐치로 500 대신 **409 + 기존 환자 안내**
+
+**[P2] 죽은 레거시 번들 제거**
+- `public/static/dist/bundle.js`(약 1MB)가 참조처 0곳인데 매 빌드 생성·배포되고 있었음 → 번들러에서 생성 로직 삭제
+
+**신규 테스트 스위트**
+- `tests/date-fuzz.mjs` **130/130** — 12종 비정상 날짜 × 10개 엔드포인트 + 정상값 회귀 + 깨진 JSON
+- `tests/rate-limit-scope.mjs` **5/5** — 본인 잠금 / 타 계정 무영향 / 스프레이 차단
+- `tests/data-integrity.mjs` **12/12** — KPI 부분 수정 보존 / 동시 연타 중복 차단
+- `scripts/extract-routes.cjs` — 라우트 목록 자동 추출 (`api-sweep.mjs`가 단독 실행 가능하도록 고정)
+
+**회귀 확인**: `vitest` 50/50, `ui-full-menu-sim` 463/463, `ui-value-loop` 16/16, `ui-data-act` 7/7, `ui-sweep-csp` 37/37 CSP·JS 에러 0건
+
 ## 📖 사용설명서 (앱 내 페이지)
 
 가입부터 전체 메뉴 사용법까지 원장님/실장님/데스크 직원 누구나 볼 수 있는 **사용설명서가 앱 안에 내장**되어 있습니다. (외부 PDF 다운로드가 아니라 로그인 후 바로 열리는 실제 페이지입니다.)
@@ -30,7 +65,7 @@
 
 ### 검증
 - `tests/ui-contrast-check.mjs` 최종(6차) 실행: **59페이지 × 2테마 전체 위반 0건**
-- `npx vitest run` 73/73, `tests/ui-full-menu-sim.mjs` 487/487, `tests/ui-data-act.mjs` 7/7, `tests/ui-value-loop.mjs` 16/16, `tests/ui-sweep-csp.mjs` 32페이지 CSP/JS 에러 0건 — 전체 회귀 스위트 재확인 통과
+- `npx vitest run` 50/50(당시 표기 73/73은 오기 — v5.12에서 정정), `tests/ui-full-menu-sim.mjs` 487/487, `tests/ui-data-act.mjs` 7/7, `tests/ui-value-loop.mjs` 16/16, `tests/ui-sweep-csp.mjs` 32페이지 CSP/JS 에러 0건 — 전체 회귀 스위트 재확인 통과
 
 ## 🔀 v5.11.3 — 레거시 시스템 통합: 리뷰/수가표 데이터 병합 (2026-07-15)
 
