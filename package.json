@@ -12,7 +12,12 @@
     "preview": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "deploy": "npm run build && wrangler pages deploy dist",
     "dev:sandbox": "wrangler pages dev dist --d1=pfm-production --local --ip 0.0.0.0 --port 3000",
-    "build:tw": "tailwindcss -c tailwind.config.cjs -i tailwind.input.css -o public/static/tailwind.css --minify"
+    "build:tw": "tailwindcss -c tailwind.config.cjs -i tailwind.input.css -o public/static/tailwind.css --minify",
+    "db": "./scripts/d1.sh",
+    "db:local": "./scripts/d1.sh local",
+    "db:prod": "./scripts/d1.sh prod",
+    "db:migrate:local": "wrangler d1 migrations apply pfm-production --local",
+    "db:migrate:prod": "wrangler d1 migrations apply pfm-production --remote"
   },
   "dependencies": {
     "hono": "^4.7.0"
