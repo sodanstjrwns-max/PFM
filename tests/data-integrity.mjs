@@ -7,7 +7,12 @@
  *  2. 환자 등록 연타 — 동일 차트번호 환자가 여러 건 생기던 문제
  */
 const BASE = process.env.BASE_URL || 'http://localhost:3000'
-const IP = '192.0.2.' + (Math.floor(Math.random() * 200) + 20)
+import { suiteIP, resetRateLimits } from './_helpers.mjs'
+const IP = suiteIP('data-integrity')
+
+/* 잔여 잠금 기록의 "피해자" 스위트 — 시작 전 자기방어 청소.
+ * (로컬 wrangler는 CF-Connecting-IP를 덮어써서 IP 분리가 통하지 않는다) */
+resetRateLimits()
 let pass = 0, fail = 0
 
 function log(ok, label, detail = '') {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody, isValidDateString, isValidPastDate, todayKST } from '../lib/middleware'
 
 const consult = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -54,6 +54,13 @@ consult.post('/', async (c) => {
   })
   if (!b.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
   if (!b.record_date) return c.json({ error: '날짜를 입력해주세요' }, 400)
+  // v5.12.1: 상담 기록은 날짜 검증이 아예 없었다 — 아무 볘생이나 2099년이 그대로 새이짐
+  if (!isValidDateString(b.record_date)) {
+    return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  }
+  if (!isValidPastDate(b.record_date)) {
+    return c.json({ error: `미래 날짜는 입력할 수 없습니다 (오늘: ${todayKST()})` }, 400)
+  }
   const id = 'cr-' + crypto.randomUUID().slice(0,8)
   await c.env.DB.prepare(`INSERT INTO consult_records (id, hospital_id, record_date, chart_number, patient_name, doctor_name, counselor_name, desk_name, planned_amount, agreed_amount, discount_note, patient_type, treatment_category, treatment_confirmed, appointment_made, recall_done, kakao_registered, pdf_provided, visit_source, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .bind(id, user.hospitalId, b.record_date, b.chart_number||'', b.patient_name, b.doctor_name||'', b.counselor_name||'', b.desk_name||'', b.planned_amount||0, b.agreed_amount||0, b.discount_note||'', b.patient_type||'new', b.treatment_category||'general', b.treatment_confirmed||'', b.appointment_made||'', b.recall_done||'', b.kakao_registered||'', b.pdf_provided||'', b.visit_source||'', b.notes||'', user.id).run()
@@ -65,6 +72,12 @@ consult.put('/:id', async (c) => {
   const fields = ['record_date','chart_number','patient_name','doctor_name','counselor_name','desk_name','planned_amount','agreed_amount','discount_note','patient_type','treatment_category','treatment_confirmed','appointment_made','recall_done','kakao_registered','pdf_provided','visit_source','notes']
   const numericFields = new Set(['planned_amount','agreed_amount'])
   const updates: string[] = []; const vals: any[] = []
+  // v5.12.1: 수정 시에도 날짜 검증 (뒤로 우회해 미래 날짜를 넘기는 경로 차단)
+  if (raw.record_date !== undefined && !isValidPastDate(raw.record_date)) {
+    return c.json({ error: isValidDateString(raw.record_date)
+      ? `미래 날짜는 입력할 수 없습니다 (오늘: ${todayKST()})`
+      : '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  }
   for (const f of fields) {
     if (raw[f] !== undefined) {
       const val = numericFields.has(f) ? sanitizeNumber(raw[f], 0, 0, 999999999) : sanitizeString(String(raw[f]), f === 'notes' ? 2000 : 200)

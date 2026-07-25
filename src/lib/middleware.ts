@@ -501,6 +501,36 @@ export function isValidMonthString(val: any): boolean {
   return y >= 1900 && y <= 2200 && m >= 1 && m <= 12
 }
 
+/* ═══ 과거/미래 날짜 구분 (v5.12.1) ═══
+ * 배경: 형식은 맞지만 의미가 틀린 날짜가 통과하고 있었다.
+ *   '2099-01-01' 매출을 입력하면 그대로 저장되어 월평균·추이 그래프가 왜곡된다.
+ *   실제로는 연도 자리 오타('2026'→'2099', '2062')가 원인인 경우가 대부분.
+ * 다만 "미래 금지"를 전역 규칙으로 못 박으면 안 된다:
+ *   - KPI·상담 실적 = 이미 일어난 일 → 미래 금지가 맞다
+ *   - 휴가 신청·예약 = 앞으로의 일 → 미래가 정상이다
+ * 그래서 판단을 호출부에 남기고, 여기서는 비교 도구만 제공한다.
+ */
+
+/** 병원 운영 기준 오늘(KST). Workers는 UTC로 도니 +9시간 보정해야 한다. */
+export function todayKST(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
+/** 실적 기록용 날짜인지 검사: 유효한 YYYY-MM-DD이면서 오늘 이후가 아님 */
+export function isValidPastDate(val: any, graceDays = 0): boolean {
+  if (!isValidDateString(val)) return false
+  const limit = graceDays
+    ? new Date(Date.now() + (9 + graceDays * 24) * 3600 * 1000).toISOString().slice(0, 10)
+    : todayKST()
+  return String(val).trim() <= limit // YYYY-MM-DD는 문자열 비교로 날짜 비교가 성립
+}
+
+/** 실적 기록용 달인지 검사: 유효한 YYYY-MM이면서 이번 달 이후가 아님 */
+export function isValidPastMonth(val: any): boolean {
+  if (!isValidMonthString(val)) return false
+  return String(val).trim() <= todayKST().slice(0, 7)
+}
+
 /** 검증된 날짜 문자열의 요일 키를 안전하게 반환 (잘못된 입력이면 null) */
 export function safeDayOfWeek(dateStr: any): 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | null {
   if (!isValidDateString(dateStr)) return null

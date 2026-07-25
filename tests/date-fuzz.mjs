@@ -11,7 +11,14 @@
  * 500(서버 크래시)이 하나도 없는지 검증한다. 400/422는 정상(방어 성공).
  */
 const BASE = process.env.BASE_URL || 'http://localhost:3000'
-const IP = '203.0.113.' + (Math.floor(Math.random() * 200) + 20)
+import { suiteIP, resetRateLimits } from './_helpers.mjs'
+const IP = suiteIP('date-fuzz')
+
+/* 이 스위트는 로그인 실패를 내지 않으므로 잔여 잠금 기록의 "피해자"다.
+ * 앞서 돌린 레이트리밋 스위트가 남긴 기록 때문에 사전 로그인이 429로 막히면
+ * 날짜 검증과 무관한 실패가 무더기로 뜬다. → 시작 전 자기방어 청소.
+ * (로컬 wrangler는 CF-Connecting-IP를 덮어써서 IP 분리가 통하지 않는다) */
+resetRateLimits()
 
 const BAD_DATES = [
   'NOT-A-DATE',
@@ -132,6 +139,46 @@ async function main() {
     })
     log(res.status < 500, `POST ${path} (깨진 JSON)`, `→ ${res.status}`)
   }
+
+  // 6) 미래 날짜 — 실적은 거부, 계획은 허용 (v5.12.1)
+  console.log('\n── 미래 날짜 구분 (실적 vs 계획) ──')
+  const future = new Date(Date.now() + 400 * 86400_000).toISOString().slice(0, 10)
+  const farFuture = '2099-01-01'
+  const futureMonth = future.slice(0, 7)
+
+  // 실적 기록 = 이미 일어난 일 → 미래 거부되어야 함
+  for (const d of [future, farFuture]) {
+    const r1 = await req('POST', '/api/protected/kpi/daily', { token, body: { record_date: d, revenue_non_insurance: 9000000 } })
+    log(r1.status === 400, `KPI 일일실적 미래 거부 [${d}]`, `→ ${r1.status}`)
+
+    const r2 = await req('POST', '/api/protected/consult-records', { token, body: { record_date: d, patient_name: '미래환자', planned_amount: 100 } })
+    log(r2.status === 400, `상담기록 미래 거부 [${d}]`, `→ ${r2.status}`)
+  }
+
+  // bulk-import: 미래 행은 건너뛰고 정상 행만 반영
+  const bulk = await req('POST', '/api/protected/kpi/bulk-import', {
+    token,
+    body: { daily_records: [{ record_date: good, revenue_non_insurance: 100 }, { record_date: farFuture, revenue_non_insurance: 200 }] },
+  })
+  log(bulk.status === 200 && bulk.json?.daily_records_imported === 1,
+    'bulk-import가 미래 행만 건너뜀', `반영=${bulk.json?.daily_records_imported}, 스킵=${bulk.json?.skipped_invalid_dates}`)
+
+  // 계획성 데이터 = 미래가 정상 → 허용되어야 함
+  const leaveFuture = await req('POST', '/api/protected/leave/requests', {
+    token, body: { start_date: future, end_date: future, leave_type: 'annual', reason: '미래 휴가 신청' },
+  })
+  log(leaveFuture.status === 200 || leaveFuture.status === 201,
+    '휴가 신청은 미래 허용 (과잉 차단 아님)', `→ ${leaveFuture.status}`)
+
+  const targetFuture = await req('POST', '/api/protected/kpi/targets', {
+    token, body: { year_month: futureMonth, target_revenue: 50000000 },
+  })
+  log(targetFuture.status === 200, 'KPI 목표는 미래 월 허용', `→ ${targetFuture.status}`)
+
+  // 어제/오늘 경계값
+  const yesterday = new Date(Date.now() + 9 * 3600_000 - 86400_000).toISOString().slice(0, 10)
+  const bYesterday = await req('POST', '/api/protected/kpi/daily', { token, body: { record_date: yesterday, revenue_non_insurance: 1 } })
+  log(bYesterday.status === 200, '어제 실적은 정상 입력', `→ ${bYesterday.status}`)
 
   console.log(`\n═══ 결과: ✅ ${pass} / ❌ ${fail} ═══`)
   if (fail) {

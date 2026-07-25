@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody, isValidDateString, isValidMonthString, safeDayOfWeek } from '../lib/middleware'
+import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody, isValidDateString, isValidMonthString, safeDayOfWeek, isValidPastDate, todayKST } from '../lib/middleware'
 const kpi = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── KPI System: 월간 목표 + 일간 기록 ─── */
@@ -33,6 +33,8 @@ kpi.post('/targets', requireRole('admin','manager'), async (c) => {
     notes: { type: 'string', max: 2000 },
   })
   if (!b.year_month) return c.json({ error: '월을 선택하세요' }, 400)
+  // v5.12.1: 목표는 미래 월 설정이 정상이므로 미래는 허용, 형식만 검증
+  if (!isValidMonthString(b.year_month)) return c.json({ error: '월 형식이 올바르지 않습니다 (YYYY-MM)' }, 400)
   const existing = await c.env.DB.prepare('SELECT id FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, b.year_month).first() as any
   if (existing) {
     await c.env.DB.prepare(`UPDATE kpi_targets SET target_revenue=?, insurance_ratio=?, target_new_patients_weekday=?, target_new_patients_weekend=?, total_hours=?, weekdays=?, weekend_days=?, notes=?, updated_at=? WHERE id=?`)
@@ -72,6 +74,11 @@ kpi.post('/daily', async (c) => {
   // v5.12: 형식 검증 없이 new Date()로 요일을 뽑다가 NaN→undefined→D1_TYPE_ERROR(500)로 터지던 문제 수정
   const dow = safeDayOfWeek(record_date)
   if (!dow) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  // v5.12.1: 일일 실적은 "이미 일어난 일" — 미래 날짜는 연도 오타(2026→2099)일 뿐인데
+  // 그대로 저장되어 월평균·추이 그래프를 왜곡시키고 있었다.
+  if (!isValidPastDate(record_date)) {
+    return c.json({ error: `미래 날짜는 입력할 수 없습니다 (오늘: ${todayKST()})` }, 400)
+  }
   const existing: any = await c.env.DB.prepare('SELECT id FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, record_date).first()
   const fields = [
     'revenue_non_insurance','revenue_insurance','existing_patients','new_patients',
@@ -155,8 +162,9 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
     const placeholders = Array(dailyFields.length + 5).fill('?').join(',')
     const updateSets = dailyFields.map(f => `${f}=excluded.${f}`).join(',')
     // v5.12: 잘못된 날짜가 섞인 행은 500으로 배치 전체를 죽이지 않고 조용히 건너뜀
+    // v5.12.1: 미래 날짜 행도 함께 제외 (엑셀 업로드 시 연도 오타가 섞여 들어옴)
     const stmts = records
-      .filter((r: any) => isValidDateString(sanitizeString(r.record_date || '', 10)))
+      .filter((r: any) => isValidPastDate(sanitizeString(r.record_date || '', 10)))
       .map((r: any) => {
         const rd = sanitizeString(r.record_date || '', 10)
         const dow = safeDayOfWeek(rd)!
