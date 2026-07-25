@@ -145,22 +145,15 @@ window._PAGE_CHUNK_MAP = ${JSON.stringify(pageToChunk)};
     totalOutput += output.length;
   }
 
-  // 3) Also build legacy bundle.js (for backward compat)
-  let bundle = '';
-  for (const file of [...CORE_FILES, ...CHUNK_FILES]) {
-    bundle += fs.readFileSync(path.join(STATIC, file), 'utf8') + '\n';
-  }
-  let bundleOutput = bundle;
-  try {
-    const result = await minify(bundle, terserOpts);
-    if (result.code) bundleOutput = result.code;
-  } catch(e) {}
-  fs.writeFileSync(path.join(DIST, 'bundle.js'), bundleOutput);
+  // 3) v5.12: 레거시 bundle.js(약 1MB) 생성 제거.
+  //    core.js + chunks 로 전환된 뒤 이 파일을 참조하는 코드가 한 곳도 없는데도
+  //    매 빌드마다 생성·배포되고 있었다. 남아있던 산출물도 함께 정리한다.
+  const legacyBundle = path.join(DIST, 'bundle.js');
+  if (fs.existsSync(legacyBundle)) fs.unlinkSync(legacyBundle);
 
   console.log(`\n═══ Build Summary ═══`);
   console.log(`Total Input: ${(totalInput/1024).toFixed(1)} KB`);
   console.log(`Total Output: ${(totalOutput/1024).toFixed(1)} KB (split)`);
-  console.log(`Bundle.js: ${(bundleOutput.length/1024).toFixed(1)} KB (legacy)`);
   console.log(`Core.js: ${(coreOutput.length/1024).toFixed(1)} KB (initial load)`);
   console.log(`Chunks: ${CHUNK_FILES.length} files`);
   console.log(`Reduction: ${((1 - totalOutput/totalInput) * 100).toFixed(1)}%`);

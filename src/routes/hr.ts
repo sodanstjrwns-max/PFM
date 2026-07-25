@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeBody, invalidateUserAuthCache } from '../lib/middleware'
+import { sanitizeString, sanitizeBody, invalidateUserAuthCache, isValidDateString, safeDayOfWeek } from '../lib/middleware'
 import { auditFromCtx } from '../lib/audit'
 
 const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
@@ -9,8 +9,9 @@ const hr = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 hr.get('/dashboard', async (c) => {
   const user = c.get('user')!
   const today = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0,10), 10)
-  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
-  const dayOfWeek = dayNames[new Date(today + 'T00:00:00').getDay()]
+  // v5.12: 잘못된 date면 요일이 undefined → 출근 대상자 집계가 조용히 0이 되던 문제 수정
+  if (!isValidDateString(today)) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  const dayOfWeek = safeDayOfWeek(today)!
   // v5.6.1: 3개 독립 쿼리 병렬 실행 (직렬 3 RTT → 1 RTT)
   const [staffRows, attRows, leaveRows] = await Promise.all([
     c.env.DB.prepare(

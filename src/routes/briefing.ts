@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString } from '../lib/middleware'
+import { sanitizeString, isValidDateString, safeDayOfWeek } from '../lib/middleware'
 const briefing = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ 일일 브리핑 자동 생성 ═══ */
@@ -9,6 +9,10 @@ briefing.get('/', async (c) => {
   const user = c.get('user')!
   const hid = user.hospitalId
   const dateParam = sanitizeString(c.req.query('date') || '', 10)
+  // v5.12: 잘못된 date 쿼리가 new Date(...).toISOString()에서 RangeError를 던져 500이 되던 문제 수정
+  if (dateParam && !isValidDateString(dateParam)) {
+    return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  }
   const today = dateParam || new Date().toISOString().slice(0, 10)
   const yesterday = new Date(new Date(today + 'T00:00:00').getTime() - 86400000).toISOString().slice(0, 10)
   const thisMonth = today.slice(0, 7)
@@ -81,7 +85,7 @@ briefing.get('/', async (c) => {
   const monthAchieveRate = mt.target_revenue > 0 ? Math.round((mc.total_revenue || 0) / mt.target_revenue * 1000) / 10 : 0
 
   // 출근 계산
-  const dowKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(today + 'T00:00:00').getDay()]
+  const dowKey = safeDayOfWeek(today)!
   const attMap = new Set((todayAttendance?.results || []).map((a: any) => a.user_id))
   let shouldWork = 0, presentCount = 0
   for (const s of (staffAll?.results || []) as any[]) {

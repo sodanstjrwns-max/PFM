@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeBody, isValidDateString } from '../lib/middleware'
 import { auditFromCtx } from '../lib/audit'
 const leave = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -65,6 +65,11 @@ leave.post('/requests', async (c) => {
     reason: { type: 'string', max: 1000 },
   })
   if (!b.leave_type || !b.start_date || !b.end_date) return c.json({ error: '필수 항목 누락' }, 400)
+  // v5.12: 날짜 형식 검증 없이 new Date() 산술을 해 days=NaN, year=NaN 이 D1까지 흘러가 500이 되던 문제 수정
+  if (!isValidDateString(b.start_date) || !isValidDateString(b.end_date)) {
+    return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  }
+  if (b.end_date < b.start_date) return c.json({ error: '종료일이 시작일보다 빤를 수 없습니다' }, 400)
   let days = 1
   if (b.leave_type === 'half_am' || b.leave_type === 'half_pm') { days = 0.5 } else { const s = new Date(b.start_date); const e = new Date(b.end_date); days = Math.round((e.getTime() - s.getTime()) / 86400000) + 1 }
   if (days <= 0 || days > 365) return c.json({ error: '유효하지 않은 기간입니다' }, 400)

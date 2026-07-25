@@ -191,7 +191,22 @@ patients.post('/', async (c) => {
     memo: { type: 'string', max: 2000 }, status: { type: 'string', max: 20 }, kakao_registered: { type: 'string', max: 5 },
   })
   if (!b.patient_name) return c.json({ error: '환자명을 입력해주세요' }, 400)
+
+  /* v5.12: 등록 버튼 연타 → 동일 차트번호 환자가 여러 건 생기던 문제 방어.
+   * DB에 UNIQUE 부분 인덱스(0047)를 걸었고, 여기서는 그 위반을
+   * 500이 아니라 "이미 등록된 환자" 안내로 돌려준다. */
+  const chartNo = (b.chart_number || '').trim()
+  if (chartNo) {
+    const dup: any = await c.env.DB.prepare(
+      'SELECT id, patient_name FROM patients WHERE hospital_id=? AND chart_number=?'
+    ).bind(user.hospitalId, chartNo).first()
+    if (dup) {
+      return c.json({ error: `이미 등록된 차트번호입니다 (${dup.patient_name})`, existing_id: dup.id }, 409)
+    }
+  }
+
   const id = 'pt-' + crypto.randomUUID().slice(0,8)
+  try {
   await c.env.DB.prepare(`
     INSERT INTO patients (id, hospital_id, chart_number, patient_name, phone, birth_date, gender,
       patient_type, visit_source, visit_source_detail, referrer_name,
@@ -211,6 +226,13 @@ patients.post('/', async (c) => {
     b.memo||'',
     b.status||'active', b.kakao_registered||'', user.id
   ).run()
+  } catch (e: any) {
+    // 위 사전 조회와 INSERT 사이의 동시 요청(연타)은 UNIQUE 인덱스가 잡는다
+    if (/UNIQUE constraint failed/i.test(e?.message || '')) {
+      return c.json({ error: '이미 등록된 차트번호입니다' }, 409)
+    }
+    throw e
+  }
   return c.json({ success: true, id })
 })
 

@@ -47,6 +47,15 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ═══ Global Error Handler with DB Logging (#19) ═══ */
 app.onError(async (err, c) => {
+  /* v5.12: 깨진 JSON body를 서버 잘못(500)으로 처리하던 문제 수정.
+   * c.req.json()이 SyntaxError를 던지면 이는 클라이언트 요청 오류이므로 400이 맞다.
+   * (네트워크 끊김/봇 스캔으로 error_logs가 가짜 500으로 오염되는 것도 함께 막는다) */
+  const isBadJson = err instanceof SyntaxError ||
+    /JSON|Unexpected end of|Unexpected token/i.test(err.message || '')
+  if (isBadJson) {
+    return c.json({ error: '요청 본문(JSON) 형식이 올바르지 않습니다' }, 400)
+  }
+
   const isDbError = err.message?.includes('D1_ERROR') || err.message?.includes('SQLITE')
   const status = isDbError ? 503 : 500
   const label = isDbError ? 'DB_ERROR' : 'SERVER_ERROR'

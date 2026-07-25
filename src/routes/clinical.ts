@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { sanitizeString, sanitizeNumber, sanitizeBody, isValidDateString, safeDayOfWeek } from '../lib/middleware'
 
 const clinical = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -45,8 +45,9 @@ clinical.get('/doctors', async (c) => {
 clinical.get('/doctors/on-duty', async (c) => {
   const user = c.get('user')!
   const date = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0, 10), 10)
-  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
-  const dayOfWeek = dayNames[new Date(date + 'T00:00:00').getDay()]
+  // v5.12: 잘못된 date면 요일이 undefined가 되어 "근무자 0명"이라는 조용한 오답을 내던 문제 수정
+  if (!isValidDateString(date)) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  const dayOfWeek = safeDayOfWeek(date)!
   const [doctorRows, attRows, leaveRows] = await Promise.all([
     c.env.DB.prepare(`SELECT id, name, role, work_schedule FROM users WHERE hospital_id=? AND is_doctor=1 AND is_active=1 AND work_status='active' ORDER BY role DESC, name`).bind(user.hospitalId).all(),
     c.env.DB.prepare(`SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`).bind(user.hospitalId, date).all(),
@@ -111,8 +112,9 @@ clinical.delete('/doctors/on-duty/:doctorId', async (c) => {
 clinical.get('/staff/on-duty', async (c) => {
   const user = c.get('user')!
   const date = sanitizeString(c.req.query('date') || new Date().toISOString().slice(0, 10), 10)
-  const dayNames = ['sun','mon','tue','wed','thu','fri','sat']
-  const dayOfWeek = dayNames[new Date(date + 'T00:00:00').getDay()]
+  // v5.12: 잘못된 date면 요일이 undefined가 되어 "근무자 0명"이라는 조용한 오답을 내던 문제 수정
+  if (!isValidDateString(date)) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
+  const dayOfWeek = safeDayOfWeek(date)!
   const [staffRows, attRows, leaveRows, tempRows] = await Promise.all([
     c.env.DB.prepare(`SELECT id, name, role, position, team, work_schedule, is_doctor FROM users WHERE hospital_id=? AND is_active=1 AND work_status='active' AND is_doctor=0 ORDER BY team, position, name`).bind(user.hospitalId).all(),
     c.env.DB.prepare(`SELECT user_id, status, check_in, check_out FROM attendance WHERE hospital_id=? AND date=?`).bind(user.hospitalId, date).all(),

@@ -218,6 +218,23 @@ const RATE_LIMIT_TTL = 600000 // 10분
 const MAX_ATTEMPTS = 5
 const LOCKOUT_DURATION = 300000 // 5분
 
+/* ═══ 2단 레이트리밋 키 (v5.12) ═══
+ * 문제: 기존에는 IP만으로 카운트해서, 병원 하나가 공용 IP를 쓰는 현실에서
+ *   데스크 직원 1명이 비밀번호를 5번 틀리면 → 같은 IP의 원장·실장·전 직원이
+ *   5분간 동시에 로그인 불가. 실사용 시뮬레이션에서 실제로 재현됨.
+ *
+ * 해결: 계정 단위(ip|email)를 1차 방어선으로 삼고,
+ *   IP 단위는 훨씬 느슨한 한도(MAX_ATTEMPTS_IP)로 두어
+ *   "여러 계정을 훑는 무차별 대입"만 걸리게 한다.
+ *   → 개인 오타는 본인만 잠기고, 진짜 공격은 여전히 차단.
+ */
+const MAX_ATTEMPTS_IP = 30 // 공용 IP 한 곳에서 15분 내 허용할 총 실패 수
+
+export function rateLimitKey(ip: string, identifier?: string): string {
+  const id = (identifier || '').trim().toLowerCase()
+  return id ? `${ip}|${id}` : ip
+}
+
 function cleanRateLimitMap() {
   if (loginAttempts.size <= MAX_RATE_LIMIT_ENTRIES) return
   const now = Date.now()
@@ -231,10 +248,10 @@ function cleanRateLimitMap() {
   }
 }
 
-export function checkRateLimit(ip: string, db?: any): { allowed: boolean; retryAfter?: number } {
+export function checkRateLimit(key: string, maxAttempts = MAX_ATTEMPTS): { allowed: boolean; retryAfter?: number } {
   const now = Date.now()
   cleanRateLimitMap()
-  const entry = loginAttempts.get(ip)
+  const entry = loginAttempts.get(key)
 
   if (!entry) return { allowed: true }
 
@@ -245,29 +262,29 @@ export function checkRateLimit(ip: string, db?: any): { allowed: boolean; retryA
 
   // 잠금 해제되었으면 초기화
   if (entry.lockedUntil > 0 && entry.lockedUntil <= now) {
-    loginAttempts.delete(ip)
+    loginAttempts.delete(key)
     return { allowed: true }
   }
 
   // 15분 창 안에서 체크
   if (now - entry.firstAttempt > 900000) {
-    loginAttempts.delete(ip)
+    loginAttempts.delete(key)
     return { allowed: true }
   }
 
   // 시도 횟수가 한도에 가까우면 사전 차단
-  if (entry.count >= MAX_ATTEMPTS) {
+  if (entry.count >= maxAttempts) {
     entry.lockedUntil = now + LOCKOUT_DURATION
-    loginAttempts.set(ip, entry)
+    loginAttempts.set(key, entry)
     return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION / 1000) }
   }
 
   return { allowed: true }
 }
 
-export function recordLoginFailure(ip: string): void {
+export function recordLoginFailure(key: string, maxAttempts = MAX_ATTEMPTS): void {
   const now = Date.now()
-  const entry = loginAttempts.get(ip) || { count: 0, firstAttempt: now, lockedUntil: 0 }
+  const entry = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: 0 }
 
   // 15분 창 리셋
   if (now - entry.firstAttempt > 900000) {
@@ -277,16 +294,16 @@ export function recordLoginFailure(ip: string): void {
 
   entry.count++
 
-  // MAX_ATTEMPTS회 실패 → 5분 잠금
-  if (entry.count >= MAX_ATTEMPTS) {
+  // maxAttempts회 실패 → 5분 잠금
+  if (entry.count >= maxAttempts) {
     entry.lockedUntil = now + LOCKOUT_DURATION
   }
 
-  loginAttempts.set(ip, entry)
+  loginAttempts.set(key, entry)
 }
 
-export function clearLoginAttempts(ip: string): void {
-  loginAttempts.delete(ip)
+export function clearLoginAttempts(key: string): void {
+  loginAttempts.delete(key)
 }
 
 /* ═══ D1 영속 레이트리밋 계층 (v5.5.1) ═══
@@ -294,13 +311,51 @@ export function clearLoginAttempts(ip: string): void {
  * 공격자가 엣지 노드를 옮겨다니며 우회 가능. D1 계층이 cross-isolate 정합성 보장.
  * in-memory 를 1차 필터로 유지해 정상 트래픽엔 D1 쿼리 0회.
  */
-export async function checkRateLimitD1(db: D1Database, ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+/* v5.12: identifier(이메일/초대코드)를 받아 계정 단위로 잠근다.
+ * identifier 가 없으면(구 호출부 호환) 기존처럼 IP 단위로 동작.
+ * IP 단위는 MAX_ATTEMPTS_IP(30회)라는 느슨한 상한으로 별도 검사해
+ * 계정 사전 대입(스프레이) 공격만 걸러낸다. */
+export async function checkRateLimitD1(
+  db: D1Database,
+  ip: string,
+  identifier?: string
+): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const key = rateLimitKey(ip, identifier)
+
   // 1차: in-memory (같은 isolate 내 즉시 차단, 0 쿼리)
-  const mem = checkRateLimit(ip)
+  const mem = checkRateLimit(key)
   if (!mem.allowed) return mem
+
+  // 계정 키를 쓰는 경우, IP 전체 상한도 함께 확인 (계정 스프레이 방어)
+  if (identifier) {
+    const ipWide = checkRateLimit(ip, MAX_ATTEMPTS_IP)
+    if (!ipWide.allowed) return ipWide
+  }
 
   // 2차: D1 영속 계층
   try {
+    const ipRow = identifier
+      ? await db.prepare(
+          `SELECT attempt_count,
+                  CAST((julianday('now') - julianday(first_attempt_at)) * 86400 AS INTEGER) AS age_sec,
+                  CASE WHEN locked_until IS NOT NULL
+                       THEN CAST((julianday(locked_until) - julianday('now')) * 86400 AS INTEGER)
+                       ELSE NULL END AS lock_remaining_sec
+           FROM login_rate_limits WHERE ip = ?`
+        ).bind(ip).first<any>()
+      : null
+    if (ipRow) {
+      if (ipRow.lock_remaining_sec !== null && ipRow.lock_remaining_sec > 0) {
+        return { allowed: false, retryAfter: ipRow.lock_remaining_sec }
+      }
+      if (ipRow.age_sec <= 900 && ipRow.attempt_count >= MAX_ATTEMPTS_IP) {
+        await db.prepare(
+          `UPDATE login_rate_limits SET locked_until = datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds') WHERE ip = ?`
+        ).bind(ip).run()
+        return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION / 1000) }
+      }
+    }
+
     const row = await db.prepare(
       `SELECT attempt_count, first_attempt_at, locked_until,
               CAST((julianday('now') - julianday(first_attempt_at)) * 86400 AS INTEGER) AS age_sec,
@@ -308,7 +363,7 @@ export async function checkRateLimitD1(db: D1Database, ip: string): Promise<{ al
                    THEN CAST((julianday(locked_until) - julianday('now')) * 86400 AS INTEGER)
                    ELSE NULL END AS lock_remaining_sec
        FROM login_rate_limits WHERE ip = ?`
-    ).bind(ip).first<any>()
+    ).bind(key).first<any>()
 
     if (!row) return { allowed: true }
 
@@ -318,14 +373,14 @@ export async function checkRateLimitD1(db: D1Database, ip: string): Promise<{ al
     }
     // 15분 창 만료 → 행 정리 후 통과
     if (row.age_sec > 900) {
-      await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(ip).run()
+      await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(key).run()
       return { allowed: true }
     }
     // 한도 도달 → 잠금 설정
     if (row.attempt_count >= MAX_ATTEMPTS) {
       await db.prepare(
         `UPDATE login_rate_limits SET locked_until = datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds') WHERE ip = ?`
-      ).bind(ip).run()
+      ).bind(key).run()
       return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION / 1000) }
     }
     return { allowed: true }
@@ -335,33 +390,45 @@ export async function checkRateLimitD1(db: D1Database, ip: string): Promise<{ al
   }
 }
 
-export async function recordLoginFailureD1(db: D1Database, ip: string): Promise<void> {
-  recordLoginFailure(ip) // in-memory 동시 갱신
+/* 하나의 키(계정 키 또는 IP)에 대한 실패 카운트 UPSERT.
+ * threshold 는 그 키의 잠금 발동 한도. */
+function failureUpsertStmt(db: D1Database, key: string, threshold: number) {
+  return db.prepare(
+    `INSERT INTO login_rate_limits (ip, attempt_count, first_attempt_at)
+     VALUES (?, 1, CURRENT_TIMESTAMP)
+     ON CONFLICT(ip) DO UPDATE SET
+       attempt_count = CASE
+         WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN 1
+         ELSE attempt_count + 1 END,
+       first_attempt_at = CASE
+         WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN CURRENT_TIMESTAMP
+         ELSE first_attempt_at END,
+       locked_until = CASE
+         WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 <= 900
+              AND attempt_count + 1 >= ${threshold}
+         THEN datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds')
+         ELSE locked_until END`
+  ).bind(key)
+}
+
+export async function recordLoginFailureD1(db: D1Database, ip: string, identifier?: string): Promise<void> {
+  const key = rateLimitKey(ip, identifier)
+  recordLoginFailure(key) // in-memory 동시 갱신 (계정 단위, 한도 5)
+  if (identifier) recordLoginFailure(ip, MAX_ATTEMPTS_IP) // IP 단위는 느슨한 한도로 별도 집계
   try {
-    // UPSERT: 15분 창 만료 시 카운터 리셋, 아니면 증가
-    await db.prepare(
-      `INSERT INTO login_rate_limits (ip, attempt_count, first_attempt_at)
-       VALUES (?, 1, CURRENT_TIMESTAMP)
-       ON CONFLICT(ip) DO UPDATE SET
-         attempt_count = CASE
-           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN 1
-           ELSE attempt_count + 1 END,
-         first_attempt_at = CASE
-           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 > 900 THEN CURRENT_TIMESTAMP
-           ELSE first_attempt_at END,
-         locked_until = CASE
-           WHEN (julianday('now') - julianday(first_attempt_at)) * 86400 <= 900
-                AND attempt_count + 1 >= ${MAX_ATTEMPTS}
-           THEN datetime('now', '+${Math.floor(LOCKOUT_DURATION / 1000)} seconds')
-           ELSE locked_until END`
-    ).bind(ip).run()
+    const stmts = [failureUpsertStmt(db, key, MAX_ATTEMPTS)]
+    if (identifier) stmts.push(failureUpsertStmt(db, ip, MAX_ATTEMPTS_IP))
+    await db.batch(stmts)
   } catch { /* 마이그레이션 전 — 무시 */ }
 }
 
-export async function clearLoginAttemptsD1(db: D1Database, ip: string): Promise<void> {
-  clearLoginAttempts(ip)
+export async function clearLoginAttemptsD1(db: D1Database, ip: string, identifier?: string): Promise<void> {
+  const key = rateLimitKey(ip, identifier)
+  clearLoginAttempts(key)
+  // 로그인 성공 시 그 계정의 실패 기록만 지운다.
+  // IP 누적치는 남겨야 "계정 하나 뚫고 나머지를 계속 훑는" 스프레이를 막을 수 있다.
   try {
-    await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(ip).run()
+    await db.prepare('DELETE FROM login_rate_limits WHERE ip = ?').bind(key).run()
   } catch { /* 무시 */ }
 }
 
@@ -395,6 +462,50 @@ export function sanitizeNumber(val: any, defaultVal = 0, min?: number, max?: num
   if (min !== undefined && n < min) return min
   if (max !== undefined && n > max) return max
   return n
+}
+
+/* ═══ 날짜 검증 (v5.12) ═══
+ * 배경: 여러 라우트가 `new Date(x + 'T00:00:00').getDay()` 결과를 검증 없이 사용해
+ *   - 'NOT-A-DATE' / '2026-13-45' / '2026/07/24' 같은 입력 → getDay()가 NaN
+ *   - 배열 인덱싱 결과가 undefined → D1 bind() 에서 D1_TYPE_ERROR → 500
+ * 특히 '2026/07/24'(슬래시)는 사용자가 실제로 입력할 수 있는 형식이라 실사용 사고로 이어짐.
+ * → 아래 헬퍼로 "YYYY-MM-DD 이면서 실재하는 날짜" 만 통과시키고, 나머지는 호출부에서 400 처리.
+ */
+
+/** YYYY-MM-DD 형식이면서 실제 존재하는 날짜인지 검사 (윤년/월말 포함) */
+export function isValidDateString(val: any): boolean {
+  if (typeof val !== 'string') return false
+  const s = val.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const [y, m, d] = s.split('-').map(Number)
+  if (y < 1900 || y > 2200) return false          // 연도 오타(0000/9999) 차단
+  if (m < 1 || m > 12) return false
+  if (d < 1 || d > 31) return false
+  const dt = new Date(`${s}T00:00:00Z`)
+  if (isNaN(dt.getTime())) return false
+  // 롤오버 방지: 2026-02-31 → Date가 3/3으로 굴려버리는 것을 거부
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() + 1 === m && dt.getUTCDate() === d
+}
+
+/** 유효한 YYYY-MM-DD면 그대로, 아니면 fallback(기본 '') 반환 — 크래시 없는 정규화용 */
+export function sanitizeDate(val: any, fallback = ''): string {
+  return isValidDateString(val) ? String(val).trim() : fallback
+}
+
+/** YYYY-MM 형식이면서 실재하는 달인지 검사 */
+export function isValidMonthString(val: any): boolean {
+  if (typeof val !== 'string') return false
+  const s = val.trim()
+  if (!/^\d{4}-\d{2}$/.test(s)) return false
+  const [y, m] = s.split('-').map(Number)
+  return y >= 1900 && y <= 2200 && m >= 1 && m <= 12
+}
+
+/** 검증된 날짜 문자열의 요일 키를 안전하게 반환 (잘못된 입력이면 null) */
+export function safeDayOfWeek(dateStr: any): 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | null {
+  if (!isValidDateString(dateStr)) return null
+  const idx = new Date(String(dateStr).trim() + 'T00:00:00').getDay()
+  return (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const)[idx] ?? null
 }
 
 /* ═══ Bulk Body Sanitizer ═══ */

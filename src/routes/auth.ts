@@ -164,29 +164,35 @@ auth.get('/invite/:code', async (c) => {
 /* ─── Login (with rate limiting) ─── */
 auth.post('/login', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
-  const rateCheck = await checkRateLimitD1(c.env.DB, ip)
+
+  // v5.12: 레이트리밋을 "IP만"에서 "IP+이메일"로 변경.
+  // 기존에는 공용 IP를 쓰는 병원에서 직원 1명이 비번을 5번 틀리면
+  // 같은 IP의 원장·실장까지 5분간 로그인 불가였다(실사용 시뮬레이션에서 재현).
+  // → 계정 키를 알아야 하므로 body 파싱 이후로 검사를 옮긴다.
+  const { email, password } = await c.req.json()
+  if (!email || !password) return c.json({ error: '이메일과 비밀번호를 입력해주세요' }, 400)
+  const acct = sanitizeString(email, 200)
+
+  const rateCheck = await checkRateLimitD1(c.env.DB, ip, acct)
   if (!rateCheck.allowed) {
     return c.json({ error: `로그인 시도가 너무 많습니다. ${rateCheck.retryAfter}초 후에 다시 시도해주세요.` }, 429)
   }
 
-  const { email, password } = await c.req.json()
-  if (!email || !password) return c.json({ error: '이메일과 비밀번호를 입력해주세요' }, 400)
-
-  const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name, h.onboarding_completed FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(sanitizeString(email, 200)).first()
+  const row: any = await c.env.DB.prepare('SELECT u.*, h.name as hospital_name, h.onboarding_completed FROM users u JOIN hospitals h ON u.hospital_id=h.id WHERE u.email=?').bind(acct).first()
   if (!row) {
-    await recordLoginFailureD1(c.env.DB, ip)
+    await recordLoginFailureD1(c.env.DB, ip, acct)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
   const valid = await verifyPassword(password, row.password_hash)
   if (!valid) {
-    await recordLoginFailureD1(c.env.DB, ip)
+    await recordLoginFailureD1(c.env.DB, ip, acct)
     return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
   }
   // 퇴사/비활성 계정 차단 — 비밀번호 검증 이후에 체크 (계정 열거 방지)
   if (row.work_status === 'resigned') return c.json({ error: '퇴사 처리된 계정입니다' }, 401)
   if (row.is_active === 0) return c.json({ error: '비활성화된 계정입니다. 관리자에게 문의하세요.' }, 401)
 
-  await clearLoginAttemptsD1(c.env.DB, ip)
+  await clearLoginAttemptsD1(c.env.DB, ip, acct)
   const secret = getJwtSecret(c.env.JWT_SECRET)
   const token = await signJWT({ id: row.id, hospitalId: row.hospital_id, email: row.email, name: row.name, role: row.role }, secret)
   setAuthCookie(c, token)

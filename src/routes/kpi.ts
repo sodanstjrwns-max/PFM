@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
-import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody } from '../lib/middleware'
+import { requireRole, sanitizeString, sanitizeNumber, sanitizeBody, isValidDateString, isValidMonthString, safeDayOfWeek } from '../lib/middleware'
 const kpi = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 /* ─── KPI System: 월간 목표 + 일간 기록 ─── */
@@ -69,7 +69,9 @@ kpi.post('/daily', async (c) => {
   const raw = await c.req.json()
   const record_date = sanitizeString(raw.record_date || '', 10)
   if (!record_date) return c.json({ error: '날짜를 입력하세요' }, 400)
-  const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(record_date + 'T00:00:00').getDay()]
+  // v5.12: 형식 검증 없이 new Date()로 요일을 뽑다가 NaN→undefined→D1_TYPE_ERROR(500)로 터지던 문제 수정
+  const dow = safeDayOfWeek(record_date)
+  if (!dow) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
   const existing: any = await c.env.DB.prepare('SELECT id FROM daily_records WHERE hospital_id=? AND record_date=?').bind(user.hospitalId, record_date).first()
   const fields = [
     'revenue_non_insurance','revenue_insurance','existing_patients','new_patients',
@@ -84,11 +86,19 @@ kpi.post('/daily', async (c) => {
   ]
   const getVal = (f: string) => f === 'notes' ? sanitizeString(raw[f] || '', 2000) : sanitizeNumber(raw[f], 0, 0, 999999999)
   if (existing) {
-    const sets = fields.map(f => `${f}=?`).join(',')
-    const vals = fields.map(getVal)
+    /* v5.12: 부분 수정(PATCH) 시맨틱.
+     * 기존에는 보내지 않은 필드까지 전부 UPDATE 대상이라 sanitizeNumber(undefined, 0) → 0 이 되어,
+     * "신규환자 숫자만 고치려다 그날 매출이 0으로 날아가는" 사고가 가능했다.
+     * 이제 요청 본문에 실제로 포함된 필드만 갱신한다. */
+    const provided = fields.filter(f => Object.prototype.hasOwnProperty.call(raw, f))
+    if (provided.length === 0) {
+      return c.json({ error: '수정할 항목이 없습니다' }, 400)
+    }
+    const sets = provided.map(f => `${f}=?`).join(',')
+    const vals = provided.map(getVal)
     await c.env.DB.prepare(`UPDATE daily_records SET ${sets}, day_of_week=?, updated_at=? WHERE id=?`)
       .bind(...vals, dow, new Date().toISOString(), existing.id).run()
-    return c.json({ success: true, id: existing.id, updated: true })
+    return c.json({ success: true, id: existing.id, updated: true, updated_fields: provided.length })
   } else {
     const id = 'dr-' + crypto.randomUUID().slice(0,8)
     const cols = ['id','hospital_id','record_date','day_of_week', ...fields, 'recorded_by'].join(',')
@@ -107,7 +117,7 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
   if (records && !Array.isArray(records)) return c.json({ error: 'daily_records는 배열이어야 합니다' }, 400)
   if ((targets?.length || 0) > 100) return c.json({ error: '한 번에 100개월까지 가능합니다' }, 400)
   if ((records?.length || 0) > 500) return c.json({ error: '한 번에 500일까지 가능합니다' }, 400)
-  let targetCount = 0, dailyCount = 0
+  let targetCount = 0, dailyCount = 0, skippedInvalidDates = 0
 
   if (Array.isArray(targets)) {
     // v5.6.1: SELECT+INSERT/UPDATE(행당 2쿼리) → ON CONFLICT upsert 1쿼리, D1 batch 일괄 실행
@@ -144,11 +154,12 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
     const cols = ['id','hospital_id','record_date','day_of_week', ...dailyFields, 'recorded_by'].join(',')
     const placeholders = Array(dailyFields.length + 5).fill('?').join(',')
     const updateSets = dailyFields.map(f => `${f}=excluded.${f}`).join(',')
+    // v5.12: 잘못된 날짜가 섞인 행은 500으로 배치 전체를 죽이지 않고 조용히 건너뜀
     const stmts = records
-      .filter((r: any) => sanitizeString(r.record_date || '', 10))
+      .filter((r: any) => isValidDateString(sanitizeString(r.record_date || '', 10)))
       .map((r: any) => {
         const rd = sanitizeString(r.record_date || '', 10)
-        const dow = ['sun','mon','tue','wed','thu','fri','sat'][new Date(rd + 'T00:00:00').getDay()]
+        const dow = safeDayOfWeek(rd)!
         const getVal = (f: string) => f === 'notes' ? sanitizeString(r[f]||'',2000) : sanitizeNumber(r[f],0,0,999999999)
         return c.env.DB.prepare(`INSERT INTO daily_records (${cols}) VALUES (${placeholders})
           ON CONFLICT(hospital_id, record_date) DO UPDATE SET ${updateSets}, day_of_week=excluded.day_of_week, updated_at=CURRENT_TIMESTAMP`)
@@ -159,9 +170,16 @@ kpi.post('/bulk-import', requireRole('admin','manager'), async (c) => {
       await c.env.DB.batch(stmts.slice(ci, ci + CHUNK))
     }
     dailyCount = stmts.length
+    skippedInvalidDates = records.length - stmts.length
   }
 
-  return c.json({ success: true, targets_imported: targetCount, daily_records_imported: dailyCount })
+  return c.json({
+    success: true,
+    targets_imported: targetCount,
+    daily_records_imported: dailyCount,
+    // v5.12: 날짜 형식 오류로 건너뛴 행을 사용자에게 알림 (조용한 유실 방지)
+    ...(skippedInvalidDates > 0 ? { skipped_invalid_dates: skippedInvalidDates } : {}),
+  })
 })
 
 kpi.get('/weekly', async (c) => {
@@ -169,6 +187,7 @@ kpi.get('/weekly', async (c) => {
   const from = sanitizeString(c.req.query('from') || '', 10)
   const to = sanitizeString(c.req.query('to') || '', 10)
   if (!from || !to) return c.json({ error: 'from, to 필수' }, 400)
+  if (!isValidDateString(from) || !isValidDateString(to)) return c.json({ error: '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)' }, 400)
   const rows = await c.env.DB.prepare(`SELECT
     COUNT(*) as days,
     SUM(revenue_non_insurance) as revenue_non_insurance,
@@ -270,6 +289,8 @@ kpi.get('/stats', async (c) => {
 kpi.get('/dashboard', async (c) => {
   const user = c.get('user')!
   const yearMonth = sanitizeString(c.req.query('month') || new Date().toISOString().slice(0,7), 10)
+  // v5.12: 아래 요일별 목표 계산이 new Date(year, month, 0) 산술에 의존 → 잘못된 month면 NaN 전파
+  if (!isValidMonthString(yearMonth)) return c.json({ error: '월 형식이 올바르지 않습니다 (YYYY-MM)' }, 400)
   const [target, dailyRows, hospitalRow] = await Promise.all([
     c.env.DB.prepare('SELECT * FROM kpi_targets WHERE hospital_id=? AND year_month=?').bind(user.hospitalId, yearMonth).first(),
     c.env.DB.prepare("SELECT * FROM daily_records WHERE hospital_id=? AND record_date LIKE ? ORDER BY record_date").bind(user.hospitalId, yearMonth + '%').all(),
