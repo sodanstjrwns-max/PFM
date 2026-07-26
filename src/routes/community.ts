@@ -12,8 +12,10 @@ community.get('/posts', async (c) => {
   const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
   const offset = (page - 1) * limit
   // 댓글 수는 서브쿼리로 집계 (posts 테이블에 댓글 수 컬럼 없을 수 있음)
-  let sql = `SELECT p.*, u.name as author_name,
-    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+  let sql = `SELECT p.*, u.name as author_name, u.role as author_role,
+    u.position as author_position, u.team as author_team,
+    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.comment_kind='feedback') AS supervisor_feedback_count
     FROM posts p JOIN users u ON p.author_id=u.id WHERE p.hospital_id=?`
   const params: any[] = [user.hospitalId]
   if (board) { sql += ' AND p.board_type=?'; params.push(board) }
@@ -29,11 +31,14 @@ community.get('/posts', async (c) => {
   const isManagerLike = user.role === 'admin' || user.role === 'manager'
   const data = (rows.results || []).map((p: any) => {
     const canDelete = isManagerLike || p.author_id === user.id
+    // 실수노트: 상급자만 "피드백 달기" 버튼이 보여야 한다.
+    // 본인 실수에 본인이 상급자 자격으로 피드백을 다는 건 말이 안 되므로 작성자 본인은 제외.
+    const canFeedback = board === 'mistake' && isManagerLike && p.author_id !== user.id
     if (p.is_anonymous) {
-      const { author_id, ...rest } = p
-      return { ...rest, author_name: null, _can_delete: canDelete }
+      const { author_id, author_position, author_team, ...rest } = p
+      return { ...rest, author_name: null, author_role: null, _can_delete: canDelete, _can_feedback: canFeedback }
     }
-    return { ...p, _can_delete: canDelete }
+    return { ...p, _can_delete: canDelete, _can_feedback: canFeedback }
   })
   return c.json({ data, total: countResult?.c || 0, page, limit })
 })
@@ -48,6 +53,8 @@ community.post('/posts', async (c) => {
     target_name: { type: 'string', max: 100 },
     is_anonymous: { type: 'boolean' },
     is_pinned: { type: 'boolean' },
+    mistake_category: { type: 'string', max: 30 },
+    severity: { type: 'enum', values: ['low','medium','high'] },
   })
   if (!b.board_type || !b.title) return c.json({ error: '게시판과 제목은 필수입니다' }, 400)
 
@@ -64,9 +71,53 @@ community.post('/posts', async (c) => {
   // 🔒 권한 가드: is_pinned(고정글) 설정은 관리자/원장만 가능
   const pinned = b.is_pinned && isManager ? 1 : 0
 
+  // 실수노트 전용 필드 (다른 게시판에서는 무시)
+  const MISTAKE_CATS = ['consultation','clinical','reception','billing','communication','system','other']
+  const mistakeCat = b.board_type === 'mistake' && MISTAKE_CATS.includes(b.mistake_category || '')
+    ? b.mistake_category : ''
+  const severity = b.board_type === 'mistake' ? (b.severity || 'low') : 'low'
+  const resolution = b.board_type === 'mistake' ? 'open' : 'open'
+
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name, is_anonymous, is_pinned) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.board_type, user.id, b.title, b.content||'', b.target_name||'', b.is_anonymous?1:0, pinned).run()
+  await c.env.DB.prepare(
+    `INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name,
+      is_anonymous, is_pinned, mistake_category, severity, resolution_status)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).bind(
+    id, user.hospitalId, b.board_type, user.id, b.title, b.content || '', b.target_name || '',
+    b.is_anonymous ? 1 : 0, pinned, mistakeCat, severity, resolution
+  ).run()
   return c.json({ id })
+})
+
+/* ─── 실수노트: 상급자 피드백 상태 변경 ───
+ * 실수한 본인이 글을 쓰고 → 상급자가 피드백 댓글을 달고 → 해결 처리한다.
+ * (피드백노트 = 상급자가 먼저 쓰는 반대 방향. src/routes/feedback.ts 참고) */
+community.put('/posts/:id/resolution', async (c) => {
+  const user = c.get('user')!
+  const postId = c.req.param('id')
+  const post: any = await c.env.DB.prepare(
+    'SELECT id, author_id, board_type FROM posts WHERE id=? AND hospital_id=?'
+  ).bind(postId, user.hospitalId).first()
+  if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
+  if (post.board_type !== 'mistake') return c.json({ error: '실수노트에서만 사용할 수 있습니다' }, 400)
+
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  // 해결 처리는 상급자 또는 작성자 본인
+  if (!isManagerLike && post.author_id !== user.id) {
+    return c.json({ error: '권한이 없습니다' }, 403)
+  }
+
+  const raw = await c.req.json()
+  const status = sanitizeString(raw.resolution_status || '', 20)
+  if (!['open','feedback_given','resolved'].includes(status)) {
+    return c.json({ error: '유효하지 않은 상태입니다' }, 400)
+  }
+  const resolvedAt = status === 'resolved' ? new Date().toISOString() : null
+  await c.env.DB.prepare(
+    'UPDATE posts SET resolution_status=?, resolved_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND hospital_id=?'
+  ).bind(status, resolvedAt, postId, user.hospitalId).run()
+  return c.json({ success: true, resolution_status: status })
 })
 
 community.delete('/posts/:id', async (c) => {
@@ -89,24 +140,67 @@ community.delete('/posts/:id', async (c) => {
 community.get('/posts/:id/comments', async (c) => {
   const user = c.get('user')!
   // IDOR 방지: 해당 병원의 게시글인지 확인
-  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
+  const post: any = await c.env.DB.prepare('SELECT id, author_id, board_type FROM posts WHERE id=? AND hospital_id=?').bind(c.req.param('id'), user.hospitalId).first()
   if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
-  const rows = await c.env.DB.prepare('SELECT cm.*, u.name as author_name FROM comments cm JOIN users u ON cm.author_id=u.id WHERE cm.post_id=? ORDER BY cm.created_at LIMIT 200').bind(c.req.param('id')).all()
-  return c.json(rows.results)
+  // 역할 배지를 위해 작성 시점 역할(comments.author_role)을 우선 쓰고, 없으면 현재 역할로 폴백.
+  // (직원이 실장으로 승진해도 그때 남긴 피드백의 배지가 바뀌지 않게 하려는 의도)
+  const rows = await c.env.DB.prepare(
+    `SELECT cm.*, u.name AS author_name,
+       COALESCE(NULLIF(cm.author_role,''), u.role) AS role_badge,
+       u.position AS author_position, u.team AS author_team
+     FROM comments cm JOIN users u ON cm.author_id=u.id
+     WHERE cm.post_id=? ORDER BY cm.created_at LIMIT 200`
+  ).bind(c.req.param('id')).all()
+
+  const data = (rows.results || []).map((cm: any) => ({
+    ...cm,
+    comment_kind: cm.comment_kind || 'comment',
+    // 원글 작성자가 단 댓글인지 표시 (실수노트에서 "작성자 답변" 배지)
+    _is_post_author: cm.author_id === post.author_id,
+  }))
+  return c.json(data)
 })
 
 community.post('/posts/:id/comments', async (c) => {
   const user = c.get('user')!
   const postId = c.req.param('id')
   // IDOR 방지: 해당 병원의 게시글인지 확인
-  const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
+  const post: any = await c.env.DB.prepare('SELECT id, author_id, board_type FROM posts WHERE id=? AND hospital_id=?').bind(postId, user.hospitalId).first()
   if (!post) return c.json({ error: '게시글을 찾을 수 없습니다' }, 404)
   const raw = await c.req.json()
   const content = sanitizeString(raw.content || '', 5000)
   if (!content) return c.json({ error: '내용을 입력하세요' }, 400)
+
+  /* ── 댓글 종류 판정 ──
+   * feedback : 실수노트에서 상급자(admin/manager)가 다는 정식 피드백
+   * reply    : 원글 작성자가 다는 답변
+   * comment  : 그 외 일반 댓글
+   * 클라이언트가 kind=feedback 을 보내도 권한이 없으면 comment 로 강등한다. */
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  const wantFeedback = String(raw.comment_kind || '') === 'feedback'
+  let kind: 'comment' | 'feedback' | 'reply' = 'comment'
+  if (wantFeedback && post.board_type === 'mistake' && isManagerLike && post.author_id !== user.id) {
+    kind = 'feedback'
+  } else if (post.author_id === user.id) {
+    kind = 'reply'
+  }
+
   const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO comments (id, post_id, author_id, content, hospital_id) VALUES (?,?,?,?,?)').bind(id, postId, user.id, content, user.hospitalId).run()
-  return c.json({ id })
+  await c.env.DB.prepare(
+    'INSERT INTO comments (id, post_id, author_id, content, hospital_id, author_role, comment_kind) VALUES (?,?,?,?,?,?,?)'
+  ).bind(id, postId, user.id, content, user.hospitalId, user.role, kind).run()
+
+  // 상급자 피드백이면 카운터 증가 + 상태를 feedback_given 으로 전진
+  if (kind === 'feedback') {
+    await c.env.DB.prepare(
+      `UPDATE posts SET feedback_count = feedback_count + 1,
+         resolution_status = CASE WHEN resolution_status='open' THEN 'feedback_given' ELSE resolution_status END,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id=? AND hospital_id=?`
+    ).bind(postId, user.hospitalId).run()
+  }
+
+  return c.json({ id, comment_kind: kind })
 })
 
 community.post('/posts/:id/like', async (c) => {

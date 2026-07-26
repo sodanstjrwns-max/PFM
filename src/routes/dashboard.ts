@@ -36,7 +36,7 @@ dashboard.get('/dashboard', async (c) => {
     // Q2: Hire/kanban counts (3→1 using UNION ALL)
     c.env.DB.prepare(`
       SELECT 'pendingTasks' as k, COUNT(*) as v FROM kanban_cards WHERE hospital_id=? AND status!='completed'
-      UNION ALL SELECT 'openJobs', COUNT(*) FROM job_postings WHERE hospital_id=? AND status='open'
+      UNION ALL SELECT 'upcomingInterviews', COUNT(*) FROM interviews WHERE hospital_id=? AND status='scheduled' AND scheduled_at >= datetime('now')
       UNION ALL SELECT 'activeApplicants', COUNT(*) FROM applicants WHERE hospital_id=? AND status NOT IN ('hired','rejected','withdrawn')
     `).bind(hid, hid, hid).all(),
 
@@ -114,7 +114,7 @@ dashboard.get('/dashboard', async (c) => {
   return c.json({
     materials: cm.materials||0, pricing: cm.pricing||0, cases: cm.cases||0, caseImages: imgCountResult?.c||0,
     posts: cm.posts||0, pendingTasks: cm.pendingTasks||0,
-    openJobs: cm.openJobs||0, activeApplicants: cm.activeApplicants||0,
+    upcomingInterviews: cm.upcomingInterviews||0, activeApplicants: cm.activeApplicants||0,
     todayPatients: tb.total||0,
     waiting: tb.waiting||0,  // waiting + arrived + seating 통합
     doctorNeeded: tb.doctor_needed||0,

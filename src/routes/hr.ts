@@ -52,13 +52,178 @@ hr.get('/dashboard', async (c) => {
   return c.json({ date: today, summary: { total: totalAll, present: presentAll, vacation: vacationAll, day_off: dayOffAll, late: lateAll, working: presentAll }, teams, members })
 })
 
-// 직원 목록
+/* ═══ 직원 목록 (v5.13: 연차/근태 요약 포함) ═══
+ * 기존에는 이름/직급만 내려줘서 "이 사람 연차 몇 개 남았지?"를 보려면
+ * 연차 메뉴로 따로 들어가야 했다. 목록 한 방에 다 보이도록 합친다.
+ * ⚠️ N+1 금지 — 직원별 반복 쿼리 대신 병원 전체를 3개 쿼리로 긁어와 메모리에서 합친다. */
 hr.get('/staff', async (c) => {
   const user = c.get('user')!
-  const rows = await c.env.DB.prepare(
-    `SELECT id, name, email, role, position, team, phone, hire_date, work_schedule, work_status, is_doctor, is_active, created_at FROM users WHERE hospital_id=? ORDER BY role DESC, team, name`
-  ).bind(user.hospitalId).all()
-  return c.json(rows.results)
+  const year = parseInt(sanitizeString(c.req.query('year') || String(new Date().getFullYear()), 4), 10)
+  const month = new Date().toISOString().slice(0, 7)
+
+  const [staffRows, balRows, attRows, pendRows] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT id, name, email, role, position, team, phone, hire_date, birth_date,
+              work_schedule, work_status, resign_date, is_doctor, is_active, created_at
+       FROM users WHERE hospital_id=? ORDER BY role DESC, team, name`
+    ).bind(user.hospitalId).all(),
+    c.env.DB.prepare(
+      `SELECT user_id, leave_type, total_days, used_days
+       FROM leave_balances WHERE hospital_id=? AND year=?`
+    ).bind(user.hospitalId, year).all(),
+    c.env.DB.prepare(
+      `SELECT user_id,
+              COUNT(*) AS days,
+              SUM(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late_days,
+              SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent_days
+       FROM attendance WHERE hospital_id=? AND date LIKE ? GROUP BY user_id`
+    ).bind(user.hospitalId, month + '%').all(),
+    c.env.DB.prepare(
+      `SELECT user_id, COUNT(*) AS cnt FROM leave_requests
+       WHERE hospital_id=? AND status='pending' GROUP BY user_id`
+    ).bind(user.hospitalId).all(),
+  ])
+
+  // 연차: 유형별로 흩어진 잔여를 직원 단위로 합산 (annual 은 따로도 보여준다)
+  const balByUser: Record<string, any> = {}
+  for (const b of (balRows.results || []) as any[]) {
+    const e = (balByUser[b.user_id] ||= { total: 0, used: 0, annual_total: 0, annual_used: 0, byType: {} as any })
+    e.total += Number(b.total_days) || 0
+    e.used += Number(b.used_days) || 0
+    if (b.leave_type === 'annual') {
+      e.annual_total += Number(b.total_days) || 0
+      e.annual_used += Number(b.used_days) || 0
+    }
+    e.byType[b.leave_type] = {
+      total: Number(b.total_days) || 0,
+      used: Number(b.used_days) || 0,
+      remaining: Math.round(((Number(b.total_days) || 0) - (Number(b.used_days) || 0)) * 10) / 10,
+    }
+  }
+
+  const attByUser: Record<string, any> = {}
+  for (const a of (attRows.results || []) as any[]) attByUser[a.user_id] = a
+  const pendByUser: Record<string, number> = {}
+  for (const p of (pendRows.results || []) as any[]) pendByUser[p.user_id] = p.cnt
+
+  const today = new Date()
+  const data = ((staffRows.results || []) as any[]).map((s) => {
+    const bal = balByUser[s.id] || { total: 0, used: 0, annual_total: 0, annual_used: 0, byType: {} }
+    const att = attByUser[s.id] || { days: 0, late_days: 0, absent_days: 0 }
+    // 근속 개월 수 (hire_date 가 비어있거나 이상하면 null)
+    let tenureMonths: number | null = null
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s.hire_date || '')) {
+      const h = new Date(s.hire_date + 'T00:00:00Z')
+      if (!isNaN(h.getTime())) {
+        tenureMonths = Math.max(0,
+          (today.getUTCFullYear() - h.getUTCFullYear()) * 12 + (today.getUTCMonth() - h.getUTCMonth()))
+      }
+    }
+    return {
+      ...s,
+      tenure_months: tenureMonths,
+      leave: {
+        year,
+        total_days: Math.round(bal.total * 10) / 10,
+        used_days: Math.round(bal.used * 10) / 10,
+        remaining_days: Math.round((bal.total - bal.used) * 10) / 10,
+        annual_total: Math.round(bal.annual_total * 10) / 10,
+        annual_used: Math.round(bal.annual_used * 10) / 10,
+        annual_remaining: Math.round((bal.annual_total - bal.annual_used) * 10) / 10,
+        by_type: bal.byType,
+        pending_requests: pendByUser[s.id] || 0,
+      },
+      attendance_this_month: {
+        month,
+        recorded_days: att.days || 0,
+        late_days: att.late_days || 0,
+        absent_days: att.absent_days || 0,
+      },
+    }
+  })
+
+  return c.json(data)
+})
+
+/* ═══ 직원 상세 (연차 내역 + 근태 + 피드백 이력) ═══
+ * 관리자/매니저는 전 직원, 일반 직원은 본인만 조회 가능. */
+hr.get('/staff/:id/detail', async (c) => {
+  const user = c.get('user')!
+  const targetId = c.req.param('id')
+  const isManagerLike = user.role === 'admin' || user.role === 'manager'
+  if (!isManagerLike && user.id !== targetId) return c.json({ error: '권한이 없습니다' }, 403)
+
+  const year = parseInt(sanitizeString(c.req.query('year') || String(new Date().getFullYear()), 4), 10)
+
+  const profile: any = await c.env.DB.prepare(
+    `SELECT id, name, email, role, position, team, phone, hire_date, birth_date, resign_date,
+            work_schedule, work_status, staff_memo, is_doctor, is_active, created_at
+     FROM users WHERE id=? AND hospital_id=?`
+  ).bind(targetId, user.hospitalId).first()
+  if (!profile) return c.json({ error: '직원을 찾을 수 없습니다' }, 404)
+
+  const [balances, requests, attendance, attSummary, feedbacks] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT leave_type, total_days, used_days FROM leave_balances
+       WHERE hospital_id=? AND user_id=? AND year=? ORDER BY leave_type`
+    ).bind(user.hospitalId, targetId, year).all(),
+    c.env.DB.prepare(
+      `SELECT lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.days, lr.reason,
+              lr.status, lr.approved_at, lr.reject_reason, ap.name AS approver_name
+       FROM leave_requests lr LEFT JOIN users ap ON lr.approved_by = ap.id
+       WHERE lr.hospital_id=? AND lr.user_id=? AND lr.start_date LIKE ?
+       ORDER BY lr.start_date DESC LIMIT 100`
+    ).bind(user.hospitalId, targetId, year + '%').all(),
+    c.env.DB.prepare(
+      `SELECT date, check_in, check_out, status, note FROM attendance
+       WHERE hospital_id=? AND user_id=? ORDER BY date DESC LIMIT 60`
+    ).bind(user.hospitalId, targetId).all(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) AS present,
+              SUM(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late,
+              SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent,
+              SUM(CASE WHEN status='half_day' THEN 1 ELSE 0 END) AS half_day,
+              SUM(CASE WHEN status='vacation' THEN 1 ELSE 0 END) AS vacation
+       FROM attendance WHERE hospital_id=? AND user_id=? AND date LIKE ?`
+    ).bind(user.hospitalId, targetId, year + '%').first(),
+    // 받은 피드백노트 이력 (본인 또는 관리자만 여기 도달하므로 그대로 노출)
+    c.env.DB.prepare(
+      `SELECT id, title, category, severity, status, acknowledged, incident_date, created_at, author_name
+       FROM feedback_notes WHERE hospital_id=? AND target_user_id=?
+       ORDER BY created_at DESC LIMIT 30`
+    ).bind(user.hospitalId, targetId).all().catch(() => ({ results: [] })),
+  ])
+
+  const bal = ((balances.results || []) as any[]).map((b) => ({
+    leave_type: b.leave_type,
+    total_days: Number(b.total_days) || 0,
+    used_days: Number(b.used_days) || 0,
+    remaining_days: Math.round(((Number(b.total_days) || 0) - (Number(b.used_days) || 0)) * 10) / 10,
+  }))
+  const sum = bal.reduce((a, b) => ({
+    total: a.total + b.total_days, used: a.used + b.used_days,
+  }), { total: 0, used: 0 })
+
+  let schedule: any = {}
+  try { schedule = JSON.parse(profile.work_schedule || '{}') } catch {}
+
+  return c.json({
+    profile: { ...profile, work_schedule: schedule },
+    year,
+    leave: {
+      balances: bal,
+      total_days: Math.round(sum.total * 10) / 10,
+      used_days: Math.round(sum.used * 10) / 10,
+      remaining_days: Math.round((sum.total - sum.used) * 10) / 10,
+      requests: requests.results || [],
+    },
+    attendance: {
+      summary: attSummary || { total: 0, present: 0, late: 0, absent: 0, half_day: 0, vacation: 0 },
+      recent: attendance.results || [],
+    },
+    feedback_notes: (feedbacks as any).results || [],
+  })
 })
 
 // 내 정보 조회
@@ -118,7 +283,7 @@ hr.put('/staff/:id', async (c) => {
     if (target.role === 'admin') return c.json({ error: '관리자 계정은 수정할 수 없습니다' }, 403)
   }
   const fields: string[] = []; const vals: any[] = []
-  for (const k of ['position','team','phone','hire_date','work_schedule','work_status','is_active','role','name']) {
+  for (const k of ['position','team','phone','hire_date','birth_date','resign_date','staff_memo','work_schedule','work_status','is_active','role','name']) {
     if (body[k] !== undefined) {
       const v = k === 'work_schedule' && typeof body[k] === 'object' ? JSON.stringify(body[k]) : sanitizeString(String(body[k]), k === 'name' ? 100 : 200)
       fields.push(`${k} = ?`); vals.push(v)

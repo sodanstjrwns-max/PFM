@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Bindings, Variables } from '../lib/types'
 import { aiInsightWithCache } from '../lib/openai'
 import { requireRole, sanitizeString } from '../lib/middleware'
+import { buildManualContext } from '../lib/manual-parse'
 
 const ai = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -114,6 +115,15 @@ ai.get('/consult-insight', requireRole('admin', 'manager'), async (c) => {
 }
 액션은 3~5개, 모두 한국어, 친근하고 격려하는 톤. 페이션트 퍼널 10단계 (인지/관심/예약/방문/대기/진단/상담/진료/관리/소개) 관점 활용.`
 
+  // 📚 우리 병원 매뉴얼을 근거로 붙인다 (매뉴얼이 없으면 block 은 빈 문자열)
+  // 검색어에 상위 카테고리를 섞어 넣어 "이 병원의 상담 방식"이 걸리도록 한다
+  const topCats = Object.entries(stats.byCategory)
+    .sort((a: any, b: any) => b[1] - a[1]).slice(0, 3).map(([k]) => k).join(' ')
+  const manualCtx = await buildManualContext(
+    c.env.DB, user.hospitalId,
+    `상담 진단 치료동의 예약 응대 전환율 ${topCats}`, 4
+  )
+
   const userPrompt = `[${month} 통계]
 총 상담: ${stats.total}건 / 치료확정율: ${stats.confirmedRate}% / 예약율: ${stats.appointmentRate}%
 신환비율: ${stats.newPatientRatio}% / 동의율(금액): ${stats.consentRate}% / 평균동의금액: ${stats.avgAgreed.toLocaleString()}원
@@ -131,14 +141,18 @@ ${JSON.stringify(sample)}
       userId: user.id,
       feature: 'consult_insight',
       cacheKey: `consult:${month}:${user.hospitalId}`,
+      // 매뉴얼이 바뀌면 답도 바뀌어야 하므로 캐시키에 근거 지문을 섮는다
       cacheTtlHours: 6, // 6시간 캐시 (당일 여러번 봐도 캐시)
-      systemPrompt,
+      systemPrompt: systemPrompt + manualCtx.block,
       userPrompt,
       maxTokens: 1200,
       temperature: 0.5,
       forceRefresh,
     })
-    return c.json({ stats, ai: result.payload, cached: result.cached, model: result.model })
+    return c.json({
+      stats, ai: result.payload, cached: result.cached, model: result.model,
+      manualSources: manualCtx.sources,
+    })
   } catch (e: any) {
     return c.json({ stats, ai: null, error: e.message }, 200) // 통계는 보여주되 AI 부분만 에러
   }
@@ -221,6 +235,12 @@ ai.get('/patient-ltv/:patientId', requireRole('admin', 'manager'), async (c) => 
 }
 환자 이름과 챠트번호는 사용하지 말고 "이 환자"로 칭하세요. 친근하고 실행 가능한 어조.`
 
+  // 📚 환자 관리/리콜/소개 관련 매뉴얼을 근거로 붙인다
+  const manualCtx = await buildManualContext(
+    c.env.DB, user.hospitalId,
+    `환자 관리 리콜 재내원 소개 이탈방지 ${patient.treatment_area || ''}`, 3
+  )
+
   const userPrompt = `[환자 데이터]
 - 내원 횟수: ${stats.visitCount}회 / 첫 내원 ${stats.monthsSinceFirst}개월 전
 - 총 상담: ${stats.totalConsults}건 / 누적 동의금액: ${stats.totalAgreed.toLocaleString()}원
@@ -239,13 +259,16 @@ ai.get('/patient-ltv/:patientId', requireRole('admin', 'manager'), async (c) => 
       feature: 'ltv_analysis',
       cacheKey: `ltv:${patientId}`,
       cacheTtlHours: 24,
-      systemPrompt,
+      systemPrompt: systemPrompt + manualCtx.block,
       userPrompt,
       maxTokens: 800,
       temperature: 0.5,
       forceRefresh,
     })
-    return c.json({ stats, categoryDist: catDist, ai: result.payload, cached: result.cached })
+    return c.json({
+      stats, categoryDist: catDist, ai: result.payload, cached: result.cached,
+      manualSources: manualCtx.sources,
+    })
   } catch (e: any) {
     return c.json({ stats, categoryDist: catDist, ai: null, error: e.message }, 200)
   }

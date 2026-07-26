@@ -26,7 +26,6 @@ import operations from './routes/operations'
 import dashboard from './routes/dashboard'
 import surveys from './routes/surveys'
 import briefing from './routes/briefing'
-import gamification from './routes/gamification'
 import reviewMgmt from './routes/review-management'
 import onboarding from './routes/onboarding'
 import admin from './routes/admin'
@@ -37,7 +36,7 @@ import reports from './routes/reports'
 import feedbackRoute from './routes/feedback'
 import insightsRoute from './routes/insights'
 import pfIndexRoute from './routes/pf-index'
-import knowledgeRoute from './routes/knowledge'
+import manualsRoute from './routes/manuals'
 import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
 import billing, { billingPublic } from './routes/billing'
@@ -213,7 +212,6 @@ app.route('/api/protected', operations)      // reservations, wait-times
 app.route('/api/protected', dashboard)       // dashboard stats
 app.route('/api/protected/surveys', surveys) // 설문 CRUD + 발송 + 분석
 app.route('/api/protected/briefing', briefing)       // 일일 브리핑
-app.route('/api/protected/gamification', gamification) // 게이미피케이션
 app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
 app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
 app.route('/api/protected/admin', admin)             // 관리자 콘솔/에러로그/데이터내보내기
@@ -224,7 +222,7 @@ app.route('/api/protected/reports', reports)         // v3.3 월간 보고서 �
 app.route('/api/protected/feedback', feedbackRoute)   // v3.5 피드백 노트 (상급자↔하급자)
 app.route('/api/protected/insights', insightsRoute)   // v3.5 주간 인사이트 브리핑
 app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스 (매주 월요일 설문)
-app.route('/api/protected/knowledge', knowledgeRoute)  // PF 지식베이스 (원장님 6권 노하우 카드)
+app.route('/api/protected/manuals', manualsRoute)      // 병원 매뉴얼 (업로드 → AI 학습/RAG)
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
 app.route('/api/protected/billing', billing)           // v5.9 구독/결제 (토스페이먼츠)
