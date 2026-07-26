@@ -1088,7 +1088,7 @@ async function loadConsultKnowledgeRecommend(summary) {
           <div style="font-weight:700;font-size:13px;color:#065f46">확정률 ${rate}% — 잘하고 있어요!</div>
           <div style="font-size:12px;color:#047857;margin-top:2px">상담 시스템이 안정적으로 돌아가는 중. 이번 달도 페이스 유지하세요.</div>
         </div>
-        <button data-act="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;color:#065f46;border:1px solid #6ee7b7">📚 노하우 더보기</button>
+        <button data-act="PFM.navigate('manuals')" class="btn btn-sm" style="background:#fff;color:#065f46;border:1px solid #6ee7b7">📚 노하우 더보기</button>
       </div>
     `;
     return;
@@ -1118,11 +1118,11 @@ async function loadConsultKnowledgeRecommend(summary) {
             <div style="font-weight:700;font-size:14px;color:${severityColor}">전환율 개선 노하우 (확정률 ${rate}%)</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${severityMsg}</div>
           </div>
-          <button data-act="PFM.navigate('knowledge')" class="btn btn-sm" style="background:#fff;border:1px solid ${severityBorder}">📚 전체 보기</button>
+          <button data-act="PFM.navigate('manuals')" class="btn btn-sm" style="background:#fff;border:1px solid ${severityBorder}">📚 전체 보기</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
           ${cards.map(c => `
-            <div data-act="window.PFMKnowledge?.openCard('${c.id}')"
+            <div data-act="window.PFMManuals?.openDetail('${c.id}')"
               style="background:#fff;border:1px solid ${severityBorder};border-radius:10px;padding:12px 14px;cursor:pointer;transition:all 0.15s"
               data-act-over="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'"
               data-act-out="this.style.transform='';this.style.boxShadow=''">

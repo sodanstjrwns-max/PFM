@@ -915,10 +915,8 @@ function getNavConfig() {
       children: [
         { id: 'hr_dashboard', label: 'HR 대시보드', icon: ICONS.dashboard },
         { id: 'hr_staff', label: '직원 관리', icon: ICONS.users },
-        { id: 'gamification', label: '성과 게이미피케이션', icon: ICONS.star },
-        { id: 'hire_postings', label: '채용 공고', icon: ICONS_HIRE.briefcase },
         { id: 'hire_applicants', label: '지원자 관리', icon: ICONS_HIRE.userPlus },
-        { id: 'hire_interviews', label: '인터뷰', icon: ICONS.message },
+        { id: 'hire_interviews', label: '면접 캘린더', icon: ICONS.calendar },
         { id: 'hire_onboarding', label: '온보딩', icon: ICONS_HIRE.userCheck },
         { id: 'leave_management', label: '연차 관리', icon: ICONS.calendar },
       ]
@@ -954,7 +952,7 @@ function getNavConfig() {
       id: 'knowledge_group', label: '📚 지식/네트워크', icon: ICONS.materials,
       children: [
         { id: 'pf_index', label: '페이션트 인덱스', icon: ICONS.chart },
-        { id: 'knowledge', label: 'PF 지식베이스', icon: ICONS.materials },
+        { id: 'manuals', label: '우리 병원 매뉴얼', icon: ICONS.materials },
         { id: 'referrals', label: '🌌 소개 갤럭시', icon: ICONS.users },
       ]
     },
@@ -1396,9 +1394,8 @@ async function renderPage() {
     checklists: ['체크리스트', ICONS.checklist],
     calendar: ['일정 관리', ICONS.calendar],
     marketing: ['마케팅 유입 분석', ICONS.chart],
-    hire_postings: ['채용 공고', ICONS_HIRE.briefcase],
     hire_applicants: ['지원자 관리', ICONS_HIRE.userPlus],
-    hire_interviews: ['인터뷰', ICONS.message],
+    hire_interviews: ['🗓️ 면접 캘린더', ICONS.calendar],
     hire_onboarding: ['온보딩', ICONS_HIRE.userCheck],
     clinical_board: ['📡 오늘의 진료보드', ICONS.dashboard],
     consult_records: ['📋 상담 기록', ICONS.edit],
@@ -1427,10 +1424,9 @@ async function renderPage() {
     meetings: ['📝 회의록', ICONS.edit],
     surveys: ['📋 만족도 설문', ICONS.star],
     heatmap: ['🗺️ 환자 유입 히트맵', ICONS.chart],
-    gamification: ['🏆 성과 게이미피케이션', ICONS.star],
     review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
     pf_index: ['📊 페이션트 인덱스', ICONS.chart],
-    knowledge: ['📚 PF 지식베이스', ICONS.materials],
+    manuals: ['📖 우리 병원 매뉴얼', ICONS.materials],
     referrals: ['🌌 소개 갤럭시', ICONS.users],
     feedback_notes: ['📚 피드백 노트', ICONS.message],
     settings: ['설정', ICONS.settings],
@@ -1455,7 +1451,6 @@ async function renderPage() {
     case 'checklists': M.operations.renderChecklists(body, actions); break;
     case 'calendar': M.operations.renderCalendar(body, actions); break;
     case 'marketing': M.operations.renderMarketing(body, actions); break;
-    case 'hire_postings': M.hire.renderHirePostings(body, actions); break;
     case 'hire_applicants': M.hire.renderHireApplicants(body, actions); break;
     case 'hire_interviews': M.hire.renderHireInterviews(body, actions); break;
     case 'hire_onboarding': M.hire.renderHireOnboarding(body, actions); break;
@@ -1471,7 +1466,7 @@ async function renderPage() {
     case 'reports': M.reports.renderReports(body, actions); break;
     case 'feedback_notes': M.feedbackNotes.renderFeedback(body, actions); break;
     case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
-    case 'knowledge': M.knowledge && M.knowledge.renderKnowledge && M.knowledge.renderKnowledge(body, actions); break;
+    case 'manuals': M.manuals && M.manuals.renderManuals && M.manuals.renderManuals(body, actions); break;
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
     case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
@@ -1497,7 +1492,6 @@ async function renderPage() {
     case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
     case 'surveys': M.surveys.renderSurveys(body, actions); break;
     case 'heatmap': M.heatmap.renderHeatmap(body, actions); break;
-    case 'gamification': M.gamification.renderGamification(body, actions); break;
     case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     case 'help': M.help.renderHelp(body); break;

@@ -56,56 +56,42 @@ async function renderDashboard(body) {
   }, 'dashboard');
 }
 
-/* ═══ 📚 오늘의 노하우 카드 (지식베이스 위젯) ═══ */
+/* ═══ 📖 우리 병원 매뉴얼 위젯 ═══ */
 async function loadDailyKnowledgeWidget() {
   const slot = document.getElementById('kbDailyWidget');
   if (!slot) return;
   try {
-    const data = await api('/api/protected/knowledge/_recommend/daily');
-    if (!data?.card) { slot.innerHTML = ''; return; }
-    const c = data.card;
-    const tags = (c.tags || []).slice(0, 3).map(t =>
-      `<span style="background:rgba(255,255,255,0.25);color:#fff;padding:2px 9px;border-radius:10px;font-size:11px">#${h(t)}</span>`
-    ).join(' ');
+    const data = await api('/api/protected/manuals');
+    const st = data?.stats || {};
+    const items = (data?.data || []).slice(0, 3);
+    if (!st.manuals) {
+      slot.innerHTML = `
+        <div class="section-title">📖 <span>우리 병원 매뉴얼</span></div>
+        <div data-act="PFM.navigate('manuals')"
+          style="background:linear-gradient(135deg,#0f766e 0%,#0e7490 50%,#1e40af 100%);color:#fff;border-radius:14px;padding:20px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(15,118,110,0.25)">
+          <h3 style="margin:0 0 6px 0;font-size:17px;font-weight:700">아직 등록된 매뉴얼이 없습니다</h3>
+          <div style="font-size:13px;opacity:0.92;line-height:1.6">우리 병원 매뉴얼(docx · pdf · md · txt)을 올리면 AI가 학습해서 상담·LTV 분석에 우리 병원 방식대로 답변합니다.</div>
+          <div style="margin-top:12px"><span style="background:rgba(255,255,255,0.95);color:#0f766e;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700">매뉴얼 올리러 가기 →</span></div>
+        </div>`;
+      return;
+    }
+    const list = items.map(m => `
+      <div data-act="PFM.navigate('manuals')" style="background:rgba(255,255,255,0.16);border-radius:9px;padding:9px 12px;cursor:pointer">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h(m.title || '')}</div>
+        <div style="font-size:11px;opacity:0.85;margin-top:2px">${h(String(m.file_type || '').toUpperCase())} · ${Number(m.chunk_count || 0)}개 항목</div>
+      </div>`).join('');
     slot.innerHTML = `
-      <div class="section-title">📚 <span>오늘의 노하우 카드</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">매일 한 장 · 원장님 6권 노하우</span></div>
-      <div data-act="window.PFMKnowledge?.openCard('${c.id}')"
-        style="background:linear-gradient(135deg,#0f766e 0%,#0e7490 50%,#1e40af 100%);color:#fff;border-radius:14px;padding:20px 22px;cursor:pointer;
-               box-shadow:0 4px 14px rgba(15,118,110,0.25);transition:all 0.2s;position:relative;overflow:hidden"
-        data-act-over="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(15,118,110,0.35)'"
-        data-act-out="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(15,118,110,0.25)'">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:240px">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-              <span style="background:rgba(255,255,255,0.22);padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600">
-                ${c.categoryMeta?.icon || '📁'} ${h(c.categoryMeta?.label || c.category)}
-              </span>
-              ${c.book_source ? `<span style="background:rgba(255,255,255,0.22);padding:3px 10px;border-radius:10px;font-size:11px">📖 ${h(c.book_source)}</span>` : ''}
-              ${tags}
-            </div>
-            <h3 style="margin:0 0 8px 0;font-size:17px;font-weight:700;line-height:1.4">${h(c.title)}</h3>
-            <div style="font-size:13px;line-height:1.6;opacity:0.92;
-                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
-              ${h(String(c.preview || c.content || '').replace(/^['"]/, ''))}
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-            <button data-act="event.stopPropagation();window.PFMKnowledge?.openCard('${c.id}')"
-              style="background:rgba(255,255,255,0.95);color:#0f766e;border:none;padding:8px 14px;border-radius:8px;
-                     font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-              자세히 보기 <i class="fas fa-arrow-right" style="font-size:10px"></i>
-            </button>
-            <button data-act="event.stopPropagation();PFM.navigate('knowledge')"
-              style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:6px 12px;border-radius:8px;
-                     font-size:11px;cursor:pointer;white-space:nowrap">
-              전체 보기
-            </button>
-          </div>
+      <div class="section-title">📖 <span>우리 병원 매뉴얼</span><span style="font-size:11px;color:var(--text-muted);margin-left:8px;font-weight:400">AI가 학습 중인 우리 병원 기준</span></div>
+      <div data-act="PFM.navigate('manuals')"
+        style="background:linear-gradient(135deg,#0f766e 0%,#0e7490 50%,#1e40af 100%);color:#fff;border-radius:14px;padding:20px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(15,118,110,0.25)">
+        <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">
+          <div><div style="font-size:22px;font-weight:800">${Number(st.manuals || 0)}</div><div style="font-size:11px;opacity:0.85">등록 매뉴얼</div></div>
+          <div><div style="font-size:22px;font-weight:800">${Number(st.chunks || 0)}</div><div style="font-size:11px;opacity:0.85">학습 항목</div></div>
+          <div><div style="font-size:22px;font-weight:800">${Number(st.ai_on || 0)}</div><div style="font-size:11px;opacity:0.85">AI 활성</div></div>
         </div>
-      </div>
-    `;
+        <div style="display:grid;gap:7px">${list}</div>
+      </div>`;
   } catch (e) {
-    // 위젯 실패는 조용히 무시 (대시보드 본 기능에 영향 없음)
     slot.innerHTML = '';
   }
 }
