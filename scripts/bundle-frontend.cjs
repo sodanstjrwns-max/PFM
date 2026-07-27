@@ -77,7 +77,12 @@ for (const [file, pages] of Object.entries(MODULE_PAGE_MAP)) {
   }
 }
 
+// v5.13: chunks 디렉토리를 매 빌드마다 완전히 비운 뒤 재생성한다.
+//    이전에는 mkdirSync(recursive:true)만 호출해서, 기능 삭제로
+//    CHUNK_FILES 목록에서 빠진 파일이 디스크에 그대로 남아
+//    배포물에 orphan chunk(구 코드)가 계속 포함되는 문제가 있었다.
 fs.mkdirSync(DIST, { recursive: true });
+fs.rmSync(path.join(DIST, 'chunks'), { recursive: true, force: true });
 fs.mkdirSync(path.join(DIST, 'chunks'), { recursive: true });
 
 async function build() {
