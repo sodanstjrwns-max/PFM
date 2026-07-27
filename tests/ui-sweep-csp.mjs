@@ -4,10 +4,10 @@ import { chromium } from 'playwright';
 const BASE = 'http://localhost:3000';
 const PAGES = [
   'dashboard','patients','patients_stats','funnel','consult_records','consult_dashboard',
-  'calls_inbound','calls_outbound','kpi_daily','kpi_dashboard','kpi_targets',
+  'calls_inbound','calls_outbound',
   'leave_management','meetings','feedback_notes','knowledge','pf_index','referrals','reservations',
-  'wait_times','complaints','surveys','gamification','staff_supplies',
-  'recall','reports','settings','hr_dashboard','hr_staff',
+  'wait_times','complaints','gamification','staff_supplies',
+  'recall','settings','hr_dashboard','hr_staff',
   'hire_postings','hire_applicants','hire_interviews','hire_onboarding',
   'free','praise','mistake','clinical_board','help'
 ];

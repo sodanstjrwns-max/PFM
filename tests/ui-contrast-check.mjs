@@ -22,8 +22,6 @@ const LEAF_PAGES = [
   'complaints','complaints_stats','reservations','reservation_stats','wait_times','wait_time_stats',
   'calls_inbound','calls_outbound','calls_stats',
   'fee_schedule','materials','cases','scripts',
-  'kpi_dashboard','kpi_stats','kpi_benchmark','kpi_daily','kpi_targets','reports',
-  'marketing','heatmap','review_mgmt','surveys','kakao',
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
   'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies',
   'free','praise','mistake','feedback_notes',

@@ -883,33 +883,7 @@ function getNavConfig() {
       ]
     },
 
-    // 4) 📊 분석/KPI
-    {
-      id: 'kpi_group', label: '📊 분석/KPI', icon: ICONS.chart,
-      children: [
-        { id: 'kpi_dashboard', label: 'KPI 대시보드', icon: ICONS.dashboard },
-        ...(isManager ? [{ id: 'weekly_insights', label: '주간 인사이트', icon: ICONS.chart }] : []),
-        { id: 'kpi_stats', label: 'KPI 통계', icon: ICONS.chart },
-        { id: 'kpi_benchmark', label: '벤치마킹', icon: ICONS.chart },
-        { id: 'kpi_daily', label: '일간 기록', icon: ICONS.edit },
-        ...(isManager ? [{ id: 'kpi_targets', label: '목표 설정', icon: ICONS.star }] : []),
-        { id: 'reports', label: '월간 보고서', icon: ICONS.folder },
-      ]
-    },
-
-    // 5) 📈 마케팅
-    {
-      id: 'marketing_group', label: '📈 마케팅', icon: ICONS.chart,
-      children: [
-        { id: 'marketing', label: '유입 분석', icon: ICONS.chart },
-        { id: 'heatmap', label: '유입 히트맵', icon: ICONS.chart },
-        { id: 'review_mgmt', label: '리뷰 관리', icon: ICONS.star },
-        ...(isManager ? [{ id: 'surveys', label: '만족도 설문', icon: ICONS.star }] : []),
-        ...(isManager ? [{ id: 'kakao', label: '카카오 알림톡', icon: ICONS.message }] : []),
-      ]
-    },
-
-    // 6) 💼 HR/성장
+    // 4) 💼 HR/성장
     {
       id: 'hr', label: '💼 HR/성장', icon: ICONS_HIRE.briefcase,
       children: [
@@ -922,7 +896,7 @@ function getNavConfig() {
       ]
     },
 
-    // 7) 🏢 병원 운영 (staff_supplies 정식 편입)
+    // 5) 🏢 병원 운영 (staff_supplies 정식 편입)
     {
       id: 'operations', label: '🏢 병원 운영', icon: ICONS.settings,
       children: [
@@ -936,7 +910,7 @@ function getNavConfig() {
       ]
     },
 
-    // 8) 💬 커뮤니티
+    // 6) 💬 커뮤니티
     {
       id: 'community', label: '💬 커뮤니티', icon: ICONS.users,
       children: [
@@ -947,7 +921,7 @@ function getNavConfig() {
       ]
     },
 
-    // 9) 📚 지식/네트워크 (기존 최상위 고립 항목들을 그룹으로 통합)
+    // 7) 📚 지식/네트워크 (기존 최상위 고립 항목들을 그룹으로 통합)
     {
       id: 'knowledge_group', label: '📚 지식/네트워크', icon: ICONS.materials,
       children: [
@@ -1393,7 +1367,6 @@ async function renderPage() {
     hr_staff: ['👥 직원 관리', ICONS.users],
     checklists: ['체크리스트', ICONS.checklist],
     calendar: ['일정 관리', ICONS.calendar],
-    marketing: ['마케팅 유입 분석', ICONS.chart],
     hire_applicants: ['지원자 관리', ICONS_HIRE.userPlus],
     hire_interviews: ['🗓️ 면접 캘린더', ICONS.calendar],
     hire_onboarding: ['온보딩', ICONS_HIRE.userCheck],
@@ -1410,21 +1383,12 @@ async function renderPage() {
     calls_inbound: ['📞 인바운드 콜', ICONS.message],
     calls_outbound: ['📱 아웃바운드 콜', ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
-    kpi_dashboard: ['📊 KPI 대시보드', ICONS.chart],
-    weekly_insights: ['📊 주간 인사이트', ICONS.chart],
-    kpi_stats: ['📊 KPI 통계', ICONS.chart],
-    kpi_benchmark: ['🏆 병원 벤치마킹', ICONS.chart],
-    kpi_daily: ['📝 일간 기록', ICONS.edit],
-    kpi_targets: ['🎯 목표 설정', ICONS.star],
     reservations: ['📅 예약 관리', ICONS.calendar],
     reservation_stats: ['📅 예약 통계', ICONS.chart],
     wait_times: ['⏱️ 대기시간 관리', ICONS.calendar],
     wait_time_stats: ['⏱️ 대기시간 통계', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
-    surveys: ['📋 만족도 설문', ICONS.star],
-    heatmap: ['🗺️ 환자 유입 히트맵', ICONS.chart],
-    review_mgmt: ['⭐ 리뷰 통합 관리', ICONS.star],
     pf_index: ['📊 페이션트 인덱스', ICONS.chart],
     manuals: ['📖 우리 병원 매뉴얼', ICONS.materials],
     referrals: ['🌌 소개 갤럭시', ICONS.users],
@@ -1450,7 +1414,6 @@ async function renderPage() {
     case 'hr_staff': M.hr.renderStaffManagement(body, actions); break;
     case 'checklists': M.operations.renderChecklists(body, actions); break;
     case 'calendar': M.operations.renderCalendar(body, actions); break;
-    case 'marketing': M.operations.renderMarketing(body, actions); break;
     case 'hire_applicants': M.hire.renderHireApplicants(body, actions); break;
     case 'hire_interviews': M.hire.renderHireInterviews(body, actions); break;
     case 'hire_onboarding': M.hire.renderHireOnboarding(body, actions); break;
@@ -1462,8 +1425,6 @@ async function renderPage() {
     case 'fee_schedule': M.feeSchedule.renderFeeSchedule(body, actions); break;
     case 'funnel': M.funnel.renderFunnel(body, actions); break;
     case 'recall': M.recall.renderRecall(body, actions); break;
-    case 'kakao': M.kakao.renderKakao(body, actions); break;
-    case 'reports': M.reports.renderReports(body, actions); break;
     case 'feedback_notes': M.feedbackNotes.renderFeedback(body, actions); break;
     case 'pf_index': M.pfIndex.renderPfIndex(body, actions); break;
     case 'manuals': M.manuals && M.manuals.renderManuals && M.manuals.renderManuals(body, actions); break;
@@ -1476,23 +1437,10 @@ async function renderPage() {
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
-    case 'kpi_dashboard': M.kpi.renderKpiDashboard(body, actions); break;
-    case 'weekly_insights': { // v3.5: 대시보드로 이동 후 모달 오픈
-      M.dashboard.renderDashboard(body);
-      setTimeout(() => window.showWeeklyInsightsModal?.(false), 400);
-      break;
-    }
-    case 'kpi_stats': M.kpiStats.renderKpiStats(body, actions); break;
-    case 'kpi_benchmark': M.kpiStats.renderBenchmark(body, actions); break;
-    case 'kpi_daily': M.kpi.renderKpiDaily(body, actions); break;
-    case 'kpi_targets': M.kpi.renderKpiTargets(body, actions); break;
     case 'reservations': M.reservations.renderReservations(body, actions); break;
     case 'reservation_stats': M.reservations.renderReservationStats(body, actions); break;
     case 'wait_times': M.waitTimes.renderWaitTimes(body, actions); break;
     case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
-    case 'surveys': M.surveys.renderSurveys(body, actions); break;
-    case 'heatmap': M.heatmap.renderHeatmap(body, actions); break;
-    case 'review_mgmt': M.reviewMgmt.renderReviewMgmt(body, actions); break;
     case 'settings': M.settings.renderSettings(body); break;
     case 'help': M.help.renderHelp(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';

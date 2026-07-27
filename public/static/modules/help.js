@@ -114,13 +114,11 @@ async function renderHelp(body) {
         </ol>
       `)}
 
-      ${sec('menu', '📚 전체 메뉴 투어 (사이드바 9개 그룹)', `
+      ${sec('menu', '📚 전체 메뉴 투어 (사이드바 7개 그룹)', `
         ${menuGroupCard('🏠', '대시보드 / 진료보드', '병원 핵심 지표 한눈에 보기, 오늘의 진료 현황 실시간 보드')}
         ${menuGroupCard('👥', '환자 관리', '환자 DB · 환자 통계 · LTV 랭킹 · 환자 퍼널(10단계) · 리콜 자동화 · 상담 기록/분석 · 컴플레인 · 예약 · 대기시간')}
         ${menuGroupCard('📞', '콜 관리', '인바운드/아웃바운드 콜 기록, 콜 통계')}
         ${menuGroupCard('🏥', '진료 자료', '수가표 · 설명자료 · 케이스 사진 · 상담 스크립트 — 상담 시 바로 꺼내 쓰는 자료함')}
-        ${menuGroupCard('📊', '분석/KPI', 'KPI 대시보드 · 주간 인사이트 · KPI 통계/벤치마킹 · 일간 기록 · 목표 설정 · 월간 보고서')}
-        ${menuGroupCard('📈', '마케팅', '유입 분석 · 유입 히트맵 · 리뷰 관리 · 만족도 설문 · 카카오 알림톡')}
         ${menuGroupCard('💼', 'HR/성장', 'HR 대시보드 · 직원 관리 · 성과 게이미피케이션 · 채용(공고/지원자/인터뷰/온보딩) · 연차 관리')}
         ${menuGroupCard('🏢', '병원 운영', '공지사항 · 일정 관리 · 회의록 · 체크리스트 · 물품구매/수리 · 직원용품 주문')}
         ${menuGroupCard('💬', '커뮤니티', '자유게시판 · 칭찬하기 · 실수노트(자진신고) · 피드백 노트')}
@@ -140,8 +138,7 @@ async function renderHelp(body) {
             </tr>
           </thead>
           <tbody style="color:var(--text-secondary)">
-            <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">환자/상담/KPI 조회·입력</td><td style="padding:8px">✅</td><td style="padding:8px">✅</td><td style="padding:8px">✅ (본인 담당 위주)</td></tr>
-            <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">목표(KPI Target) 설정</td><td style="padding:8px">✅</td><td style="padding:8px">✅</td><td style="padding:8px">❌</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">환자/상담 조회·입력</td><td style="padding:8px">✅</td><td style="padding:8px">✅</td><td style="padding:8px">✅ (본인 담당 위주)</td></tr>
             <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">직원 초대코드 발급</td><td style="padding:8px">✅</td><td style="padding:8px">✅</td><td style="padding:8px">❌</td></tr>
             <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">직원 관리(HR) / 권한 변경</td><td style="padding:8px">✅</td><td style="padding:8px">일부</td><td style="padding:8px">❌</td></tr>
             <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">구독/결제 관리</td><td style="padding:8px">✅</td><td style="padding:8px">❌</td><td style="padding:8px">❌</td></tr>
@@ -170,13 +167,6 @@ async function renderHelp(body) {
               <b>👥 환자 관리 → 상담 기록 → [+ 상담 기록 작성]</b>에서 환자 선택 후 상담 내용,
               제안 진료, 견적, 결과(동의/보류/거절)를 기록합니다. 누적되면 <b>상담 분석</b>에서
               상담 전환율을 바로 확인할 수 있습니다.
-            </p>
-          </div>
-          <div style="border-left:3px solid var(--primary);padding-left:14px">
-            <div style="font-weight:700;margin-bottom:4px">3) 일일 KPI 입력하기</div>
-            <p style="margin:0;color:var(--text-secondary);font-size:13px;line-height:1.7">
-              <b>📊 분석/KPI → 일간 기록</b>에서 오늘의 신환/구환 수, 상담 건수, 매출 등을 입력합니다.
-              매일 입력하면 <b>KPI 대시보드</b>와 <b>주간 인사이트</b>에 자동 반영되어 추세를 볼 수 있습니다.
             </p>
           </div>
         </div>

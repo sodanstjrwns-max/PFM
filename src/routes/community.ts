@@ -367,53 +367,6 @@ community.delete('/staff-supplies/:id', async (c) => {
   return c.json({ success: true })
 })
 
-/* ─── Marketing ─── */
-community.get('/marketing/channels', async (c) => {
-  const user = c.get('user')!
-  const rows = await c.env.DB.prepare('SELECT id, name, monthly_cost, is_active, created_at FROM marketing_channels WHERE hospital_id=? ORDER BY created_at LIMIT 100').bind(user.hospitalId).all()
-  return c.json(rows.results)
-})
-
-community.post('/marketing/channels', async (c) => {
-  const user = c.get('user')!
-  if (user.role === 'staff') return c.json({ error: '마케팅 채널 관리 권한이 없습니다' }, 403)
-  const raw = await c.req.json()
-  const b = sanitizeBody(raw, { name: { type: 'string', max: 100 }, monthly_cost: { type: 'number', min: 0, max: 999999999 } })
-  if (!b.name) return c.json({ error: '채널 이름은 필수입니다' }, 400)
-  const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO marketing_channels (id, hospital_id, name, monthly_cost) VALUES (?,?,?,?)').bind(id, user.hospitalId, b.name, b.monthly_cost||0).run()
-  return c.json({ id })
-})
-
-community.get('/marketing/records', async (c) => {
-  const user = c.get('user')!
-  const month = sanitizeString(c.req.query('month') || '', 10)
-  let sql = 'SELECT r.*, ch.name as channel_name FROM marketing_records r JOIN marketing_channels ch ON r.channel_id=ch.id WHERE r.hospital_id=?'
-  const params: any[] = [user.hospitalId]
-  if (month) { sql += ' AND r.record_month=?'; params.push(month) }
-  sql += ' ORDER BY r.record_month DESC LIMIT 200'
-  const rows = await c.env.DB.prepare(sql).bind(...params).all()
-  return c.json(rows.results)
-})
-
-community.post('/marketing/records', async (c) => {
-  const user = c.get('user')!
-  if (user.role === 'staff') return c.json({ error: '마케팅 기록 관리 권한이 없습니다' }, 403)
-  const raw = await c.req.json()
-  const b = sanitizeBody(raw, {
-    channel_id: { type: 'string', max: 100 },
-    record_month: { type: 'string', max: 10 },
-    new_patients: { type: 'number', min: 0, max: 99999 },
-    revisit_patients: { type: 'number', min: 0, max: 99999 },
-    ad_spend: { type: 'number', min: 0, max: 999999999 },
-    revenue: { type: 'number', min: 0, max: 999999999 },
-  })
-  if (!b.channel_id || !b.record_month) return c.json({ error: '채널과 월은 필수입니다' }, 400)
-  const id = crypto.randomUUID()
-  await c.env.DB.prepare('INSERT INTO marketing_records (id, hospital_id, channel_id, record_month, new_patients, revisit_patients, ad_spend, revenue) VALUES (?,?,?,?,?,?,?,?)').bind(id, user.hospitalId, b.channel_id, b.record_month, b.new_patients||0, b.revisit_patients||0, b.ad_spend||0, b.revenue||0).run()
-  return c.json({ id })
-})
-
 /* ─── Checklists ─── */
 community.get('/checklists', async (c) => {
   const user = c.get('user')!

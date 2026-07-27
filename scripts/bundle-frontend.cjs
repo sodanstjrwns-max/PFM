@@ -25,14 +25,11 @@ const CHUNK_FILES = [
   'modules/patients.js', 'modules/patients-stats.js',
   'modules/calls-inbound.js', 'modules/calls-outbound.js', 'modules/calls-stats.js',
   'modules/leave.js', 'modules/meetings.js', 'modules/fee-schedule.js',
-  'modules/funnel.js', 'modules/kpi.js', 'modules/kpi-stats.js',
+  'modules/funnel.js',
   'modules/complaints.js', 'modules/reservations.js', 'modules/wait-times.js',
-  'modules/surveys.js', 'modules/settings.js',
-  'modules/heatmap.js', 'modules/reviews.js',
+  'modules/settings.js',
   'modules/onboarding.js',
   'modules/recall.js',   // v3.2 환자 리콜 자동화
-  'modules/kakao.js',    // v3.3 카카오 알림톡
-  'modules/reports.js',  // v3.3 월간 보고서 & 내보내기
   'modules/feedback.js', // v3.5 피드백 노트 (상급자↔하급자)
   'modules/pf-index.js', // v4.6 페이션트 인덱스 (매주 월요일 경영 설문)
   'modules/manuals.js', // v5.13 우리 병원 매뉴얼 (업로드 → AI 학습/RAG)
@@ -45,7 +42,7 @@ const MODULE_PAGE_MAP = {
   'modules/management.js': ['materials', 'cases'],
   'modules/scripts.js': ['scripts'],
   'modules/community.js': ['notice', 'free', 'praise', 'mistake', 'kanban_purchase', 'kanban_repair'],
-  'modules/operations.js': ['staff_supplies', 'checklists', 'calendar', 'marketing'],
+  'modules/operations.js': ['staff_supplies', 'checklists', 'calendar'],
   'modules/hire.js': ['hire_applicants', 'hire_interviews', 'hire_onboarding'],
   'modules/hr.js': ['hr_dashboard', 'hr_staff'],
   'modules/clinical.js': ['clinical_board'],
@@ -59,19 +56,12 @@ const MODULE_PAGE_MAP = {
   'modules/meetings.js': ['meetings'],
   'modules/fee-schedule.js': ['fee_schedule'],
   'modules/funnel.js': ['funnel'],
-  'modules/kpi.js': ['kpi_dashboard', 'kpi_daily', 'kpi_targets'],
-  'modules/kpi-stats.js': ['kpi_stats', 'kpi_benchmark'],
   'modules/complaints.js': ['complaints', 'complaints_stats'],
   'modules/reservations.js': ['reservations', 'reservation_stats'],
   'modules/wait-times.js': ['wait_times', 'wait_time_stats'],
-  'modules/surveys.js': ['surveys'],
   'modules/settings.js': ['settings'],
-  'modules/heatmap.js': ['heatmap'],
-  'modules/reviews.js': ['review_mgmt'],
   'modules/onboarding.js': ['onboarding'],
   'modules/recall.js': ['recall'],
-  'modules/kakao.js': ['kakao'],
-  'modules/reports.js': ['reports'],
   'modules/feedback.js': ['feedback_notes'],
   'modules/pf-index.js': ['pf_index'],
   'modules/manuals.js': ['manuals'],

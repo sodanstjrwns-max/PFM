@@ -19,19 +19,15 @@ const LEAF_PAGES = [
   'complaints','complaints_stats','reservations','reservation_stats','wait_times','wait_time_stats',
   'calls_inbound','calls_outbound','calls_stats',
   'fee_schedule','materials','cases','scripts',
-  'kpi_dashboard','kpi_stats','kpi_benchmark','kpi_daily','kpi_targets','reports',
-  'marketing','heatmap','review_mgmt','surveys','kakao',
   'hr_dashboard','hr_staff','gamification','hire_postings','hire_applicants','hire_interviews','hire_onboarding','leave_management',
   'notice','calendar','meetings','checklists','kanban_purchase','kanban_repair','staff_supplies',
   'free','praise','mistake','feedback_notes',
   'pf_index','knowledge','referrals','settings',
 ];
-// weekly_insights 는 대시보드 모달로 별도 흐름이라 제외 (기존 스위트에서 처리)
-
 // getNavConfig()에서 isManager(admin/manager)만 사이드바에 노출되는 항목들.
 // staff 계정은 이 메뉴 버튼 자체가 렌더되지 않으므로 정상 UX 흐름상 도달 불가 →
 // staff 순회 시 제외해야 오탐(false positive)이 나지 않음.
-const MANAGER_ONLY_PAGES = new Set(['weekly_insights', 'kpi_targets', 'kakao']);
+const MANAGER_ONLY_PAGES = new Set([]);
 
 let pass = 0, fail = 0, warn = 0;
 const issues = [];

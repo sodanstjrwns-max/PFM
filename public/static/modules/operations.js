@@ -1,4 +1,4 @@
-/* ═══ Module: Operations (Checklists, Calendar, Marketing, Reviews) ═══ */
+/* ═══ Module: Operations (Checklists, Calendar, Staff Supplies) ═══ */
 (function(PFM) {
 'use strict';
 const { api, ICONS, state, toast, esc, showModal, closeModal, timeAgo } = PFM;
@@ -147,83 +147,6 @@ async function renderCalendar(body, actions) {
   });
 }
 
-/* ─── Marketing ─── */
-async function renderMarketing(body, actions) {
-  actions.innerHTML = `<button class="btn btn-primary btn-sm" id="addRecordBtn">${ICONS.plus} 실적 입력</button>`;
-  body.innerHTML = `<div id="mktContent" style="max-width:900px"><div class="mod-empty"><span class="loading-spinner"></span></div></div>`;
-
-  async function loadMkt() {
-    const container = document.getElementById('mktContent');
-    try {
-      const channels = await api('/api/protected/marketing/channels');
-      const records = await api('/api/protected/marketing/records');
-      const totalNewPatients = records.reduce((s,r)=>s+(r.new_patients||0),0);
-      const totalAdSpend = records.reduce((s,r)=>s+(r.ad_spend||0),0);
-      const totalRevenue = records.reduce((s,r)=>s+(r.revenue||0),0);
-
-      container.innerHTML = `
-        <div class="dashboard-grid" class="mb-24">
-          <div class="stat-card"><div class="stat-card-icon teal">${ICONS.users}</div><div class="stat-card-body"><div class="stat-card-label">총 신환</div><div class="stat-card-value">${totalNewPatients}</div></div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706">${ICONS.chart}</div><div class="stat-card-body"><div class="stat-card-label">총 광고비</div><div class="stat-card-value">${totalAdSpend}만</div></div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a">${ICONS.pricing}</div><div class="stat-card-body"><div class="stat-card-label">총 매출</div><div class="stat-card-value">${totalRevenue}만</div></div></div>
-          <div class="stat-card"><div class="stat-card-icon purple">${ICONS.star}</div><div class="stat-card-body"><div class="stat-card-label">ROI</div><div class="stat-card-value">${totalAdSpend?((totalRevenue/totalAdSpend)*100).toFixed(0)+'%':'N/A'}</div></div></div>
-        </div>
-        <div class="section-title">${ICONS.chart}<span>채널별 실적</span></div>
-        ${records.length ? `<table class="pricing-table"><thead><tr><th>월</th><th>채널</th><th>신환</th><th>재진</th><th>광고비</th><th>매출</th></tr></thead><tbody>${records.map(r=>`<tr>
-          <td>${esc(r.record_month)}</td><td><span class="content-card-badge">${esc(r.channel_name)}</span></td>
-          <td style="font-weight:700">${r.new_patients}</td><td>${r.revisit_patients}</td>
-          <td>${r.ad_spend}만</td><td class="price-value">${r.revenue}만</td>
-        </tr>`).join('')}</tbody></table>` : `<div class="empty-state">${ICONS.chart}<h3>실적 데이터가 없습니다</h3><p>"실적 입력" 버튼으로 월별 실적을 기록하세요</p></div>`}
-        <div class="section-title" style="margin-top:24px">${ICONS.folder}<span>등록된 채널</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${channels.map(ch => `<span class="meta-pill">${esc(ch.name)} ${ch.monthly_cost?'(월 '+ch.monthly_cost+'만)':''}</span>`).join('')}
-          <button class="btn btn-secondary btn-sm" id="addChannelBtn">${ICONS.plus} 채널 추가</button>
-        </div>`;
-
-      document.getElementById('addChannelBtn')?.addEventListener('click', () => {
-        const name = prompt('마케팅 채널 이름 (예: 유튜브)');
-        if (!name) return;
-        const cost = prompt('월 고정 비용 (만원, 없으면 0)') || '0';
-        api('/api/protected/marketing/channels', { method:'POST', json:{ name, monthly_cost: parseFloat(cost) }}).then(()=>{ toast('채널 추가!','success'); loadMkt(); });
-      });
-    } catch(e) { container.innerHTML = `<div class="empty-state"><h3>로딩 실패</h3></div>`; }
-  }
-  loadMkt();
-
-  document.getElementById('addRecordBtn').addEventListener('click', async () => {
-    const channels = await api('/api/protected/marketing/channels').catch(()=>[]);
-    const modal = document.getElementById('modalContent');
-    modal.innerHTML = `
-      <div class="modal-header"><h3>📊 월별 실적 입력</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
-      <div class="modal-body"><form class="auth-form">
-        <div class="form-grid">
-          <div class="form-group"><label>채널</label><select class="form-input" id="recChannel">${channels.map(ch=>`<option value="${ch.id}">${h(ch.name)}</option>`).join('')}</select></div>
-          <div class="form-group"><label>월</label><input class="form-input" type="month" id="recMonth"></div>
-          <div class="form-group"><label>신환 수</label><input class="form-input" type="number" id="recNew" placeholder="0"></div>
-          <div class="form-group"><label>재진 수</label><input class="form-input" type="number" id="recRevisit" placeholder="0"></div>
-          <div class="form-group"><label>광고비 (만원)</label><input class="form-input" type="number" id="recSpend" placeholder="0"></div>
-          <div class="form-group"><label>매출 (만원)</label><input class="form-input" type="number" id="recRevenue" placeholder="0"></div>
-        </div>
-      </form></div>
-      <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="recSubmitBtn">저장</button></div>`;
-    showModal();
-    document.getElementById('modalClose').addEventListener('click', closeModal);
-    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
-    document.getElementById('recSubmitBtn').addEventListener('click', async () => {
-      try {
-        await api('/api/protected/marketing/records', { method:'POST', json:{
-          channel_id: document.getElementById('recChannel').value,
-          record_month: document.getElementById('recMonth').value,
-          new_patients: parseInt(document.getElementById('recNew').value)||0,
-          revisit_patients: parseInt(document.getElementById('recRevisit').value)||0,
-          ad_spend: parseFloat(document.getElementById('recSpend').value)||0,
-          revenue: parseFloat(document.getElementById('recRevenue').value)||0,
-        }});
-        toast('실적 저장!', 'success'); closeModal(); loadMkt();
-      } catch(e) { toast(e.message, 'error'); }
-    });
-  });
-}
 
 /* ─── Staff Supplies Kanban Board (직원용품 칸반보드) ─── */
 async function renderStaffSupplies(body, actions) {
@@ -480,5 +403,5 @@ async function renderStaffSupplies(body, actions) {
 }
 
 
-PFM.modules.operations = { renderChecklists, renderCalendar, renderMarketing, renderStaffSupplies };
+PFM.modules.operations = { renderChecklists, renderCalendar, renderStaffSupplies };
 })(window.PFM);

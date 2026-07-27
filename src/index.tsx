@@ -16,7 +16,6 @@ import leave from './routes/leave'
 import meetings from './routes/meetings'
 import fee from './routes/fee'
 import funnel from './routes/funnel'
-import kpi from './routes/kpi'
 import calls from './routes/calls'
 import patients from './routes/patients'
 import hire from './routes/hire'
@@ -24,17 +23,12 @@ import hospital from './routes/hospital'
 import complaints from './routes/complaints'
 import operations from './routes/operations'
 import dashboard from './routes/dashboard'
-import surveys from './routes/surveys'
 import briefing from './routes/briefing'
-import reviewMgmt from './routes/review-management'
 import onboarding from './routes/onboarding'
 import admin from './routes/admin'
 import recall from './routes/recall'
 import push from './routes/push'
-import kakao from './routes/kakao'
-import reports from './routes/reports'
 import feedbackRoute from './routes/feedback'
-import insightsRoute from './routes/insights'
 import pfIndexRoute from './routes/pf-index'
 import manualsRoute from './routes/manuals'
 import referralsRoute from './routes/referrals'
@@ -195,14 +189,13 @@ app.route('/api/billing', billingPublic)  // v5.9 공개 요금제 카탈로그
 // Protected routes
 app.route('/api/protected/hr', hr)
 app.route('/api/protected', materials)       // categories, materials, cases, files, scripts
-app.route('/api/protected', community)       // posts, kanban, staff-supplies, marketing, checklists, events
+app.route('/api/protected', community)       // posts, kanban, staff-supplies, checklists, events
 app.route('/api/protected', clinical)        // chairs, doctors, treatment-board
 app.route('/api/protected/consult-records', consult)
 app.route('/api/protected/leave', leave)
 app.route('/api/protected/meetings', meetings)
 app.route('/api/protected/fee', fee)
 app.route('/api/protected/funnel', funnel)
-app.route('/api/protected/kpi', kpi)
 app.route('/api/protected/calls', calls)
 app.route('/api/protected/patients', patients)
 app.route('/api/protected/hire', hire)
@@ -210,17 +203,12 @@ app.route('/api/protected/hospital', hospital)
 app.route('/api/protected/complaints', complaints)
 app.route('/api/protected', operations)      // reservations, wait-times
 app.route('/api/protected', dashboard)       // dashboard stats
-app.route('/api/protected/surveys', surveys) // 설문 CRUD + 발송 + 분석
 app.route('/api/protected/briefing', briefing)       // 일일 브리핑
-app.route('/api/protected/review-mgmt', reviewMgmt)   // 리뷰 통합 관리
 app.route('/api/protected/onboarding', onboarding)  // 온보딩 위저드
 app.route('/api/protected/admin', admin)             // 관리자 콘솔/에러로그/데이터내보내기
 app.route('/api/protected/recall', recall)           // v3.2 환자 리콜 자동화
 app.route('/api/protected/push', push)               // v3.2 Web Push 알림
-app.route('/api/protected/kakao', kakao)             // v3.3 카카오 알림톡
-app.route('/api/protected/reports', reports)         // v3.3 월간 보고서 내보내기
 app.route('/api/protected/feedback', feedbackRoute)   // v3.5 피드백 노트 (상급자↔하급자)
-app.route('/api/protected/insights', insightsRoute)   // v3.5 주간 인사이트 브리핑
 app.route('/api/protected/pf-index', pfIndexRoute)     // 페이션트 인덱스 (매주 월요일 설문)
 app.route('/api/protected/manuals', manualsRoute)      // 병원 매뉴얼 (업로드 → AI 학습/RAG)
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
