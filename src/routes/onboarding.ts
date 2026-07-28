@@ -543,19 +543,6 @@ onboarding.get('/insights', async (c) => {
       })
     }
 
-    // ⭐ 미응대 리뷰
-    if (Number(reviewStats.pending || 0) > 0) {
-      insights.push({
-        icon: '⭐',
-        tone: 'reputation',
-        title: '응답 대기 리뷰',
-        value: `${reviewStats.pending}건`,
-        desc: `미응답 리뷰는 신규환자 방문율을 -23% 낮춥니다`,
-        action: '리뷰 관리로 이동 →',
-        goto: 'review_mgmt',
-      })
-    }
-
     // 📈 상담 동의율 (벤치마크: 62%)
     const convRate = Number(consultStats.total) > 0
       ? Math.round((Number(consultStats.confirmed) / Number(consultStats.total)) * 100)

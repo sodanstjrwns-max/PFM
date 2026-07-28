@@ -205,7 +205,6 @@ function showAhaMomentModal(counts, insightsRes) {
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="btn btn-primary" id="ahaGoDashboard" style="min-width:150px">🏠 대시보드로</button>
           <button class="btn btn-outline" id="ahaGoFunnel" style="min-width:130px">🔄 퍼널 보기</button>
-          <button class="btn btn-outline" id="ahaGoBench" style="min-width:150px">🏆 타 병원 비교</button>
         </div>
         <div style="text-align:center">
           <button class="btn btn-sm" style="background:transparent;color:#94a3b8;margin-top:10px;font-size:12px" id="ahaClose">나중에 둘러볼게요</button>
@@ -236,12 +235,10 @@ function showAhaMomentModal(counts, insightsRes) {
 
   const goDash = () => { overlay.remove(); navigate('dashboard'); };
   const goFunnel = () => { overlay.remove(); navigate('funnel'); };
-  const goBench = () => { overlay.remove(); navigate('kpi_benchmark'); };
   const close = () => { overlay.remove(); navigate('dashboard'); };
 
   overlay.querySelector('#ahaGoDashboard')?.addEventListener('click', goDash);
   overlay.querySelector('#ahaGoFunnel')?.addEventListener('click', goFunnel);
-  overlay.querySelector('#ahaGoBench')?.addEventListener('click', goBench);
   overlay.querySelector('#ahaClose')?.addEventListener('click', close);
   // 인사이트 카드 클릭 → 해당 페이지로 이동
   overlay.querySelectorAll('.aha-insight-card').forEach(card => {
@@ -354,14 +351,13 @@ function renderDashboardContent(body, s, briefing, insightHero, pfIndexStatus) {
   const exploreDone = JSON.parse(localStorage.getItem('pfm_explore_done') || '{}');
   const exploreDismissedAt = parseInt(localStorage.getItem('pfm_explore_dismissed_at') || '0', 10);
   const daysSinceDismiss = (Date.now() - exploreDismissedAt) / 86400000;
+  const EXPLORE_TASK_COUNT = 3;
   const exploreDoneCount = Object.values(exploreDone).filter(Boolean).length;
-  const showExploreCard = hasData && isManager && exploreDoneCount < 5 && (daysSinceDismiss > 3 || !exploreDismissedAt);
+  const showExploreCard = hasData && isManager && exploreDoneCount < EXPLORE_TASK_COUNT && (daysSinceDismiss > 3 || !exploreDismissedAt);
   const exploreTasks = [
     { key: 'funnel',     icon: '🔄', title: '환자 퍼널 확인',       desc: '10단계 여정에서 이탈 포인트 찾기', goto: 'funnel' },
-    { key: 'kpi_bench',  icon: '🏆', title: 'KPI 벤치마킹',          desc: '타 병원 평균과 내 병원 비교',       goto: 'kpi_benchmark' },
     { key: 'consult',    icon: '💬', title: '상담 기록 & 전환율',    desc: '상담 후 치료 결정 흐름 보기',        goto: 'consult_dashboard' },
     { key: 'recall',     icon: '📞', title: '리콜 자동화 생성',      desc: '오늘의 리콜 대상 자동 추출',        goto: 'recall' },
-    { key: 'reports',    icon: '📄', title: '월간 보고서 내보내기',  desc: 'Excel/PDF로 원장님 보고용 자료',    goto: 'reports' },
   ];
 
   // 🎯 Insight Hero — Bento Hero 타일 (Apple 스타일)
@@ -492,12 +488,12 @@ function renderDashboardContent(body, s, briefing, insightHero, pfIndexStatus) {
     <section class="explore-card" aria-label="첫 탐험 가이드">
       <div class="explore-card-header">
         <div>
-          <h3>🎯 처음이시죠? <span style="color:#0f766e">핵심 기능 5분 투어</span></h3>
-          <p>아래 5가지만 둘러보시면 PF Manager 전체 흐름이 잡힙니다</p>
+          <h3>🎯 처음이시죠? <span style="color:#0f766e">핵심 기능 3분 투어</span></h3>
+          <p>아래 ${EXPLORE_TASK_COUNT}가지만 둘러보시면 PF Manager 전체 흐름이 잡힙니다</p>
         </div>
         <div class="explore-progress">
-          <div class="explore-progress-bar"><div style="width:${(exploreDoneCount/5)*100}%"></div></div>
-          <div class="explore-progress-text">${exploreDoneCount}/5 완료</div>
+          <div class="explore-progress-bar"><div style="width:${(exploreDoneCount/EXPLORE_TASK_COUNT)*100}%"></div></div>
+          <div class="explore-progress-text">${exploreDoneCount}/${EXPLORE_TASK_COUNT} 완료</div>
         </div>
       </div>
       <div class="explore-tasks">
