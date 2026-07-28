@@ -1,11 +1,14 @@
-# ─── v5.7.1 슈퍼최적화: 정적 자산 캐시 전략 ───────────────────
+# ─── v5.13.1 캐시 전략 단축 ───────────────────
 # ⚠️ 파일명에 콘텐츠 해시가 없으므로 immutable 금지.
-#    max-age=3600 + stale-while-revalidate 로 재방문 로딩을 즉시화하되,
-#    배포 후 최대 1시간 내 자연 갱신. SW(stamp-sw 버전 캐시)가 별도로
-#    정밀한 캐시 버스팅을 담당한다.
+#    max-age=600(10분) + stale-while-revalidate=1800(30분) 로 재방문 로딩을
+#    즉시화하되, 배포 후 최대 40분 내 자연 갱신되도록 상한을 크게 줄임.
+#    (v5.13 이전엔 max-age=3600+swr=86400 → 최대 25시간까지 구버전 정적
+#     자산이 CDN 엣지에 남아있는 문제가 있었음: 기능 삭제 후 죽은 chunk 파일이
+#     오래 200으로 서빙되는 것을 방지하기 위해 단축)
+#    SW(stamp-sw 버전 캐시)가 별도로 정밀한 캐시 버스팅을 담당한다.
 
 /static/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Cache-Control: public, max-age=600, stale-while-revalidate=1800
 
 # 서비스워커는 항상 신선해야 배포 감지가 됨 (루트 /sw.js 는 워커가 재서빙)
 /static/sw.js
