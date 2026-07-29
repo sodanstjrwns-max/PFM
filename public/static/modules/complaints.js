@@ -631,7 +631,27 @@ async function renderComplaintsStats(body, actions) {
   await loadStats();
 }
 
+// ═══ v5.13.2: 기록/통계 탭 통합 진입점 ═══
+var complaintsTab = 'list';
+function renderComplaintsTabbed(body, actions, tab) {
+  complaintsTab = tab || complaintsTab || 'list';
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="pfm-subtabs">' +
+      '<button class="pfm-subtab-btn' + (complaintsTab==='list'?' active':'') + '" data-tab="list">⚠️ 컴플레인 기록</button>' +
+      '<button class="pfm-subtab-btn' + (complaintsTab==='stats'?' active':'') + '" data-tab="stats">📉 컴플레인 통계</button>' +
+    '</div><div id="cpTabBody"></div>';
+  body.innerHTML = '';
+  body.appendChild(wrap);
+  wrap.querySelectorAll('.pfm-subtab-btn').forEach(function(btn){
+    btn.onclick = function(){ renderComplaintsTabbed(body, actions, btn.dataset.tab); };
+  });
+  var inner = document.getElementById('cpTabBody');
+  if (complaintsTab === 'stats') renderComplaintsStats(inner, actions);
+  else renderComplaints(inner, actions);
+}
+
 // ═══ 모듈 등록 ═══
-PFM.modules.complaints = { renderComplaints: renderComplaints, renderComplaintsStats: renderComplaintsStats };
+PFM.modules.complaints = { renderComplaints: renderComplaints, renderComplaintsStats: renderComplaintsStats, renderComplaintsTabbed: renderComplaintsTabbed };
 
 })(window.PFM);

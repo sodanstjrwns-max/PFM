@@ -239,5 +239,25 @@ async function renderReservationStats(body, actions) {
   await loadStats();
 }
 
-PFM.modules.reservations = { renderReservations: renderReservations, renderReservationStats: renderReservationStats };
+// ═══ v5.13.2: 관리/통계 탭 통합 진입점 ═══
+var reservationsTab = 'list';
+function renderReservationsTabbed(body, actions, tab) {
+  reservationsTab = tab || reservationsTab || 'list';
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="pfm-subtabs">' +
+      '<button class="pfm-subtab-btn' + (reservationsTab==='list'?' active':'') + '" data-tab="list">📅 예약 관리</button>' +
+      '<button class="pfm-subtab-btn' + (reservationsTab==='stats'?' active':'') + '" data-tab="stats">🗓️ 예약 통계</button>' +
+    '</div><div id="resTabBody"></div>';
+  body.innerHTML = '';
+  body.appendChild(wrap);
+  wrap.querySelectorAll('.pfm-subtab-btn').forEach(function(btn){
+    btn.onclick = function(){ renderReservationsTabbed(body, actions, btn.dataset.tab); };
+  });
+  var inner = document.getElementById('resTabBody');
+  if (reservationsTab === 'stats') renderReservationStats(inner, actions);
+  else renderReservations(inner, actions);
+}
+
+PFM.modules.reservations = { renderReservations: renderReservations, renderReservationStats: renderReservationStats, renderReservationsTabbed: renderReservationsTabbed };
 })(window.PFM);

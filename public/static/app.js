@@ -848,17 +848,13 @@ function getNavConfig() {
       children: [
         { id: 'patients', label: '환자 DB', icon: ICONS.users },
         { id: 'patients_stats', label: '환자 통계', icon: ICONS.chart },
-        { id: 'ltv_ranking', label: '👑 LTV 랭킹', icon: ICONS.chart },
         { id: 'funnel', label: '환자 퍼널', icon: ICONS.chart },
         { id: 'recall', label: '리콜 자동화', icon: ICONS.message },
         { id: 'consult_records', label: '상담 기록', icon: ICONS.edit },
         { id: 'consult_dashboard', label: '상담 분석', icon: ICONS.chart },
-        { id: 'complaints', label: '컴플레인 기록', icon: ICONS.edit },
-        { id: 'complaints_stats', label: '컴플레인 통계', icon: ICONS.chart },
+        { id: 'complaints', label: '컴플레인', icon: ICONS.edit },
         { id: 'reservations', label: '예약 관리', icon: ICONS.calendar },
-        { id: 'reservation_stats', label: '예약 통계', icon: ICONS.chart },
         { id: 'wait_times', label: '대기시간 관리', icon: ICONS.calendar },
-        { id: 'wait_time_stats', label: '대기시간 통계', icon: ICONS.chart },
       ]
     },
 
@@ -1377,16 +1373,16 @@ async function renderPage() {
     funnel: ['🔄 Patient Funnel', ICONS.chart],
     patients: ['👥 환자 DB', ICONS.users],
     patients_stats: ['📊 환자 통계', ICONS.chart],
-    ltv_ranking: ['👑 LTV 랭킹', ICONS.chart],
-    complaints: ['⚠️ 컴플레인 기록', ICONS.edit],
-    complaints_stats: ['📊 컴플레인 통계', ICONS.chart],
+    ltv_ranking: ['📊 환자 통계', ICONS.chart],
+    complaints: ['⚠️ 컴플레인', ICONS.edit],
+    complaints_stats: ['⚠️ 컴플레인', ICONS.edit],
     calls_inbound: ['📞 인바운드 콜', ICONS.message],
     calls_outbound: ['📱 아웃바운드 콜', ICONS.message],
     calls_stats: ['📊 콜 통계', ICONS.chart],
     reservations: ['📅 예약 관리', ICONS.calendar],
-    reservation_stats: ['📅 예약 통계', ICONS.chart],
+    reservation_stats: ['📅 예약 관리', ICONS.chart],
     wait_times: ['⏱️ 대기시간 관리', ICONS.calendar],
-    wait_time_stats: ['⏱️ 대기시간 통계', ICONS.chart],
+    wait_time_stats: ['⏱️ 대기시간 관리', ICONS.chart],
     leave_management: ['🏖️ 연차 관리', ICONS.calendar],
     meetings: ['📝 회의록', ICONS.edit],
     pf_index: ['📊 페이션트 인덱스', ICONS.chart],
@@ -1430,17 +1426,18 @@ async function renderPage() {
     case 'manuals': M.manuals && M.manuals.renderManuals && M.manuals.renderManuals(body, actions); break;
     case 'referrals': M.referrals && M.referrals.renderReferrals && M.referrals.renderReferrals(body, actions); break;
     case 'patients': M.patients.renderPatients(body, actions); break;
-    case 'patients_stats': M.patientsStats.renderPatientsStats(body, actions); break;
-    case 'ltv_ranking': M.patientsStats.renderLtvRanking(body, actions); break;
-    case 'complaints': M.complaints.renderComplaints(body, actions); break;
-    case 'complaints_stats': M.complaints.renderComplaintsStats(body, actions); break;
+    // v5.13.2: 관리/통계 탭 통합 (구 페이지 id는 해당 탭으로 자동 이동 — 즐겨찾기/최근방문 호환)
+    case 'patients_stats': M.patientsStats.renderPatientsStatsTabbed(body, actions, 'stats'); break;
+    case 'ltv_ranking': M.patientsStats.renderPatientsStatsTabbed(body, actions, 'ltv'); break;
+    case 'complaints': M.complaints.renderComplaintsTabbed(body, actions, 'list'); break;
+    case 'complaints_stats': M.complaints.renderComplaintsTabbed(body, actions, 'stats'); break;
     case 'calls_inbound': M.callsInbound.renderCallsInbound(body, actions); break;
     case 'calls_outbound': M.callsOutbound.renderCallsOutbound(body, actions); break;
     case 'calls_stats': M.callsStats.renderCallsStats(body, actions); break;
-    case 'reservations': M.reservations.renderReservations(body, actions); break;
-    case 'reservation_stats': M.reservations.renderReservationStats(body, actions); break;
-    case 'wait_times': M.waitTimes.renderWaitTimes(body, actions); break;
-    case 'wait_time_stats': M.waitTimes.renderWaitTimeStats(body, actions); break;
+    case 'reservations': M.reservations.renderReservationsTabbed(body, actions, 'list'); break;
+    case 'reservation_stats': M.reservations.renderReservationsTabbed(body, actions, 'stats'); break;
+    case 'wait_times': M.waitTimes.renderWaitTimesTabbed(body, actions, 'list'); break;
+    case 'wait_time_stats': M.waitTimes.renderWaitTimesTabbed(body, actions, 'stats'); break;
     case 'settings': M.settings.renderSettings(body); break;
     case 'help': M.help.renderHelp(body); break;
     default: body.innerHTML = '<div class="empty-state"><h3>준비 중인 페이지입니다</h3></div>';

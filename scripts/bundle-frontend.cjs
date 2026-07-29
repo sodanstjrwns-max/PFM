@@ -48,7 +48,7 @@ const MODULE_PAGE_MAP = {
   'modules/clinical.js': ['clinical_board'],
   'modules/consult.js': ['consult_records', 'consult_dashboard'],
   'modules/patients.js': ['patients'],
-  'modules/patients-stats.js': ['patients_stats'],
+  'modules/patients-stats.js': ['patients_stats', 'ltv_ranking'], // v5.13.2: ltv_ranking 청크 매핑 누락 버그 동시 수정
   'modules/calls-inbound.js': ['calls_inbound'],
   'modules/calls-outbound.js': ['calls_outbound'],
   'modules/calls-stats.js': ['calls_stats'],

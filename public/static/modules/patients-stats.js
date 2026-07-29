@@ -366,7 +366,7 @@ const LTV_TIER_COLORS = {
 };
 
 async function renderLtvRanking(body, actions) {
-  actions.innerHTML = '<button class="btn btn-sm" data-act="PFM.navigate(\'patients_stats\')">📊 환자 통계</button>';
+  actions.innerHTML = '';
   body.innerHTML = '<div class="mod-empty"><span class="loading-spinner"></span></div>';
 
   try {
@@ -442,7 +442,27 @@ async function renderLtvRanking(body, actions) {
   }
 }
 
+// ═══ v5.13.2: 통계/LTV랭킹 탭 통합 진입점 ═══
+var patientsStatsTab = 'stats';
+function renderPatientsStatsTabbed(body, actions, tab) {
+  patientsStatsTab = tab || patientsStatsTab || 'stats';
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="pfm-subtabs">' +
+      `<button class="pfm-subtab-btn${patientsStatsTab==='stats'?' active':''}" data-tab="stats">📊 환자 통계</button>` +
+      `<button class="pfm-subtab-btn${patientsStatsTab==='ltv'?' active':''}" data-tab="ltv">👑 LTV 랭킹</button>` +
+    '</div><div id="psTabBody"></div>';
+  body.innerHTML = '';
+  body.appendChild(wrap);
+  wrap.querySelectorAll('.pfm-subtab-btn').forEach((btn) => {
+    btn.onclick = () => renderPatientsStatsTabbed(body, actions, btn.dataset.tab);
+  });
+  const inner = document.getElementById('psTabBody');
+  if (patientsStatsTab === 'ltv') renderLtvRanking(inner, actions);
+  else renderPatientsStats(inner, actions);
+}
+
 // ═══ 모듈 등록 ═══
-PFM.modules.patientsStats = { renderPatientsStats: renderPatientsStats, renderLtvRanking: renderLtvRanking };
+PFM.modules.patientsStats = { renderPatientsStats: renderPatientsStats, renderLtvRanking: renderLtvRanking, renderPatientsStatsTabbed: renderPatientsStatsTabbed };
 
 })(window.PFM);

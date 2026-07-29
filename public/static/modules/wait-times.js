@@ -227,5 +227,25 @@ async function renderWaitTimeStats(body, actions) {
   await loadStats();
 }
 
-PFM.modules.waitTimes = { renderWaitTimes: renderWaitTimes, renderWaitTimeStats: renderWaitTimeStats };
+// ═══ v5.13.2: 관리/통계 탭 통합 진입점 ═══
+var waitTimesTab = 'list';
+function renderWaitTimesTabbed(body, actions, tab) {
+  waitTimesTab = tab || waitTimesTab || 'list';
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="pfm-subtabs">' +
+      '<button class="pfm-subtab-btn' + (waitTimesTab==='list'?' active':'') + '" data-tab="list">⏱️ 대기시간 관리</button>' +
+      '<button class="pfm-subtab-btn' + (waitTimesTab==='stats'?' active':'') + '" data-tab="stats">⏳ 대기시간 통계</button>' +
+    '</div><div id="wtTabBody"></div>';
+  body.innerHTML = '';
+  body.appendChild(wrap);
+  wrap.querySelectorAll('.pfm-subtab-btn').forEach(function(btn){
+    btn.onclick = function(){ renderWaitTimesTabbed(body, actions, btn.dataset.tab); };
+  });
+  var inner = document.getElementById('wtTabBody');
+  if (waitTimesTab === 'stats') renderWaitTimeStats(inner, actions);
+  else renderWaitTimes(inner, actions);
+}
+
+PFM.modules.waitTimes = { renderWaitTimes: renderWaitTimes, renderWaitTimeStats: renderWaitTimeStats, renderWaitTimesTabbed: renderWaitTimesTabbed };
 })(window.PFM);
