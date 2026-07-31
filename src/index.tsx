@@ -35,6 +35,7 @@ import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
 import billing, { billingPublic } from './routes/billing'
 import { getPricingHTML, getLegalHTML } from './pages/pricing'
+import { getGuideHTML } from './pages/guide'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -311,6 +312,9 @@ app.get('/legal/:doc', (c) => {
   if (!['privacy', 'terms', 'sla'].includes(doc)) return c.notFound()
   return c.html(getLegalHTML(doc as 'privacy' | 'terms' | 'sla'))
 })
+
+/* ═══ v5.13 공개 페이지: 서비스 소개 + 사용법 가이드 (로그인 불필요) ═══ */
+app.get('/guide', (c) => c.html(getGuideHTML()))
 
 app.post('/api/survey/:token/submit', async (c) => {
   const { token } = c.req.param()

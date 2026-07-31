@@ -56,6 +56,10 @@ async function renderHelp(body) {
           가입부터 매뉴 사용까지 — PFM(페이션트 퍼널 매니저)을 처음 쓰시는 분도 5분이면 감을 잡을 수 있게 정리했습니다.
           현재 로그인 계정 권한: <b>${esc(roleLabel)}</b>
         </p>
+        <p style="margin:8px 0 0;color:var(--text-secondary);font-size:12.5px">
+          💡 로그인 전 팀원/동료 원장님께 공유하실 땐 로그인 없이 볼 수 있는
+          <a href="/guide" target="_blank" rel="noopener" style="color:var(--primary);font-weight:600">공개 소개·사용법 페이지(/guide)</a>를 링크로 보내주세요.
+        </p>
       </div>
 
       <!-- 목차 -->

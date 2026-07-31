@@ -80,7 +80,10 @@ ${BASE_HEAD}
 <header class="site">
   <div class="container">
     <a class="logo" href="/"><span class="logo-badge">PF</span> Patient Funnel OS</a>
-    <a class="nav-cta" href="/?mode=register">14일 무료 체험 시작</a>
+    <div style="display:flex;gap:10px;align-items:center">
+      <a href="/guide" style="color:var(--sub);text-decoration:none;font-size:14px;font-weight:600">사용법 보기</a>
+      <a class="nav-cta" href="/?mode=register">14일 무료 체험 시작</a>
+    </div>
   </div>
 </header>
 
@@ -175,6 +178,7 @@ ${BASE_HEAD}
   <div class="container">
     <div>© 2026 Patient Funnel OS. 서울비디치과 · 페이션트 퍼널</div>
     <div>
+      <a href="/guide">서비스 소개·사용법</a>
       <a href="/legal/terms">이용약관</a>
       <a href="/legal/privacy">개인정보 처리방침</a>
       <a href="/legal/sla">서비스 수준 협약(SLA)</a>
