@@ -912,7 +912,7 @@ function getNavConfig() {
       children: [
         { id: 'free', label: '자유게시판', icon: ICONS.edit },
         { id: 'praise', label: '칭찬하기', icon: ICONS.heart },
-        { id: 'mistake', label: '실수노트 (자진신고)', icon: ICONS.shield },
+        { id: 'mistake', label: '실수노트 (완전 익명)', icon: ICONS.shield },
         { id: 'feedback_notes', label: '피드백 노트 (학습자산)', icon: ICONS.message },
       ]
     },
@@ -1355,7 +1355,7 @@ async function renderPage() {
     notice: ['공지사항', ICONS.folder],
     free: ['자유게시판', ICONS.edit],
     praise: ['칭찬하기 💛', ICONS.heart],
-    mistake: ['실수노트 (이실직고)', ICONS.shield],
+    mistake: ['실수노트 (완전 익명)', ICONS.shield],
     kanban_purchase: ['물품 구매 요청', ICONS.cart],
     kanban_repair: ['수리/정비 요청', ICONS.wrench],
     staff_supplies: ['👔 직원용품 주문', ICONS.users],

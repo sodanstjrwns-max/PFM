@@ -90,7 +90,7 @@ async function renderFeedback(body, actions) {
               <span><b id="fbThisWeekCnt" style="font-size:17px">-</b> 건 이번주 신규</span>
             </div>
             <div style="font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);padding:6px 10px;border-radius:8px;display:inline-block">
-              💡 <b>실수노트</b>와 헷갈리지 마세요 — <b>실수노트</b>는 본인이 자진신고 🙋‍♀️, <b>피드백노트</b>는 관리자가 관찰 기록 👁️
+              💡 <b>실수노트</b>와 헷갈리지 마세요 — <b>실수노트</b>는 누가 썼는지 표시되지 않는 완전 익명 게시판 🙈, <b>피드백노트</b>는 관리자가 실명으로 남기는 관찰 기록 👁️
             </div>
           </div>
         </div>

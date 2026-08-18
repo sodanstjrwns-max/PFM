@@ -12,11 +12,15 @@ community.get('/posts', async (c) => {
   const limit = sanitizeNumber(c.req.query('limit'), 50, 1, 200)
   const offset = (page - 1) * limit
   // 댓글 수는 서브쿼리로 집계 (posts 테이블에 댓글 수 컬럼 없을 수 있음)
-  let sql = `SELECT p.*, u.name as author_name, u.role as author_role,
-    u.position as author_position, u.team as author_team,
+  // 표시용 작성자 = 게시자로 "선택된" 사용자(posted_as_id) 우선, 없으면 로그인 계정(author_id).
+  // (병원 공용 컴퓨터 로그인과 실제 작성자가 다를 수 있어 글쓰기 시 게시자를 선택할 수 있게 한다)
+  let sql = `SELECT p.*, du.name as author_name, du.role as author_role,
+    du.position as author_position, du.team as author_team,
     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.comment_kind='feedback') AS supervisor_feedback_count
-    FROM posts p JOIN users u ON p.author_id=u.id WHERE p.hospital_id=?`
+    FROM posts p
+    JOIN users du ON du.id = COALESCE(p.posted_as_id, p.author_id)
+    WHERE p.hospital_id=?`
   const params: any[] = [user.hospitalId]
   if (board) { sql += ' AND p.board_type=?'; params.push(board) }
   sql += ' ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?'
@@ -25,22 +29,39 @@ community.get('/posts', async (c) => {
     c.env.DB.prepare(sql).bind(...params).all(),
     c.env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE hospital_id=?' + (board ? ' AND board_type=?' : '')).bind(...(board ? [user.hospitalId, board] : [user.hospitalId])).first<{c:number}>(),
   ])
-  // 🔒 익명글 작성자 마스킹: is_anonymous 글은 API 응답에서 author 식별자 완전 제거
+  // 🔒 익명글 작성자 마스킹: is_anonymous 글은 API 응답에서 author/posted_as 식별자 완전 제거
   // (프론트만 가리면 개발자도구로 노출됨 — 서버에서 차단)
-  // _can_delete: 본인 글 또는 관리자/원장만 삭제 버튼 노출용 힌트
+  // 🔒 실수노트(mistake)는 무조건 익명 — is_anonymous 값과 무관하게 강제 마스킹.
+  //    로그인 계정(author_id)은 삭제 권한 판정용으로만 서버 내부에서 쓰고 응답엔 절대 포함 안 함.
+  // _can_delete: 본인 글(로그인 계정 기준) 또는 관리자/원장만 삭제 버튼 노출용 힌트
   const isManagerLike = user.role === 'admin' || user.role === 'manager'
   const data = (rows.results || []).map((p: any) => {
     const canDelete = isManagerLike || p.author_id === user.id
     // 실수노트: 상급자만 "피드백 달기" 버튼이 보여야 한다.
-    // 본인 실수에 본인이 상급자 자격으로 피드백을 다는 건 말이 안 되므로 작성자 본인은 제외.
+    // 본인이 쓴 실수노트에 본인이 상급자 자격으로 피드백을 다는 건 말이 안 되므로 작성자 본인은 제외.
     const canFeedback = board === 'mistake' && isManagerLike && p.author_id !== user.id
-    if (p.is_anonymous) {
-      const { author_id, author_position, author_team, ...rest } = p
-      return { ...rest, author_name: null, author_role: null, _can_delete: canDelete, _can_feedback: canFeedback }
+    const forceAnon = p.board_type === 'mistake'
+    if (p.is_anonymous || forceAnon) {
+      const { author_id, posted_as_id, author_position, author_team, ...rest } = p
+      return { ...rest, author_name: null, author_role: null, is_anonymous: 1, _can_delete: canDelete, _can_feedback: canFeedback }
     }
-    return { ...p, _can_delete: canDelete, _can_feedback: canFeedback }
+    const { author_id, posted_as_id, ...rest } = p
+    return { ...rest, _can_delete: canDelete, _can_feedback: canFeedback }
   })
   return c.json({ data, total: countResult?.c || 0, page, limit })
+})
+
+/* ─── 게시자 선택용 직원 목록 (경량) ───
+ * 병원은 컴퓨터마다 로그인 계정이 달라 "로그인한 사람=글쓴 사람"이 아니다.
+ * 일반 게시판(공지/자유/칭찬) 글쓰기 시 이 목록에서 실제 게시자를 고른다.
+ * 실수노트는 게시자 선택 자체를 쓰지 않는다(완전 익명). */
+community.get('/posts/authors', async (c) => {
+  const user = c.get('user')!
+  const rows = await c.env.DB.prepare(
+    `SELECT id, name, role, position, team FROM users
+     WHERE hospital_id=? AND is_active=1 ORDER BY role DESC, team, name`
+  ).bind(user.hospitalId).all()
+  return c.json(rows.results || [])
 })
 
 community.post('/posts', async (c) => {
@@ -55,6 +76,7 @@ community.post('/posts', async (c) => {
     is_pinned: { type: 'boolean' },
     mistake_category: { type: 'string', max: 30 },
     severity: { type: 'enum', values: ['low','medium','high'] },
+    posted_as_id: { type: 'string', max: 100 },
   })
   if (!b.board_type || !b.title) return c.json({ error: '게시판과 제목은 필수입니다' }, 400)
 
@@ -78,14 +100,28 @@ community.post('/posts', async (c) => {
   const severity = b.board_type === 'mistake' ? (b.severity || 'low') : 'low'
   const resolution = b.board_type === 'mistake' ? 'open' : 'open'
 
+  /* ── 게시자 선택 (posted_as_id) ──
+   * 병원 공용 컴퓨터는 로그인 계정과 실제 작성자가 다를 수 있어, 일반 게시판은
+   * 글쓰기 시 "게시자"를 직접 골라 저장한다. 반드시 같은 병원 소속 사용자여야 함(IDOR 방지).
+   * 실수노트(mistake)는 게시자 선택 개념 자체가 없다 — 항상 무시하고 완전 익명 처리. */
+  let postedAsId: string | null = null
+  const isAnon = b.board_type === 'mistake' ? true : !!b.is_anonymous
+  if (b.board_type !== 'mistake' && b.posted_as_id && b.posted_as_id !== user.id) {
+    const target = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE id=? AND hospital_id=?'
+    ).bind(b.posted_as_id, user.hospitalId).first()
+    if (!target) return c.json({ error: '유효하지 않은 게시자입니다' }, 400)
+    postedAsId = b.posted_as_id
+  }
+
   const id = crypto.randomUUID()
   await c.env.DB.prepare(
-    `INSERT INTO posts (id, hospital_id, board_type, author_id, title, content, target_name,
+    `INSERT INTO posts (id, hospital_id, board_type, author_id, posted_as_id, title, content, target_name,
       is_anonymous, is_pinned, mistake_category, severity, resolution_status)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
-    id, user.hospitalId, b.board_type, user.id, b.title, b.content || '', b.target_name || '',
-    b.is_anonymous ? 1 : 0, pinned, mistakeCat, severity, resolution
+    id, user.hospitalId, b.board_type, user.id, postedAsId, b.title, b.content || '', b.target_name || '',
+    isAnon ? 1 : 0, pinned, mistakeCat, severity, resolution
   ).run()
   return c.json({ id })
 })

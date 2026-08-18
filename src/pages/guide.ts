@@ -296,7 +296,7 @@ ${GUIDE_HEAD}
       </div>
       <div class="menu-card">
         <div class="mh">💬 커뮤니티</div>
-        <div class="mi">자유게시판 · 칭찬하기 · 실수노트(자진신고) · 피드백 노트(학습자산)</div>
+        <div class="mi">자유게시판 · 칭찬하기 · 실수노트(완전 익명) · 피드백 노트(학습자산)</div>
       </div>
       <div class="menu-card">
         <div class="mh">📚 지식/네트워크</div>

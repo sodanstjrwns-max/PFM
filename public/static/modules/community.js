@@ -20,7 +20,7 @@ function formatBoardDate(dateStr) {
 }
 
 async function renderCommunity(body, actions, boardType) {
-  const labels = { notice:'공지사항', free:'자유게시판', praise:'칭찬하기', mistake:'실수노트 (이실직고)' };
+  const labels = { notice:'공지사항', free:'자유게시판', praise:'칭찬하기', mistake:'실수노트 (완전 익명)' };
   const emojis = { notice:'📢', free:'💬', praise:'💛', mistake:'📝' };
 
   // 🎨 렌더 스타일: 모든 게시판 테이블형 통일 (일관성 + 정보 밀도)
@@ -200,16 +200,29 @@ async function renderCommunity(body, actions, boardType) {
 
   loadPosts();
 
-  document.getElementById('addPostBtn').addEventListener('click', () => {
+  document.getElementById('addPostBtn').addEventListener('click', async () => {
     const modal = document.getElementById('modalContent');
+    const isMistake = boardType === 'mistake';
+    // 병원은 컴퓨터마다 로그인 계정이 다르다 → 실제 글쓴 사람을 직접 고르게 한다.
+    // 단, 실수노트는 게시자 개념 자체가 없다(완전 익명) — 선택 UI를 아예 안 보여준다.
+    let authorOptions = '';
+    if (!isMistake) {
+      try {
+        const staff = await api('/api/protected/posts/authors');
+        const list = Array.isArray(staff) ? staff : [];
+        authorOptions = list.map(s => `<option value="${esc(s.id)}" ${s.id===state.user?.id?'selected':''}>${esc(s.name)}${s.position?' · '+esc(s.position):''}</option>`).join('');
+      } catch(e) { /* 실패해도 글쓰기는 계속 진행 (본인 명의로 폴백) */ }
+    }
     modal.innerHTML = `
       <div class="modal-header"><h3>${emojis[boardType]} ${labels[boardType]} 글쓰기</h3><button class="btn-icon" id="modalClose">${ICONS.close}</button></div>
       <div class="modal-body">
         <form class="auth-form">
+          ${!isMistake ? `<div class="form-group"><label>게시자</label><select class="form-input" id="postAuthor">${authorOptions}</select>
+            <small style="color:var(--text-muted)">💡 공용 컴퓨터 로그인과 실제 작성자가 다를 수 있어 직접 선택합니다</small></div>` : ''}
           ${boardType==='praise' ? `<div class="form-group"><label>칭찬 대상</label><input class="form-input" id="postTarget" placeholder="칭찬할 동료 이름"></div>` : ''}
-          <div class="form-group"><label>제목</label><input class="form-input" id="postTitle" placeholder="${boardType==='praise'?'어떤 점이 좋았나요?':boardType==='mistake'?'어떤 실수가 있었나요?':'제목'}"></div>
-          <div class="form-group"><label>내용</label><textarea class="form-input" id="postContent" rows="5" placeholder="${boardType==='mistake'?'실수 내용과 개선 방안을 적어주세요. 솔직한 이실직고가 팀을 성장시킵니다!':'내용을 입력하세요'}"></textarea></div>
-          ${boardType==='mistake' ? `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer"><input type="checkbox" id="postAnon"> 익명으로 작성</label>` : ''}
+          <div class="form-group"><label>제목</label><input class="form-input" id="postTitle" placeholder="${boardType==='praise'?'어떤 점이 좋았나요?':isMistake?'어떤 실수가 있었나요?':'제목'}"></div>
+          <div class="form-group"><label>내용</label><textarea class="form-input" id="postContent" rows="5" placeholder="${isMistake?'실수 내용과 개선 방안을 적어주세요. 이 게시판은 누가 썼는지 절대 표시되지 않는 완전 익명 게시판입니다.':'내용을 입력하세요'}"></textarea></div>
+          ${isMistake ? `<div style="font-size:12px;color:var(--text-muted);background:#f8fafc;border-radius:8px;padding:8px 10px">🔒 실수노트는 <b>완전 익명</b>입니다. 작성자 정보가 저장·표시되지 않으니 게시자를 고를 필요가 없어요.</div>` : ''}
         </form>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" id="modalCancelBtn">취소</button><button class="btn btn-primary" id="postSubmitBtn">등록</button></div>`;
@@ -227,7 +240,7 @@ async function renderCommunity(body, actions, boardType) {
           title: title,
           content: document.getElementById('postContent').value,
           target_name: document.getElementById('postTarget')?.value || '',
-          is_anonymous: document.getElementById('postAnon')?.checked || false,
+          posted_as_id: document.getElementById('postAuthor')?.value || '',
         }});
         toast('등록되었습니다!', 'success');
         closeModal(); loadPosts();
