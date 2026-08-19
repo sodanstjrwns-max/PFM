@@ -89,7 +89,8 @@ billing.post('/subscribe', requireRole('admin'), async (c) => {
   if (!sub) return c.json({ error: '구독 정보가 없습니다' }, 404)
   if (!sub.toss_billing_key) return c.json({ error: '먼저 결제 카드를 등록해주세요', reason: 'no_billing_key' }, 400)
 
-  const amount = yearly ? plan.yearlyMonthly * 12 : plan.monthlyPrice
+  // v5.12: 연납 = "2개월 무료"(10개월치 선결제) 방식. 15%식 할인율이 아니라 monthlyPrice*10 이 실제 청구액.
+  const amount = yearly ? plan.monthlyPrice * 10 : plan.monthlyPrice
   const orderId = `pfm_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`
   const orderName = `Patient Funnel OS ${plan.name} (${yearly ? '연간' : '월간'})`
 

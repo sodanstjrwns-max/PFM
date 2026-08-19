@@ -305,13 +305,17 @@ app.get('/survey/:token', (c) => {
   return c.html(getSurveyHTML())
 })
 
-/* ═══ v5.9 공개 페이지: 요금제 랜딩 + 약관/방침/SLA ═══ */
+/* ═══ v5.9 공개 페이지: 요금제 랜딩 + 약관/방침/환불/SLA ═══ */
 app.get('/pricing', (c) => c.html(getPricingHTML()))
 app.get('/legal/:doc', (c) => {
   const doc = c.req.param('doc')
-  if (!['privacy', 'terms', 'sla'].includes(doc)) return c.notFound()
-  return c.html(getLegalHTML(doc as 'privacy' | 'terms' | 'sla'))
+  if (!['privacy', 'terms', 'sla', 'refund'].includes(doc)) return c.notFound()
+  return c.html(getLegalHTML(doc as 'privacy' | 'terms' | 'sla' | 'refund'))
 })
+/* v5.14: 전자상거래법/PG 심사 표준 경로 — /terms, /privacy, /refund 는 기존 /legal/* 로 301 리다이렉트 */
+app.get('/terms', (c) => c.redirect('/legal/terms', 301))
+app.get('/privacy', (c) => c.redirect('/legal/privacy', 301))
+app.get('/refund', (c) => c.redirect('/legal/refund', 301))
 
 /* ═══ v5.13 공개 페이지: 서비스 소개 + 사용법 가이드 (로그인 불필요) ═══ */
 app.get('/guide', (c) => c.html(getGuideHTML()))

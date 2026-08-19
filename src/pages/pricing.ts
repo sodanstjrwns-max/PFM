@@ -24,13 +24,28 @@ const BASE_HEAD = `
   footer.site a:hover { color:var(--teal); }
 </style>`
 
+/* 사업자정보 푸터 — 사업자등록증(2026-07-14) · 통신판매업신고증(제2024-서울강남-03817호) 기준.
+ * ⚠️ 통신판매업신고 상호가 「덴탈퍼널」로 남아있어 상호 불일치 상태. 정부24 변경신고(상호변경) 완료 전까지는
+ * 이 신고번호를 그대로 게시하되, 문의 시 변경신고 접수증으로 소명한다. */
+const BIZ_FOOTER = `
+  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
+    상호: 페이션트퍼널 · 대표: 문석준 · 사업자등록번호: 469-01-03014 · 통신판매업신고: 제2024-서울강남-03817호<br>
+    주소: 서울특별시 강남구 영동대로 602, 6층 z208 (삼성동, 삼성동 미켈란 107) · 연락처: 010-5832-3372 · 이메일: sodanstjrwns@naver.com<br>
+    호스팅: Cloudflare, Inc. · <a href="/legal/terms" style="color:#94a3b8;text-decoration:underline">이용약관</a> · <a href="/legal/privacy" style="color:#94a3b8;text-decoration:underline">개인정보처리방침</a> · <a href="/legal/refund" style="color:#94a3b8;text-decoration:underline">환불규정</a>
+  </div>`
+
+/* guide.ts 등 다른 공개 페이지에서도 동일한 사업자정보 푸터를 재사용하기 위한 export */
+export function getBizFooterHTML(): string {
+  return BIZ_FOOTER
+}
+
 export function getPricingHTML(): string {
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
 ${BASE_HEAD}
 <title>요금제 - Patient Funnel OS | 환자를 팬으로 만드는 병원경영 시스템</title>
-<meta name="description" content="Patient Funnel OS 요금제. 14일 무료 체험, 월 19.9만원부터. 6,000명 대표원장이 검증한 10단계 환자 퍼널 시스템.">
+<meta name="description" content="Patient Funnel OS 요금제. 14일 무료 체험, 월 19만원부터. 6,000명 대표원장이 검증한 10단계 환자 퍼널 시스템.">
 <meta property="og:title" content="Patient Funnel OS 요금제 — 14일 무료 체험">
 <meta property="og:description" content="환자 퍼널 CRM + HR + 리뷰관리 올인원. 월 6천만에서 연 120억까지의 노하우를 담은 시스템.">
 <style>
@@ -102,15 +117,15 @@ ${BASE_HEAD}
   <div class="billing-toggle" id="billing-toggle">
     <button type="button" id="btnMonthly" class="active">월간 결제</button>
     <button type="button" id="btnYearly">연간 결제</button>
-    <span class="save-badge">연납 시 15% 할인</span>
+    <span class="save-badge">연납 시 2개월 무료</span>
   </div>
 
   <section class="plans" id="plans-grid">
     <article class="plan" id="plan-starter">
       <h3>Starter</h3>
-      <p class="target">직원 10인 이하 · 개원 초기 병원</p>
-      <div class="price"><b data-monthly="19.9" data-yearly="16.9">19.9</b><span>만원 / 월</span></div>
-      <p class="price-note" data-yearly-note="연 202.8만원 (매월 16.9만)"></p>
+      <p class="target">직원 15인 이하 · 개원 초기 병원</p>
+      <div class="price"><b data-monthly="19" data-yearly="15.8">19</b><span>만원 / 월</span></div>
+      <p class="price-note" data-yearly-note="연 190만원 선결제 (2개월 무료, 매월 15.8만 상당)"></p>
       <ul>
         <li>환자 퍼널 CRM (10단계 여정)</li>
         <li>경영 대시보드 + KPI</li>
@@ -124,9 +139,9 @@ ${BASE_HEAD}
     <article class="plan featured" id="plan-growth">
       <span class="flag">⭐ 가장 인기</span>
       <h3>Growth</h3>
-      <p class="target">직원 11~30인 · 성장기 병원</p>
-      <div class="price"><b data-monthly="39.9" data-yearly="33.9">39.9</b><span>만원 / 월</span></div>
-      <p class="price-note" data-yearly-note="연 406.8만원 (매월 33.9만)"></p>
+      <p class="target">직원 16~30인 · 성장기 병원</p>
+      <div class="price"><b data-monthly="39" data-yearly="32.5">39</b><span>만원 / 월</span></div>
+      <p class="price-note" data-yearly-note="연 390만원 선결제 (2개월 무료, 매월 32.5만 상당)"></p>
       <ul>
         <li>Starter 전 기능</li>
         <li>HR / 근태 / 연차 관리</li>
@@ -142,8 +157,8 @@ ${BASE_HEAD}
     <article class="plan" id="plan-enterprise">
       <h3>Enterprise</h3>
       <p class="target">다지점 · 직원 30인 이상</p>
-      <div class="price"><b data-monthly="79.9" data-yearly="67.9">79.9</b><span>만원~ / 월</span></div>
-      <p class="price-note" data-yearly-note="연납 계약 시 협의"></p>
+      <div class="price"><b data-monthly="69" data-yearly="57.5">69</b><span>만원~ / 월</span></div>
+      <p class="price-note" data-yearly-note="연 690만원 선결제 (2개월 무료, 매월 57.5만 상당)"></p>
       <ul>
         <li>Growth 전 기능</li>
         <li>다지점 통합 관리</li>
@@ -152,7 +167,7 @@ ${BASE_HEAD}
         <li>SLA 99.9% 보장</li>
         <li>우선 기술 지원</li>
       </ul>
-      <a class="cta ghost" href="mailto:contact@patientfunnel.kr?subject=Enterprise%20도입%20문의">도입 문의</a>
+      <a class="cta ghost" href="mailto:sodanstjrwns@naver.com?subject=Enterprise%20도입%20문의">도입 문의</a>
     </article>
   </section>
 
@@ -161,7 +176,7 @@ ${BASE_HEAD}
   <section class="founding-banner" id="founding-banner">
     <h3>🎉 페이션트 퍼널 교육 수강생이신가요?</h3>
     <p>수강생 전용 파운딩 멤버 혜택이 준비되어 있습니다. 교육 이수 이메일로 문의해주세요.</p>
-    <a href="mailto:contact@patientfunnel.kr?subject=수강생%20파운딩%20멤버%20문의">수강생 혜택 확인하기</a>
+    <a href="mailto:sodanstjrwns@naver.com?subject=수강생%20파운딩%20멤버%20문의">수강생 혜택 확인하기</a>
   </section>
 
   <section class="faq" id="pricing-faq">
@@ -170,7 +185,7 @@ ${BASE_HEAD}
     <div class="faq-item"><h4>기존 차트 프로그램(덴트웹, 원클릭 등)과 함께 쓸 수 있나요?</h4><p>네. Patient Funnel OS는 보험청구/전자차트를 대체하는 것이 아니라, 그 위에 '환자 여정 설계와 경영 관리'를 얹는 시스템입니다. 기존 프로그램과 병행 사용을 전제로 설계되었습니다.</p></div>
     <div class="faq-item"><h4>직원 수가 플랜 기준을 넘으면요?</h4><p>초과 시점에 상위 플랜 안내를 드리며, 즉시 차단되지 않습니다. 월 중 변경 시 일할 계산으로 정산됩니다.</p></div>
     <div class="faq-item"><h4>환자 데이터는 안전한가요?</h4><p>모든 데이터는 병원별로 완전히 분리 저장되며, 전 구간 HTTPS 암호화, 역할 기반 접근 제어, 전 기능 감사 로그를 갖추고 있습니다. 자세한 내용은 <a href="/legal/privacy">개인정보 처리방침</a>을 확인하세요.</p></div>
-    <div class="faq-item"><h4>해지하면 위약금이 있나요?</h4><p>월간 결제는 위약금이 없으며 언제든 해지 가능합니다. 해지 후에도 현재 결제 주기 종료일까지 이용하실 수 있습니다.</p></div>
+    <div class="faq-item"><h4>해지하면 위약금이 있나요?</h4><p>월간 결제는 위약금이 없으며 언제든 해지 가능합니다. 해지 후에도 현재 결제 주기 종료일까지 이용하실 수 있습니다. 자세한 조건은 <a href="/legal/refund">환불규정</a>을 확인하세요.</p></div>
   </section>
 </main>
 
@@ -181,13 +196,11 @@ ${BASE_HEAD}
       <a href="/guide">서비스 소개·사용법</a>
       <a href="/legal/terms">이용약관</a>
       <a href="/legal/privacy">개인정보 처리방침</a>
+      <a href="/legal/refund">환불규정</a>
       <a href="/legal/sla">서비스 수준 협약(SLA)</a>
     </div>
   </div>
-  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
-    상호: 페이션트 퍼널(Patient Funnel) · 대표: 문석준 · 사업자등록번호: 등록 준비중 · 통신판매업 신고: 준비중<br>
-    이메일: contact@patientfunnel.kr · 고객지원: 평일 10:00–18:00 (주말·공휴일 휴무)
-  </div>
+${BIZ_FOOTER}
 </footer>
 <script src="/static/pricing.js"></script>
 </body>
@@ -195,7 +208,7 @@ ${BASE_HEAD}
 }
 
 /* ─── 법적 문서 ─── */
-const LEGAL_DOCS: Record<'privacy' | 'terms' | 'sla', { title: string; body: string }> = {
+const LEGAL_DOCS: Record<'privacy' | 'terms' | 'sla' | 'refund', { title: string; body: string }> = {
   privacy: {
     title: '개인정보 처리방침',
     body: `
@@ -253,7 +266,7 @@ const LEGAL_DOCS: Record<'privacy' | 'terms' | 'sla', { title: string; body: str
 </ul>
 
 <h3>8. 개인정보 보호책임자</h3>
-<p>성명: 문석준 · 직책: 대표 · 문의: contact@patientfunnel.kr</p>
+<p>성명: 문석준 · 직책: 대표 · 문의: sodanstjrwns@naver.com</p>
 
 <h3>9. 방침 변경</h3>
 <p>본 방침이 변경되는 경우 시행 7일 전 서비스 내 공지합니다.</p>`,
@@ -356,11 +369,37 @@ const LEGAL_DOCS: Record<'privacy' | 'terms' | 'sla', { title: string; body: str
 </ul>
 
 <h3>6. 문의</h3>
-<p>SLA 관련 문의 및 크레딧 신청: contact@patientfunnel.kr</p>`,
+<p>SLA 관련 문의 및 크레딧 신청: sodanstjrwns@naver.com</p>`,
+  },
+  refund: {
+    title: '환불규정',
+    body: `
+<h2>환불규정</h2>
+<p class="updated">시행일: 2026년 8월 20일 · 버전 1.0</p>
+
+<h3>1. 구독형 서비스(SaaS) 환불</h3>
+<ul>
+<li><b>결제 후 7일 이내, 서비스 미사용 시:</b> 전액 환불합니다.</li>
+<li><b>결제 후 7일 경과 또는 서비스 사용 개시 후:</b> 사용 기간을 일할 계산하여 잔여 금액을 환불합니다.</li>
+<li><b>월간 결제:</b> 해지 시 위약금은 없으며, 이미 납부한 당월 요금은 환불되지 않고 결제 주기 종료일까지 이용하실 수 있습니다.</li>
+<li><b>연간 결제(2개월 무료 혜택 적용):</b> 중도 해지 시 무료로 제공된 개월 수를 제외한 실사용 개월분을 월 정가(할인 미적용가) 기준으로 정산한 뒤, 선결제 금액과의 차액을 환불합니다.</li>
+</ul>
+
+<h3>2. 무료 체험</h3>
+<p>14일 무료 체험 기간 중에는 결제 자체가 발생하지 않으므로 환불 대상이 아닙니다. 체험 종료 후 유료 전환 시점부터 위 SaaS 환불 규정이 적용됩니다.</p>
+
+<h3>3. 환불 신청 방법</h3>
+<p>서비스 내 설정 &gt; 구독 관리 화면 또는 이메일(sodanstjrwns@naver.com)로 환불을 신청하실 수 있습니다. 신청 접수 후 영업일 기준 7일 이내 결제 수단으로 환불 처리됩니다.</p>
+
+<h3>4. 예외 사항</h3>
+<p>고객의 약관 위반(부정 이용, 재판매, 역설계 등)으로 인한 서비스 이용 제한·해지의 경우 환불이 제한될 수 있습니다.</p>
+
+<h3>5. 문의</h3>
+<p>환불 관련 문의: sodanstjrwns@naver.com · 010-5832-3372</p>`,
   },
 }
 
-export function getLegalHTML(doc: 'privacy' | 'terms' | 'sla'): string {
+export function getLegalHTML(doc: 'privacy' | 'terms' | 'sla' | 'refund'): string {
   const d = LEGAL_DOCS[doc]
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -396,13 +435,11 @@ ${BASE_HEAD}
     <div>
       <a href="/legal/terms">이용약관</a>
       <a href="/legal/privacy">개인정보 처리방침</a>
+      <a href="/legal/refund">환불규정</a>
       <a href="/legal/sla">SLA</a>
     </div>
   </div>
-  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
-    상호: 페이션트 퍼널(Patient Funnel) · 대표: 문석준 · 사업자등록번호: 등록 준비중 · 통신판매업 신고: 준비중<br>
-    이메일: contact@patientfunnel.kr · 고객지원: 평일 10:00–18:00 (주말·공휴일 휴무)
-  </div>
+${BIZ_FOOTER}
 </footer>
 </body>
 </html>`

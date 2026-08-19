@@ -946,7 +946,7 @@ async function renderSubscription() {
   `;
 
   document.getElementById('subContactBtn')?.addEventListener('click', () => {
-    location.href = 'mailto:contact@patientfunnel.kr?subject=Patient%20Funnel%20OS%20도입%20문의';
+    location.href = 'mailto:sodanstjrwns@naver.com?subject=Patient%20Funnel%20OS%20도입%20문의';
   });
   document.getElementById('subUpgradeBtn')?.addEventListener('click', () => {
     toast('요금제 페이지에서 플랜을 선택한 뒤 도입 문의를 남겨주세요. 카드 자동결제는 공식 오픈 시 활성화됩니다.', 'info');

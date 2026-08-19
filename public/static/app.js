@@ -169,7 +169,7 @@ function showTrialExpiredOverlay() {
       </p>
       <a href="/pricing" class="btn btn-primary btn-lg" style="display:block;text-decoration:none;margin-bottom:10px">💳 요금제 보기 & 구독하기</a>
       <button class="btn" id="trialExpSettings" style="width:100%">⚙️ 설정에서 결제 관리</button>
-      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8">문의: contact@patientfunnel.kr</p>
+      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8">문의: sodanstjrwns@naver.com</p>
     </div>`;
   document.body.appendChild(ov);
   const btn = document.getElementById('trialExpSettings');

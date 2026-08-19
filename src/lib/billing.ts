@@ -1,10 +1,11 @@
 /* ═══ v5.9.0 판매 준비 패키지: 플랜 카탈로그 + 토스페이먼츠 빌링 헬퍼 ═══
  *
- * 가격 정책 (2026-07 시장 조사 기반):
- *  - Starter  19.9만/월 : 직원 10인 이하 — 퍼널 CRM + 대시보드 + 리뷰관리
- *  - Growth   39.9만/월 : 직원 30인 이하 — 전 기능 (HR/근태/회의/피드백/감사로그)
- *  - Enterprise 협의     : 다지점/30인+ — 전담 온보딩 + 커스텀
+ * 가격 정책 (2026-08-19 최종본 기준):
+ *  - Starter  19만/월 : 직원 15인 이하 — 퍼널 CRM + 대시보드 + 리뷰관리
+ *  - Growth   39만/월 : 직원 30인 이하 — 전 기능 (HR/근태/회의/피드백/감사로그)
+ *  - Enterprise 69만/월 : 다지점/30인+ — 전담 온보딩 + 커스텀
  *  - Founding  0원       : 기존 가입 병원 백필 (파운딩 멤버, 무기한)
+ *  - 연납: 15% 할인 방식 폐지 → 2개월 무료(10개월치 선결제) 방식으로 통일
  *
  * 토스페이먼츠 자동결제(빌링) 흐름:
  *  1. 프론트: 토스 SDK requestBillingAuth() → successUrl 로 authKey 리다이렉트
@@ -20,17 +21,17 @@ export const PLANS: Record<PlanId, {
   maxStaff: number | null; features: string[]; public: boolean
 }> = {
   starter: {
-    id: 'starter', name: 'Starter', monthlyPrice: 199000, yearlyMonthly: 169000,
-    maxStaff: 10, public: true,
+    id: 'starter', name: 'Starter', monthlyPrice: 190000, yearlyMonthly: 158333,
+    maxStaff: 15, public: true,
     features: ['환자 퍼널 CRM (10단계 여정)', '경영 대시보드 + KPI', '리뷰 통합 관리', '콜/상담 기록', '일일 브리핑'],
   },
   growth: {
-    id: 'growth', name: 'Growth', monthlyPrice: 399000, yearlyMonthly: 339000,
+    id: 'growth', name: 'Growth', monthlyPrice: 390000, yearlyMonthly: 325000,
     maxStaff: 30, public: true,
     features: ['Starter 전 기능', 'HR/근태/연차 관리', '회의·피드백 시스템', '원내 메신저 + 환자 채팅', 'AI 인사이트', '감사 로그 (컴플라이언스)', '페이션트 인덱스'],
   },
   enterprise: {
-    id: 'enterprise', name: 'Enterprise', monthlyPrice: 799000, yearlyMonthly: 679000,
+    id: 'enterprise', name: 'Enterprise', monthlyPrice: 690000, yearlyMonthly: 575000,
     maxStaff: null, public: true,
     features: ['Growth 전 기능', '다지점 통합 관리', '전담 온보딩 매니저', '커스텀 기능 개발', 'SLA 99.9% 보장', '우선 기술 지원'],
   },

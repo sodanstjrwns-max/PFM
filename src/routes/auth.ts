@@ -240,7 +240,7 @@ auth.post('/forgot-password', async (c) => {
 
   // 이메일 발송 인프라 자체가 없으면 명확히 안내 (설정 전 임시)
   if (!c.env.RESEND_API_KEY) {
-    return c.json({ error: '자동 재설정이 아직 준비되지 않았습니다. contact@patientfunnel.kr 로 가입 이메일·병원명을 보내주시면 1영업일 내 처리해드립니다.' }, 503)
+    return c.json({ error: '자동 재설정이 아직 준비되지 않았습니다. sodanstjrwns@naver.com 로 가입 이메일·병원명을 보내주시면 1영업일 내 처리해드립니다.' }, 503)
   }
 
   const user: any = await c.env.DB.prepare('SELECT id, name, email, hospital_id FROM users WHERE email=? AND is_active=1').bind(sanitizeString(email, 200)).first()
@@ -263,7 +263,7 @@ auth.post('/forgot-password', async (c) => {
   const sent = await sendEmail(c.env, user.email, '[Patient Funnel] 비밀번호 재설정', passwordResetEmailHTML(user.name || '', resetUrl))
   if (!sent.ok) {
     console.error('[forgot-password] email send failed:', sent.reason)
-    return c.json({ error: '메일 발송에 실패했습니다. 잠시 후 다시 시도하거나 contact@patientfunnel.kr 로 문의해주세요.' }, 502)
+    return c.json({ error: '메일 발송에 실패했습니다. 잠시 후 다시 시도하거나 sodanstjrwns@naver.com 로 문의해주세요.' }, 502)
   }
   writeAudit(c.env.DB, { hospitalId: user.hospital_id || '-', actorId: user.id, actorName: user.name || '', action: 'auth.password_reset_request' as any, targetType: 'user', targetId: user.id, summary: '비밀번호 재설정 메일 발송', metadata: { ip } }).catch(() => {})
   return c.json(genericOk)

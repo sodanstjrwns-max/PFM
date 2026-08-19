@@ -3,6 +3,7 @@
  * 목적: 서비스를 처음 보는 사람(원장/직원/잠재 고객)이 로그인 없이도
  *       "이게 뭐 하는 서비스인지 + 어떻게 쓰는지"를 한 페이지에서 파악.
  */
+import { getBizFooterHTML } from './pricing'
 
 const GUIDE_HEAD = `
 <meta charset="UTF-8">
@@ -364,13 +365,11 @@ ${GUIDE_HEAD}
       <a href="/pricing">요금제</a>
       <a href="/legal/terms">이용약관</a>
       <a href="/legal/privacy">개인정보 처리방침</a>
+      <a href="/legal/refund">환불규정</a>
       <a href="/legal/sla">SLA</a>
     </div>
   </div>
-  <div class="container" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;line-height:1.7;color:#94a3b8;display:block">
-    상호: 페이션트 퍼널(Patient Funnel) · 대표: 문석준 · 사업자등록번호: 등록 준비중 · 통신판매업 신고: 준비중<br>
-    이메일: contact@patientfunnel.kr · 고객지원: 평일 10:00–18:00 (주말·공휴일 휴무)
-  </div>
+${getBizFooterHTML()}
 </footer>
 </body>
 </html>`
