@@ -14,10 +14,14 @@ export type Bindings = {
   // ─── v5.10 이메일 발송 (Resend) ───
   RESEND_API_KEY?: string             // Resend API 키 (미설정 시 비밀번호 재설정 503 안내)
   EMAIL_FROM?: string                 // 발신 주소 (기본: noreply@patientfunnel.kr)
+  // ─── Patient Series 통합 (Open API v1) ───
+  PS_SERVICE_KEY?: string             // PS 공급자 API 인증 키 (미설정 시 /api/v1/* 전체 404)
+  PS_HOSPITAL_MAP?: string            // 전역ID=로컬ID 콤마 구분 매핑 (파일럿, 예: "bdd-001=abc123")
 }
 
 export type Variables = {
   user?: UserPayload
+  psHospitalId?: string                // Patient Series 통합 (/api/v1/*) — 매핑된 PFM 내부 hospital_id
 }
 
 export type UserPayload = {

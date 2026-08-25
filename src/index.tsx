@@ -34,6 +34,7 @@ import manualsRoute from './routes/manuals'
 import referralsRoute from './routes/referrals'
 import aiRoute from './routes/ai'
 import billing, { billingPublic } from './routes/billing'
+import psRoute from './routes/ps'
 import { getPricingHTML, getLegalHTML } from './pages/pricing'
 import { getGuideHTML } from './pages/guide'
 
@@ -215,6 +216,7 @@ app.route('/api/protected/manuals', manualsRoute)      // 병원 매뉴얼 (업�
 app.route('/api/protected/referrals', referralsRoute)  // 소개 트리 시스템 + 팬 등급 자동 분류
 app.route('/api/protected/ai', aiRoute)                // v5.4 AI 인사이트 (상담 분석/환자 LTV/벤치마크)
 app.route('/api/protected/billing', billing)           // v5.9 구독/결제 (토스페이먼츠)
+app.route('/api/v1', psRoute)                          // Patient Series 통합 — 공급자 Open API (PS_SERVICE_KEY 미설정 시 404)
 
 /* ═══ API Version Alias (#20) ═══ */
 // /api/v1/* → /api/* alias for future versioning readiness
