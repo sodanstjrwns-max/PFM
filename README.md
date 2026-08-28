@@ -1,4 +1,42 @@
-# Patient Funnel OS
+# Patient Funnel OS (patient-funnel-manager)
+
+## 🌐 배포 정보
+- **Production URL**: https://pfm.kr (커스텀 도메인) / https://patient-funnel-manager.pages.dev
+- **Cloudflare Pages 프로젝트명**: `patient-funnel-manager`
+- **배포 명령**:
+  ```bash
+  npm run build
+  npx wrangler pages deploy dist --project-name patient-funnel-manager --branch main
+  ```
+- **마이그레이션 적용(프로덕션)**: `npx wrangler d1 migrations apply pfm-production --remote`
+
+## 🔑 필요한 시크릿 (Cloudflare Pages → Settings → Environment variables)
+값은 이 저장소 어디에도 저장하지 않는다. `wrangler pages secret put <NAME> --project-name patient-funnel-manager`로 개별 등록.
+
+| 이름 | 용도 | 필수 여부 |
+|---|---|---|
+| `JWT_SECRET` | 사용자 인증 JWT 서명 | 필수 |
+| `CRON_SECRET` | `/api/cron/tick` 인증 | 필수 |
+| `TOSS_SECRET_KEY` | 토스페이먼츠 결제 시크릿 키 | 결제 기능 사용 시 필수 |
+| `TOSS_CLIENT_KEY` | 토스페이먼츠 클라이언트 키 | 결제 기능 사용 시 필수 |
+| `RESEND_API_KEY` | 이메일 발송(Resend) | 선택 |
+| `EMAIL_FROM` | 발신 이메일 주소 | 선택 |
+| `OPENAI_API_KEY` | AI 기능(있는 경우) | 선택 |
+| `ALLOWED_ORIGINS` | CORS 허용 origin 목록 | 선택 |
+| `PS_SERVICE_KEY` | Patient Series 통합 공급자 API 인증 키. **미설정 시 `/api/v1/*` 전체 404** (fail-closed) | PS 통합 사용 시 필수 |
+| `PS_HOSPITAL_MAP` | PS 통합 파일럿 매핑, 형식: `전역ID=로컬hospital_id` 콤마 구분 (예: `bdd-001=34653f75-...`) | PS 통합 사용 시 필수 |
+
+## 🔗 Patient Series(PS) 통합 상태
+이 서비스는 Patient Series Open API v1의 **공급자(Provider)** 로 동작한다. 소비(Consumer) 역할은 없음.
+
+- **공급 엔드포인트** (인증: `Authorization: Bearer {PS_SERVICE_KEY}` + `X-PS-Hospital-Id: {전역ID}` 헤더, 소스: `src/routes/ps.ts`)
+  - `GET /api/v1/funnel` — 10단계 퍼널 스냅샷 `{ stages: [{key,label,count,rate}], as_of }`
+  - `GET /api/v1/signals?since=` — 단계별 전환율 급락 신호 (데이터 부족 시 빈 배열)
+- **인증 미들웨어**: `src/routes/ps.ts` 상단 `ps.use('/*', ...)` — `PS_SERVICE_KEY` 미설정 시 404, 불일치 시 401, 병원ID 미매핑 시 404
+- **로직 위치**: `src/lib/ps-funnel.ts` (기존 `src/routes/funnel.ts`의 `GET /score`와 동일한 실측 카운트 방식을 독립적으로 재구현 — 회귀 위험 차단을 위해 의도적 복제, 리팩터링 아님)
+- **소비 측**: `patient-hub` 프로젝트가 `PFM_API_URL` + `PFM_API_KEY` 시크릿으로 위 엔드포인트를 호출
+
+---
 
 > 페이션트 퍼널 운영체제 — 병원 경영 분석/AI 플랫폼
 > (※ v5.5.0에서 도입되었던 원내 메신저 기능, 주차권 관리 기능, 분석/KPI·마케팅 메뉴 그룹(KPI 대시보드/주간 인사이트/KPI 통계/벤치마킹/일간 기록/목표 설정/월간 보고서/유입 분석/유입 히트맵/리뷰 관리/만족도 설문/카카오 알림톡)은 이후 버전에서 완전히 제거되었습니다. 매출·마케팅 분석은 별도 SaaS를 사용하며, 전 직원이 함께 쓰는 플랫폼 성격에 맞춰 정리했습니다. 아래 히스토리는 과거 기록입니다.)
